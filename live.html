@@ -158,6 +158,7 @@ body.tt-blurred [data-tt]::after{opacity:0!important}
 .fillrm{background:none;border:none;color:var(--t3);font-size:16px;line-height:1;cursor:pointer;padding:0 4px}
 .fillrm:hover{color:var(--r)}
 .fillsummary{font-size:var(--fxs);color:var(--t2);margin-top:4px}
+.fillopennotice{margin-top:8px;padding:8px 10px;background:var(--abg);border:.5px solid var(--abd);border-radius:var(--rad);font-size:var(--fxs);color:var(--a);line-height:1.4}
 /* Rules checklist */
 .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 @media(max-width:540px){.rgrid{grid-template-columns:1fr}}
@@ -196,13 +197,12 @@ body.tt-blurred [data-tt]::after{opacity:0!important}
 .twrap{overflow-x:auto;border:.5px solid var(--bd);border-radius:var(--radl)}
 table{width:100%;border-collapse:collapse;font-size:var(--fsm)}
 thead tr{background:var(--s2);border-bottom:.5px solid var(--bd)}
-thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:left}
+thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:center}
 tbody tr.trow{border-bottom:.5px solid var(--bd);transition:background .1s;cursor:pointer}
 tbody tr.trow:last-child{border-bottom:none}
 tbody tr.trow:hover{background:var(--s2)}
 tr.exprow td{padding:0;border-bottom:.5px solid var(--bd)}
-td{padding:10px;vertical-align:middle;white-space:nowrap}
-.chev{width:18px;color:var(--t3);font-size:10px;text-align:center;white-space:nowrap}
+td{padding:10px;vertical-align:middle;white-space:nowrap;text-align:center}
 .mono{font-family:var(--mono)}
 .pill{display:inline-block;font-size:var(--fxs);padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap}
 .pwin{background:var(--gbg);color:var(--g);border:.5px solid var(--gbd)}
@@ -215,9 +215,9 @@ td{padding:10px;vertical-align:middle;white-space:nowrap}
 .exppanel{padding:16px 18px;background:var(--s2)}
 .expmeta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:var(--fsm);color:var(--t2);margin-bottom:12px;white-space:normal}
 .expmeta strong{color:var(--t3);font-weight:600}
-.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px}
+.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px;text-align:left}
 .expsub:first-of-type{margin-top:0}
-.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap}
+.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap;text-align:left}
 .expcols{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
 @media(max-width:640px){.expcols{grid-template-columns:1fr}}
 .explistrow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:.5px solid var(--bd);font-size:var(--fsm);color:var(--t2);white-space:normal}
@@ -287,6 +287,19 @@ textarea{width:100%;font-family:var(--sans);font-size:var(--fbase);padding:9px 1
 textarea:focus{border-color:var(--t3)}
 .seclab{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
 .delbtn{background:none;border:none;cursor:pointer;color:var(--t3);font-size:15px;padding:2px 5px;line-height:1;transition:color .1s}
+.rowactions{white-space:nowrap;width:1%;text-align:center}
+.rowactions-inner{display:inline-flex;align-items:center;gap:9px}
+.rowactions .delbtn{padding:2px 3px}
+/* Platform (Tradovate/NinjaTrader/Other) selector next to the save icon — kept
+   deliberately quiet/unlabeled: same footprint as the save button, smaller and
+   thinner type than the rest of the form's inputs, so it reads as a utility
+   toggle rather than a primary field. */
+.platformdd{height:16px;font-size:10px;font-weight:400;color:var(--t3);background:none;border:.5px solid var(--bdm);border-radius:5px;padding:0 4px;line-height:1;cursor:pointer;font-family:var(--sans)}
+.platformdd:hover{color:var(--t2);border-color:var(--t3)}
+/* Reversal detected inline prompt — shown under whichever fill flips the position */
+.revnotice{margin-top:8px;margin-bottom:8px;padding:8px 10px;background:var(--abg);border:.5px solid var(--abd);border-radius:var(--rad)}
+.revnotice-label{font-size:var(--fxs);color:var(--a);margin-bottom:6px;line-height:1.4}
+.revnotice select{height:30px;padding:4px 8px;font-family:var(--sans);font-size:var(--fbase);border:.5px solid var(--bdm);border-radius:var(--rad);background:var(--surface);color:var(--t)}
 .delbtn:hover{color:var(--r)}
 /* Good/Bad quadrant */
 .quad{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
@@ -390,8 +403,8 @@ thead th.sortable:hover{color:var(--t)}
 thead th.sortable.sorted{color:var(--t)}
 .sortarrow{color:var(--p);margin-left:3px}
 /* Fixed-width rules-score pill so trailing icons never shift with digit count */
-.spill{width:44px;justify-content:center}
-.rulesflex{display:flex;align-items:center;gap:5px}
+.spill{width:44px;justify-content:center;flex-shrink:0}
+.rulesflex{display:flex;align-items:center;justify-content:flex-start;gap:5px;text-align:left}
 /* Collapsible stats/equity-curve section (export summary) */
 details.statsdetails{margin-bottom:1.75rem}
 details.statsdetails>summary{cursor:pointer;list-style:none;user-select:none}
@@ -418,6 +431,10 @@ const RULES=[
   {id:"goal", text:"Not trading just to hit a daily $ goal"},
 ];
 const SETUPS=["Bounce","Reject","Break"];
+// Compact log-view abbreviations — full words are still used everywhere else
+// (add/edit form, filter dropdown menu). No tooltip: the shorthand alone is enough.
+const SETUP_ABBR={Bounce:"B",Reject:"R",Break:"Br"};
+function setupAbbr(s){return SETUP_ABBR[s]||s;}
 const LOSSCATS=[
   {id:"good", label:"Good Loss", hint:"Valid setup, correct execution and risk — it just didn't work."},
   {id:"exec", label:"Execution Loss", hint:"Idea was valid, execution was poor (early/late entry, oversized, moved stop)."},
@@ -671,20 +688,22 @@ function sortedTickers(){
 function tickerInfo(symbol){return TICKERS.find(t=>t.symbol===symbol)||null;}
 
 // ── Fees ──────────────────────────────────────────────────────────────────────
-// Two separate legs, both purely a trade-log data-entry concern — they only
-// ever feed into the per-trade `result` figure (see recomputeAutoResult()); no
-// dashboard/stat function reads either fee field directly, so P&L everywhere
-// downstream (dashboard, equity curve, exports) already comes out net without
-// needing separate wiring.
-//   · non-variable: commission + NFA fee + clearing fee, combined into one flat
-//     per-contract rate that's the same no matter what's traded.
-//   · variable: the exchange fee, which genuinely differs by instrument since
-//     futures list on different exchanges — kept as a plain manual field except
-//     for the couple of tickers with a known rate so far.
-const FEE_FIXED_PER_CONTRACT=0.60; // commission + NFA + clearing, combined, $/contract
-const FEE_VARIABLE_DEFAULTS={MNQ:0.35, MGC:0.60}; // $/contract exchange fee — add more as they're confirmed
+// A single per-side, per-contract total (exchange + NFA + clearing + commission
+// combined) keyed by platform then ticker. This purely feeds the per-trade
+// `fees`/`result` figures (see recomputeFees()/recomputeAutoResult()) — no
+// dashboard/stat function reads the rate table directly, so P&L everywhere
+// downstream (dashboard, equity curve, exports) already comes out net.
+// Tradovate's numbers are verified directly against real account statements.
+// NinjaTrader currently matches exactly (same parent company, unified Free-tier
+// pricing as of 2025) but is kept as its own table since the two have differed
+// before (and may again) — update independently if either changes.
+const FEE_RATES={
+  tradovate:  {MES:0.95, MNQ:0.95, M2K:0.95, MYM:0.95, ES:2.88, NQ:2.88, RTY:2.88, YM:2.88, MCL:1.10, CL:3.00, MGC:1.20, GC:3.10},
+  ninjatrader:{MES:0.95, MNQ:0.95, M2K:0.95, MYM:0.95, ES:2.88, NQ:2.88, RTY:2.88, YM:2.88, MCL:1.10, CL:3.00, MGC:1.20, GC:3.10}
+};
+const PLATFORMS=[{id:"tradovate",label:"Tradovate"},{id:"ninjatrader",label:"NinjaTrader"},{id:"other",label:"Other"}];
 
-let trades=[],reflections=[],dq=DQ_DEFAULT.map(d=>({...d})),tab="dashboard",showForm=false,editingDq=false,editingId=null,showRefForm=false,expandedIds=new Set();
+let trades=[],reflections=[],dq=DQ_DEFAULT.map(d=>({...d})),tab="dashboard",showForm=false,editingDq=false,editingId=null,showRefForm=false,expandedIds=new Set(),refCollapsedIds=new Set();
 let periodMode="week",periodAnchor=new Date(),customFrom="",customTo="";
 let logSort={col:"date",dir:"desc"};
 let logFilters={ticker:[],setup:[],wl:[],process:[],lossCat:[]}; // each value is an array — multi-select
@@ -703,8 +722,7 @@ let refSearchNavIndex=-1; // index of the currently-focused match, for prev/next
 let refSearchCurrentId=null; // id of the reflection the nav arrows are currently parked on (see logSearchCurrentId)
 let calendarCollapsed=false; // dashboard's calendar section collapse state
 let resultManual=false;
-let feeFixedManual=false;    // true once the person types directly into the non-variable fee field
-let feeVariableManual=false; // true once the person types directly into the variable (exchange) fee field
+let feesManual=false; // true once the person types directly into the fees field (or picks "Other" platform)
 let fillSeq=1;
 
 // form state — kept separate so inputs are never re-rendered while typing
@@ -713,11 +731,10 @@ let form=blank();
 function blank(){
   const ra={};RULES.forEach(r=>ra[r.id]=null);
   const dqa={};dq.forEach(d=>dqa[d.id]=false);
-  const first=sortedTickers()[0];
   resultManual=false;
-  feeFixedManual=false;feeVariableManual=false;
+  feesManual=false;
   fillSeq=2;
-  return{date:td(),entryTime:"10:00",exitTime:"10:00",multiDay:false,exitDate:"",ticker:first?first.symbol:"",setup:"Bounce",direction:"long",contracts:"1",entry:"",stop:"",target:"",exit:"",result:"",feeFixed:"",feeVariable:"",lossCat:"",comments:"",screenshots:[],
+  return{date:td(),entryTime:"10:00",exitTime:"10:00",multiDay:false,exitDate:"",ticker:"MNQ",setup:"Bounce",direction:"long",contracts:"1",entry:"",stop:"",target:"",exit:"",result:"",platform:"tradovate",fees:"",lossCat:"",comments:"",screenshots:[],
     fills:[{id:1,type:"add",price:"",contracts:"1",stop:"",target:""},{id:2,type:"exit",price:"",contracts:"1",stop:"",target:""}],
     ra,dqa};
 }
@@ -737,6 +754,17 @@ function save(){
   driveSaveAll();
 }
 function migrateTrade(t){
+  // Legacy trades used two fee fields (feeFixed + feeVariable). Collapse them into
+  // the single `fees` total. Platform is unknown for these older trades, so it's
+  // set to "other" (manual/fixed) rather than guessing Tradovate or NinjaTrader —
+  // that keeps the stored dollar amount from silently changing if the trade is
+  // later re-opened and the fee auto-recalculates against today's rate table.
+  let fees=t.fees;
+  if(fees===undefined){
+    const ff=parseFloat(t.feeFixed),fv=parseFloat(t.feeVariable);
+    const sum=(isNaN(ff)?0:ff)+(isNaN(fv)?0:fv);
+    fees=sum>0?sum.toFixed(2):"";
+  }
   return{
     ...t,
     ticker: t.ticker||"",
@@ -746,8 +774,8 @@ function migrateTrade(t){
     multiDay: !!t.multiDay,
     exitDate: t.exitDate||"",
     exit: t.exit!==undefined?t.exit:"",
-    feeFixed: t.feeFixed!==undefined?t.feeFixed:"",
-    feeVariable: t.feeVariable!==undefined?t.feeVariable:""
+    platform: t.platform||"other",
+    fees: fees
   };
 }
 function migrateReflection(r){
@@ -1711,7 +1739,11 @@ function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"
 function dispDate(s){if(!s)return"—";const p=s.split("-");if(p.length!==3)return s;return `${p[2]}/${p[1]}/${p[0].slice(2)}`;}
 function axisDate(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;return `${p[2]}/${p[1]}`;}
 function startOfWeek(d){const r=new Date(d);r.setHours(0,0,0,0);r.setDate(r.getDate()-r.getDay());return r;}
-function endOfWeek(d){const s=startOfWeek(d);const r=new Date(s);r.setDate(r.getDate()+6);r.setHours(23,59,59,999);return r;}
+// Trading week runs Sun–Fri (6 days), not Sun–Sat — there's no Saturday
+// session, so the period never includes it: the calendar grid stops one
+// column earlier and the equity curve's x-axis ends right at Friday
+// instead of leaving a trailing empty day.
+function endOfWeek(d){const s=startOfWeek(d);const r=new Date(s);r.setDate(r.getDate()+5);r.setHours(23,59,59,999);return r;}
 function startOfMonth(d){return new Date(d.getFullYear(),d.getMonth(),1);}
 function endOfMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0,23,59,59,999);}
 
@@ -1734,6 +1766,18 @@ function periodRange(){
     return{start:s,end:e,label:`${customFrom} to ${customTo}`};
   }
   return null;
+}
+// The equity curve's horizontal axis spans this same period when one is
+// active (Week/Month/Custom) — both boundaries truncated to their own
+// local midnight, since periodRange()'s end is deliberately end-of-day
+// (23:59:59.999) for trade filtering, but the chart wants whole-day
+// boundaries that line up with how trade dates themselves are positioned.
+// Returns null for "All" (and any other mode with no fixed period), which
+// tells the chart to fall back to the real trade span instead.
+function periodBoundsForChart(){
+  const r=periodRange();
+  if(!r)return null;
+  return{startT:dateToTime(ymd(r.start)),endT:dateToTime(ymd(r.end))};
 }
 function isCurrentPeriod(){
   if(periodMode==="week")return ymd(startOfWeek(periodAnchor))===ymd(startOfWeek(new Date()));
@@ -1833,7 +1877,15 @@ function enrich(t){
   const dqViol=dq.filter(d=>dqa[d.id]===true);
   const isGood=rs!==null?rs>=0.75:null;
   const durationMin=durationMinutes(t);
-  return{...t,direction,ti,riskPts,rewardPts,risk,reward,rr,realizedR,wl,rs,ac:ans.length,fc:fol.length,dqViol,dqViolCount:dqViol.length,isGood,durationMin};
+  const setups=tradeSetups(t); // unique setup tags across all segments, e.g. a reversal trade → ["Reject","Bounce"]
+  // Per-leg $ breakdown for reversal trades (e.g. Bounce leg + Break leg) — a
+  // single Entry/Exit pair can't represent multiple legs honestly, so this
+  // rides along on the enriched trade so both the live app's expanded row and
+  // the export's expanded row can render identical "Leg 1 ... Leg 2 ..." lines
+  // without each having to reimplement segment math themselves.
+  const segs=computeSegments(t.fills&&t.fills.length?t.fills:legacyFillsFor(t),direction,t.setup||"Bounce");
+  const segsDisplay=segs.length>1?segs.map(seg=>({direction:seg.direction,setup:seg.setup,dollars:segmentDollarResult(seg,ti)})):null;
+  return{...t,direction,ti,riskPts,rewardPts,risk,reward,rr,realizedR,wl,rs,ac:ans.length,fc:fol.length,dqViol,dqViolCount:dqViol.length,isGood,durationMin,setups,segsDisplay};
 }
 
 function calcStats(list){
@@ -1934,6 +1986,24 @@ function computeStreaks(list){
     else break;
   }
   return{maxWin,maxLoss,current,type};
+}
+// Flattens enriched trades into one record per *closed segment* rather than one
+// per trade, so a reversal trade (e.g. Reject leg + Bounce leg) correctly credits
+// each leg's own win/loss and $ to its own setup, instead of the whole trade's
+// blended result landing under only one setup.
+function segmentRecords(list){
+  const out=[];
+  list.forEach(t=>{
+    const fills=t.fills&&t.fills.length?t.fills:legacyFillsFor(t);
+    const segs=computeSegments(fills,t.direction||"long",t.setup||"Bounce");
+    segs.forEach(seg=>{
+      if(seg.closedQty<=0)return; // only realized legs count toward setup win-rate
+      const dollars=segmentDollarResult(seg,t.ti);
+      if(dollars===null)return;
+      out.push({setup:seg.setup,wl:dollars>0?"Win":dollars<0?"Loss":"BE",result:dollars});
+    });
+  });
+  return out;
 }
 function tickerBreakdown(list){
   const map={};
@@ -2047,14 +2117,160 @@ function niceAxis(dataMin,dataMax,targetTicks){
 // attributes equal to that same size. Because viewBox and intrinsic size are
 // identical, the browser never has to scale X and Y by different factors —
 // which is what caused axis text/lines to look vertically stretched before.
-// Below this many trading days AND this many total trades, the curve is too
-// sparse for calendar-index spacing to mean anything (one point often just
-// sits pinned to the far-right edge). While sparse, points are paced by
-// cumulative trade count against a fixed virtual capacity instead, so the
-// line has room to breathe; past the threshold it reverts to today's normal
-// one-slot-per-day spacing.
-const EQ_SPARSE_DAYS=3,EQ_SPARSE_TRADES=8;
-function buildEquityCurveSVG(points,w,h,tradeCount){
+// Below this many trading days AND this many total trades, this constant used
+// to switch to trade-count-based x-positioning. Removed: calendar-time
+// positioning already spreads 2+ points across the full plot width on its
+// own (the axis scale is anchored to the first/last REAL date, not the full
+// calendar range), so a day with more trades no longer eats extra width.
+// SVG ids are scoped to the whole document, not per-<svg> — this counter
+// keeps gradient ids unique across re-renders so one chart's fill can never
+// accidentally reference another's gradient definition.
+let eqSvgInstanceCounter=0;
+const EQ_MONTH_ABBR=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Adaptive x-axis: only 3 format zones exist (day/month/quarter), decided by
+// the length of the VIEWED PERIOD (the whole displayed week / month /
+// custom range / all-time span) — not by where the real trades happen to
+// land inside it.
+//
+// DESIGN: the axis and the curve's own horizontal positioning both use the
+// same reference span — the viewed period, when one exists (Week/Month/
+// Custom each have a fixed start–end from the period picker), falling back
+// to the first–last real trade only for "All" (which has no natural
+// bounding period of its own). Anchoring everything to the viewed period
+// rather than to wherever the real trades landed is what makes a week
+// always draw as a full week, a month's ticks always reach the month's
+// actual end, and a custom range's ticks always include its own edges.
+//
+// Every tick's natural-unit index (day / month / quarter) is counted
+// relative to the period's OWN start, not a fixed global epoch. That's what
+// keeps a thinned-down grid anchored to the period's edges instead of
+// landing on whichever dates happen to align with some unrelated absolute
+// reference — e.g. a 5-month custom range that can't fit every month's
+// label still keeps its first and last month and drops alternating months
+// in between, rather than sliding onto two arbitrary interior months.
+const AXIS_RULES={dayFormatMaxDays:90,monthFormatMaxDays:365,labelMarginPx:10};
+// Tick label font sizes — x-axis kept a touch smaller/thinner than the
+// y-axis on purpose so more date labels (e.g. every weekday in a week
+// view) can fit before the overlap check starts dropping them.
+const EQ_XTICK_FONT=9.5,EQ_YTICK_FONT=10;
+function getAxisFormatZone(rangeDays){
+  if(rangeDays<=AXIS_RULES.dayFormatMaxDays)return"day";
+  if(rangeDays<=AXIS_RULES.monthFormatMaxDays)return"month";
+  return"quarter";
+}
+function fmtAxisDate(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;return `${p[2]}/${p[1]}`;}
+function fmtAxisMonth(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;return `${EQ_MONTH_ABBR[parseInt(p[1],10)-1]} ${p[0].slice(2)}`;}
+function fmtAxisQuarter(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;const q=Math.floor((parseInt(p[1],10)-1)/3)+1;return `Q${q} ${p[0].slice(2)}`;}
+function dateToTime(s){return new Date(s+"T00:00:00").getTime();}
+function timeToDateStr(t){const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function estLabelWidth(s){return s.length*EQ_XTICK_FONT*0.6;}
+const EQ_DAY_MS=86400000;
+// "Nice" step candidates per zone, in the natural unit for that zone (whole
+// days / whole months / whole quarters). Small and boring on purpose —
+// every one of these produces a clean, standard label.
+const EQ_DAY_STEPS=[1,2,3,5,7,14,21,28,45,60,90];
+const EQ_MONTH_STEPS=[1,2,3,6,12,24,36,60];
+const EQ_QUARTER_STEPS=[1,2,4,8,12,20,40];
+// Anchor-aware margin check. A center-anchored label needs clearance on
+// both sides of x; a "start"-anchored label only grows rightward from x
+// (its left edge IS x), and an "end"-anchored label only grows leftward
+// (its right edge IS x) — used because the period's own boundary ticks are
+// always placed exactly at the plot's true left/right edges, where a
+// center-anchored label would need (impossible) clearance past the edge.
+function eqFitsInMargins(x,label,padL,plotW,anchor){
+  const w=estLabelWidth(label);
+  if(anchor==="start")return x>=padL-0.5 && x+w<=padL+plotW+0.5;
+  if(anchor==="end")return x-w>=padL-0.5 && x<=padL+plotW+0.5;
+  const half=w/2;
+  return x-half>=padL-0.5 && x+half<=padL+plotW+0.5;
+}
+function eqTickExtents(t){
+  const w=estLabelWidth(t.label);
+  if(t.anchor==="start")return{left:0,right:w};
+  if(t.anchor==="end")return{left:w,right:0};
+  return{left:w/2,right:w/2};
+}
+function eqTicksOverlap(list){
+  for(let k=0;k<list.length-1;k++){
+    const a=eqTickExtents(list[k]),b=eqTickExtents(list[k+1]);
+    const need=a.right+b.left+AXIS_RULES.labelMarginPx;
+    if(list[k+1].x-list[k].x<need)return true;
+  }
+  return false;
+}
+// True if two ADJACENT ticks (in x order) have enough clearance not to
+// collide, given their own anchors (a start/end tick's label only grows in
+// one direction, so it only contributes its full width on that side).
+function eqPairFits(a,b){
+  const ea=eqTickExtents(a),eb=eqTickExtents(b);
+  return (b.x-a.x)>=ea.right+eb.left+AXIS_RULES.labelMarginPx;
+}
+// Builds the x-axis ticks for a chart spanning [periodStartTime,
+// periodEndTime] (both ms timestamps, both already truncated to their own
+// local midnight — see periodBoundsForChart). The period's own start and
+// end are ALWAYS included, anchored inward so their labels can't spill
+// past the plot.
+//
+// Density is chosen from the interior ticks alone: the finest "nice" step
+// (1/2/3/5/7/14 days, etc.) whose own evenly-spaced ticks don't crowd each
+// other. That choice used to also have to survive the two ticks nearest
+// each edge crowding the boundary labels — one bad neighbor near an edge
+// was enough to throw out the *whole* step and fall back to a much coarser
+// one (e.g. a 30-day month jumping straight from 1 interior tick to 6+
+// just because day 28 sat too close to day 30). Now only the individual
+// interior tick that actually crowds an edge gets dropped; every other
+// evenly-spaced tick at that step is kept, so density degrades gracefully
+// as the chart narrows instead of falling off a cliff.
+function buildAdaptiveDateTicks(periodStartTime,periodEndTime,plotW,padL){
+  const totalSpanMs=Math.max(1,periodEndTime-periodStartTime);
+  function xOf(t){
+    const frac=Math.min(1,Math.max(0,(t-periodStartTime)/totalSpanMs));
+    return padL+frac*plotW;
+  }
+  const zone=getAxisFormatZone(totalSpanMs/EQ_DAY_MS);
+  const isDay=zone==="day",isMonth=zone==="month";
+  const fmtFn=isDay?fmtAxisDate:(isMonth?fmtAxisMonth:fmtAxisQuarter);
+  const steps=isDay?EQ_DAY_STEPS:(isMonth?EQ_MONTH_STEPS:EQ_QUARTER_STEPS);
+  const label=t=>fmtFn(timeToDateStr(t));
+
+  // idxToTime/periodEndIdx work in the zone's natural unit, counted from
+  // the period's own start (index 0) — never a fixed global epoch.
+  let idxToTime,periodEndIdx;
+  if(isDay){
+    idxToTime=idx=>periodStartTime+idx*EQ_DAY_MS;
+    periodEndIdx=Math.round(totalSpanMs/EQ_DAY_MS);
+  }else{
+    const startD=new Date(periodStartTime),baseY=startD.getFullYear(),baseM=startD.getMonth();
+    const unit=isMonth?1:3; // months per unit (quarter = 3 months)
+    idxToTime=idx=>new Date(baseY,baseM+idx*unit,1).getTime();
+    const endD=new Date(periodEndTime);
+    periodEndIdx=Math.round(((endD.getFullYear()-baseY)*12+(endD.getMonth()-baseM))/unit);
+  }
+
+  function interiorForStep(step){
+    const out=[];
+    for(let idx=step;idx<periodEndIdx;idx+=step)out.push({x:xOf(idxToTime(idx)),label:label(idxToTime(idx)),anchor:"middle"});
+    return out;
+  }
+  function interiorOverlaps(interior){
+    for(let k=0;k<interior.length-1;k++)if(!eqPairFits(interior[k],interior[k+1]))return true;
+    return false;
+  }
+  let chosenInterior=[];
+  for(const step of steps){
+    const interior=interiorForStep(step);
+    if(!interiorOverlaps(interior)){chosenInterior=interior;break;}
+  }
+
+  const startTick={x:padL,label:label(periodStartTime),anchor:"start"};
+  const endTick=periodEndIdx>0?{x:padL+plotW,label:label(periodEndTime),anchor:"end"}:null;
+  const kept=chosenInterior.slice();
+  if(kept.length&&!eqPairFits(startTick,kept[0]))kept.shift();
+  if(endTick&&kept.length&&!eqPairFits(kept[kept.length-1],endTick))kept.pop();
+  return[startTick,...kept,...(endTick?[endTick]:[])];
+}
+function equityTooltipDate(s){if(!s)return"Start";const p=s.split("-");if(p.length!==3)return s;return `${p[2]} ${EQ_MONTH_ABBR[parseInt(p[1],10)-1]} ${p[0].slice(2)}`;}
+function buildEquityCurveSVG(points,w,h,tradeCount,periodBounds){
   w=Math.max(60,Math.round(w));h=Math.max(60,Math.round(h));
   const real=points.filter(p=>p.date!==null);
   if(real.length<1){
@@ -2067,12 +2283,32 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
   const longest=ax.ticks.reduce((a,v)=>Math.max(a,cu(v).length),0);
   const padL=Math.max(52,longest*6.6+16),padR=28,padT=14,padB=24;
   const plotW=Math.max(10,w-padL-padR),plotH=Math.max(10,h-padT-padB);
-  const totalTrades=tradeCount!==undefined?tradeCount:real.reduce((a,p)=>a+(p.count||0),0);
-  const sparse=real.length<=EQ_SPARSE_DAYS&&totalTrades<=EQ_SPARSE_TRADES;
-  let cumCount=0;
-  const cumCounts=points.map(p=>{cumCount+=p.count||0;return cumCount;});
-  const xStep=points.length>1?plotW/(points.length-1):plotW;
-  const xFor=i=>sparse?padL+(cumCounts[i]/EQ_SPARSE_TRADES)*plotW:padL+i*xStep;
+
+  // Horizontal positioning spans the VIEWED PERIOD (the full week / month /
+  // custom range) rather than just the stretch between the first and last
+  // real trade — so a week with trades only Tue–Thu still draws across the
+  // whole week at the right spot, a lone trade sits at its actual point in
+  // the period instead of collapsing to a dot, and the axis below always
+  // lines up with where the curve actually is. "All" has no natural
+  // period, so it falls back to the real trade span, same as before.
+  const realIdxsForSpan=points.map((p,i)=>p.date?i:null).filter(i=>i!==null);
+  const firstRealTime=dateToTime(points[realIdxsForSpan[0]].date);
+  const lastRealTime=dateToTime(points[realIdxsForSpan[realIdxsForSpan.length-1]].date);
+  let spanStartTime=periodBounds?periodBounds.startT:firstRealTime;
+  let spanEndTime=periodBounds?periodBounds.endT:lastRealTime;
+  if(spanEndTime<=spanStartTime){
+    // No bounding period was available and every trade fell on the same
+    // single day — give the curve a nominal one-day-wide span so a lone
+    // trade still reads as a line from zero rather than collapsing to a dot.
+    spanEndTime=spanStartTime+EQ_DAY_MS;
+  }
+  const totalSpanMs=spanEndTime-spanStartTime;
+  const timeFrac=i=>{
+    const d=points[i].date;
+    const t=d?dateToTime(d):spanStartTime; // synthetic start point sits at the true period start
+    return Math.min(1,Math.max(0,(t-spanStartTime)/totalSpanMs));
+  };
+  const xFor=i=>padL+timeFrac(i)*plotW;
   const yFor=v=>padT+plotH-((v-min)/(max-min))*plotH;
   const coords=points.map((p,i)=>[xFor(i),yFor(p.cum)]);
   const yZero=yFor(0);
@@ -2080,37 +2316,110 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
   const lastC=coords[coords.length-1];
   const lastColor=lastVal>=0?"var(--g)":"var(--r)";
 
-  let lineEls="";
-  for(let i=0;i<coords.length-1;i++){
+  // The underlying points array always has a synthetic {date:null, cum:0}
+  // anchor at index 0, now placed at the true start of the viewed period —
+  // so the line always draws from "flat at zero" at the period's start
+  // through to the last real trade, same as any account's equity curve.
+  const lineStartIdx=0;
+
+  // Runs of same-sign points — split exactly at the interpolated zero
+  // crossing (same math as before), one run per color. Shared by the line
+  // and its fill so they always agree on where the curve crosses zero.
+  const runs=[];
+  let curRun=[{x:coords[lineStartIdx][0],y:coords[lineStartIdx][1]}];
+  let curSign=points[lineStartIdx].cum>=0?1:-1;
+  for(let i=lineStartIdx;i<coords.length-1;i++){
     const v0=points[i].cum,v1=points[i+1].cum;
-    const[x0,y0]=coords[i],[x1,y1]=coords[i+1];
+    const[x1,y1]=coords[i+1];
     if((v0>=0&&v1>=0)||(v0<0&&v1<0)){
-      const col=v1>=0?"var(--g)":"var(--r)";
-      lineEls+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
+      curRun.push({x:x1,y:y1});
     }else{
       const t=v0/(v0-v1);
-      const xm=x0+(x1-x0)*t;
-      lineEls+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${xm.toFixed(1)}" y2="${yZero.toFixed(1)}" stroke="${v0>=0?"var(--g)":"var(--r)"}" stroke-width="2" stroke-linecap="round"/>`;
-      lineEls+=`<line x1="${xm.toFixed(1)}" y1="${yZero.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${v1>=0?"var(--g)":"var(--r)"}" stroke-width="2" stroke-linecap="round"/>`;
+      const xm=coords[i][0]+(x1-coords[i][0])*t;
+      curRun.push({x:xm,y:yZero});
+      runs.push({pts:curRun,sign:curSign});
+      curRun=[{x:xm,y:yZero},{x:x1,y:y1}];
+      curSign=v1>=0?1:-1;
     }
   }
+  runs.push({pts:curRun,sign:curSign});
+
+  // Softly rounded corner at every real data point — a MONOTONE cubic
+  // Hermite spline (Fritsch–Carlson), not a cardinal/Catmull-Rom spline.
+  // It passes EXACTLY through each coordinate above (never repositions a
+  // value, never invents a bump between two points), but unlike a plain
+  // straight-line join it rounds the vertex itself: at a local peak or
+  // valley the tangent goes flat, so a sharp V settles into the bottom of
+  // a U instead of a hard point. And unlike a cardinal spline it can never
+  // overshoot past the values on either side of that bend, so the rounding
+  // can't swing above a peak or below a valley that isn't actually there.
+  // Runs are already split at zero crossings, so it also can't overshoot
+  // past zero into the other color.
+  function smoothCurveCmds(pts){
+    const n=pts.length;
+    if(n<2)return"";
+    const dx=new Array(n-1),dy=new Array(n-1),m=new Array(n-1);
+    for(let i=0;i<n-1;i++){
+      dx[i]=pts[i+1].x-pts[i].x;
+      dy[i]=pts[i+1].y-pts[i].y;
+      m[i]=dx[i]!==0?dy[i]/dx[i]:0;
+    }
+    const t=new Array(n);
+    t[0]=m[0];
+    t[n-1]=m[n-2];
+    for(let i=1;i<n-1;i++){
+      if(m[i-1]===0||m[i]===0||(m[i-1]<0)!==(m[i]<0)){
+        t[i]=0; // direction changes here — flat tangent, so the vertex rounds instead of overshooting past the turn
+      }else{
+        const w1=2*dx[i]+dx[i-1],w2=dx[i]+2*dx[i-1];
+        t[i]=(w1+w2)/(w1/m[i-1]+w2/m[i]);
+      }
+    }
+    for(let i=0;i<n-1;i++){
+      if(m[i]===0){t[i]=0;t[i+1]=0;continue;}
+      const a=t[i]/m[i],b=t[i+1]/m[i],s=a*a+b*b;
+      if(s>9){const tau=3/Math.sqrt(s);t[i]=tau*a*m[i];t[i+1]=tau*b*m[i];}
+    }
+    let d="";
+    for(let i=0;i<n-1;i++){
+      const p1=pts[i],p2=pts[i+1];
+      const c1x=p1.x+dx[i]/3,c1y=p1.y+t[i]*dx[i]/3;
+      const c2x=p2.x-dx[i]/3,c2y=p2.y-t[i+1]*dx[i]/3;
+      d+=`C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} `;
+    }
+    return d;
+  }
+  let lineEls="";
+  runs.forEach(run=>{
+    if(run.pts.length<2)return;
+    const col=run.sign>=0?"var(--g)":"var(--r)";
+    const d=`M ${run.pts[0].x.toFixed(1)} ${run.pts[0].y.toFixed(1)} `+smoothCurveCmds(run.pts);
+    lineEls+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  });
+
+  // Subtle gradient fill beneath the line — traces the exact same rounded
+  // curve as the line above, so the fill boundary always agrees with the
+  // line exactly (never implies a value that isn't real).
+  const gradId="eqFill"+(eqSvgInstanceCounter++);
+  function fillPath(pts,sign){
+    if(pts.length<2)return"";
+    const d=`M ${pts[0].x.toFixed(1)} ${yZero.toFixed(1)} L ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} `+
+      smoothCurveCmds(pts)+
+      `L ${pts[pts.length-1].x.toFixed(1)} ${yZero.toFixed(1)} Z`;
+    return`<path d="${d}" fill="${sign>=0?`url(#${gradId}G)`:`url(#${gradId}R)`}" stroke="none"/>`;
+  }
+  let fillEls="";
+  runs.forEach(run=>{fillEls+=fillPath(run.pts,run.sign);});
 
   const tickLines=ax.ticks.map(v=>{
     const y=yFor(v).toFixed(1);
     const isZero=v===0;
-    return`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--bd)" stroke-width="${isZero?1:0.75}" stroke-dasharray="${isZero?"none":"3,3"}"/><text x="${padL-10}" y="${(parseFloat(y)+4).toFixed(1)}" text-anchor="end" font-size="11" font-weight="300" fill="var(--t3)">${cu(v)}</text>`;
+    return`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--bd)" stroke-width="${isZero?1:0.75}" stroke-dasharray="${isZero?"none":"3,3"}"/><text x="${padL-10}" y="${(parseFloat(y)+4).toFixed(1)}" text-anchor="end" font-size="${EQ_YTICK_FONT}" font-weight="300" fill="var(--t3)">${cu(v)}</text>`;
   }).join("");
 
-  const realIdxs=points.map((p,i)=>p.date?i:null).filter(i=>i!==null);
-  let xTickIdxs=[];
-  if(realIdxs.length<=5){xTickIdxs=realIdxs;}
-  else{
-    const nTicks=5;
-    for(let k=0;k<nTicks;k++)xTickIdxs.push(realIdxs[Math.round(k*(realIdxs.length-1)/(nTicks-1))]);
-    xTickIdxs=[...new Set(xTickIdxs)];
-  }
-  const xTicks=xTickIdxs.map(i=>{
-    return`<text x="${coords[i][0].toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="11" font-weight="300" fill="var(--t3)">${axisDate(points[i].date)}</text>`;
+  const adaptiveTicks=buildAdaptiveDateTicks(spanStartTime,spanEndTime,plotW,padL);
+  const xTicks=adaptiveTicks.map(t=>{
+    return`<text x="${t.x.toFixed(1)}" y="${h-6}" text-anchor="${t.anchor||"middle"}" font-size="${EQ_XTICK_FONT}" font-weight="300" fill="var(--t3)">${t.label}</text>`;
   }).join("");
 
   const hitPts=points.map((p,i)=>p.date?{x:Number(coords[i][0].toFixed(1)),y:Number(coords[i][1].toFixed(1)),date:p.date,val:p.cum}:null).filter(Boolean);
@@ -2118,7 +2427,18 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
 
   return`<div class="eq-wrap" data-points="${dataAttr}" style="position:relative;width:100%;height:100%">
   <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="width:100%;height:100%;display:block;font-family:var(--sans)">
+    <defs>
+      <linearGradient id="${gradId}G" x1="0" y1="${padT}" x2="0" y2="${yZero.toFixed(1)}" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="var(--g)" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="var(--g)" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="${gradId}R" x1="0" y1="${yZero.toFixed(1)}" x2="0" y2="${padT+plotH}" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="var(--r)" stop-opacity="0"/>
+        <stop offset="100%" stop-color="var(--r)" stop-opacity="0.25"/>
+      </linearGradient>
+    </defs>
     ${tickLines}
+    ${fillEls}
     ${lineEls}
     ${xTicks}
     <circle cx="${lastC[0].toFixed(1)}" cy="${lastC[1].toFixed(1)}" r="3.5" fill="${lastColor}"/>
@@ -2126,7 +2446,7 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
     <circle class="eq-dot" cx="0" cy="0" r="4" fill="var(--t)" stroke="var(--bg)" stroke-width="1.5" opacity="0"/>
     <rect class="eq-hitrect" x="${padL}" y="0" width="${plotW}" height="${h}" fill="transparent" style="cursor:crosshair"/>
   </svg>
-  <div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;transform:translate(-50%,-125%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
+  <div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;line-height:1.5;transform:translate(-50%,-135%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
 </div>`;
 }
 // Interactive hover for one equity curve wrap element.
@@ -2158,7 +2478,7 @@ function initEquityHover(wrap){
     tip.style.opacity="1";
     tip.style.left=((p.x/vbW)*100)+"%";
     tip.style.top=((p.y/vbH)*100)+"%";
-    tip.innerHTML=`<strong>${dispDate(p.date)}</strong> · ${cu(p.val)}`;
+    tip.innerHTML=`<div><strong>${equityTooltipDate(p.date)}</strong></div><div>Equity: ${cu(p.val)}</div>`;
   }
   function hide(){cross.setAttribute("opacity","0");dot.setAttribute("opacity","0");tip.style.opacity="0";}
   hitrect.addEventListener("mousemove",e=>show(nearestTo(e.clientX)));
@@ -2182,7 +2502,7 @@ function layoutDashboardChart(){
   panel.style.height=targetH+"px";
   const w=outer.clientWidth,h=outer.clientHeight;
   if(w<20||h<20)return;
-  outer.innerHTML=buildEquityCurveSVG(dashboardEquityPoints,w,h,dashboardTradeCount);
+  outer.innerHTML=buildEquityCurveSVG(dashboardEquityPoints,w,h,dashboardTradeCount,periodBoundsForChart());
   initEquityHover(outer.querySelector(".eq-wrap"));
 }
 let eqResizeTimer=null;
@@ -2230,13 +2550,23 @@ function addTrade(){
   form.target=s.target||"";
   form.exit=s.closedContracts>0&&!isNaN(s.weightedExit)?String(s.weightedExit):"";
   const resEl=document.getElementById("fi-result");if(resEl)form.result=resEl.value;
-  const feeFixedEl=document.getElementById("fi-fee-fixed");if(feeFixedEl)form.feeFixed=feeFixedEl.value;
-  const feeVarEl=document.getElementById("fi-fee-variable");if(feeVarEl)form.feeVariable=feeVarEl.value;
+  const plEl=document.getElementById("fi-platform");if(plEl)form.platform=plEl.value;
+  const feeEl=document.getElementById("fi-fees");if(feeEl)form.fees=feeEl.value;
   const lcEl=document.getElementById("fi-losscat");if(lcEl)form.lossCat=lcEl.value;
   const cmEl=document.getElementById("fi-comments");if(cmEl)form.comments=cmEl.value;
   if(!form.ticker||!form.entry){
     alert("Please enter at least a ticker and one entry/add fill with a price before logging this trade.");
     return;
+  }
+  // Soft warning (not a hard block) — a reversal leg noticeably bigger than the
+  // position it just closed is exactly the shape of a fat-finger contract-count
+  // entry, so give a chance to double check before it's saved.
+  const revSegs=s.segments.filter(seg=>seg.isReversal&&seg.reversalFrom);
+  const bigRev=revSegs.find(seg=>seg.reversalFrom.openedQty>seg.reversalFrom.closedQty);
+  if(bigRev){
+    const rf=bigRev.reversalFrom;
+    const ok=confirm(`This fill closed ${rf.closedQty} ${rf.prevDirection} and opened ${rf.openedQty} ${bigRev.direction} — that's a larger reversal than what it closed. Continue anyway?`);
+    if(!ok)return;
   }
   const resNum=parseFloat(form.result);
   if(!isNaN(resNum)&&resNum<0&&!form.lossCat){
@@ -2265,16 +2595,16 @@ function editTrade(id){
   const t=trades.find(x=>x.id===id);if(!t)return;
   let fills;
   if(t.fills&&t.fills.length){
-    fills=t.fills.map(f=>({id:f.id,type:f.type||"add",price:f.price!==undefined?f.price:"",contracts:f.contracts!==undefined?f.contracts:"1",stop:f.stop||"",target:f.target||""}));
+    fills=t.fills.map(f=>({id:f.id,type:f.type||"add",price:f.price!==undefined?f.price:"",contracts:f.contracts!==undefined?f.contracts:"1",stop:f.stop||"",target:f.target||"",segSetup:f.segSetup||""}));
   }else{
     // legacy trade with a single entry/exit — migrate into fill rows on the fly
     fills=[{id:1,type:"add",price:t.entry||"",contracts:t.contracts||"1",stop:t.stop||"",target:t.target||""}];
     if(t.exit){fills.push({id:2,type:"exit",price:t.exit,contracts:t.contracts||"1",stop:"",target:""});}
   }
   fillSeq=fills.reduce((m,f)=>Math.max(m,f.id),0);
-  form={...t,ra:{...t.ra},dqa:{...t.dqa},screenshots:[...(t.screenshots||[])],direction:t.direction||"long",multiDay:!!t.multiDay,exitDate:t.exitDate||"",entryTime:t.entryTime||"10:00",exitTime:t.exitTime||"10:00",exit:t.exit||"",feeFixed:t.feeFixed||"",feeVariable:t.feeVariable||"",fills};
+  form={...t,ra:{...t.ra},dqa:{...t.dqa},screenshots:[...(t.screenshots||[])],direction:t.direction||"long",multiDay:!!t.multiDay,exitDate:t.exitDate||"",entryTime:t.entryTime||"10:00",exitTime:t.exitTime||"10:00",exit:t.exit||"",platform:t.platform||"tradovate",fees:t.fees||"",fills};
   resultManual=false;
-  feeFixedManual=false;feeVariableManual=false;
+  feesManual=false;
   editingId=id;showForm=true;
   window.scrollTo({top:0,behavior:"smooth"});
   render();
@@ -2358,7 +2688,21 @@ function saveReflection(){
   }
   refForm=blankRef();editingRefId=null;showRefForm=false;save();render();
 }
-function delReflection(id){if(!confirm("Delete this reflection? This can't be undone."))return;reflections=reflections.filter(r=>r.id!==id);save();render();}
+function delReflection(id){if(!confirm("Delete this reflection? This can't be undone."))return;reflections=reflections.filter(r=>r.id!==id);refCollapsedIds.delete(id);save();render();}
+// Individual reflection cards collapse to just their header (period + entry
+// date) so long history — month/custom/all views can easily rack up dozens
+// of entries — doesn't turn the tab into an endless scroll of full text.
+function toggleReflectionExpand(id){
+  if(refCollapsedIds.has(id))refCollapsedIds.delete(id);else refCollapsedIds.add(id);
+  render();
+}
+function toggleAllReflections(){
+  const list=getFilteredReflections().filter(refSearchMatch);
+  const anyExpanded=list.some(r=>!refCollapsedIds.has(r.id));
+  if(anyExpanded)list.forEach(r=>refCollapsedIds.add(r.id));
+  else list.forEach(r=>refCollapsedIds.delete(r.id));
+  render();
+}
 function fmtDMY(d){return `${d.getDate()} ${MON[d.getMonth()].slice(0,3).toUpperCase()} ${d.getFullYear()}`;}
 function refHeaderLabel(r){
   const d=parseYMD(r.periodDate);
@@ -2472,40 +2816,156 @@ function applySetupDefault(){
 }
 function markResultManual(){resultManual=true;}
 
-// ── Fees — non-variable (flat, per-contract) + variable (ticker-specific exchange fee) ─
-// Both auto-fill from position size on every fill/ticker change below, unless the
-// person has typed directly into that specific field (tracked separately per leg,
-// same override pattern as result/resultManual above).
-function markFeeFixedManual(){feeFixedManual=true;recomputeAutoResult();}
-function markFeeVariableManual(){feeVariableManual=true;recomputeAutoResult();}
-function recomputeFees(totalContracts){
-  const fixedEl=document.getElementById("fi-fee-fixed");
-  if(fixedEl&&!feeFixedManual){
-    fixedEl.value=totalContracts>0?(FEE_FIXED_PER_CONTRACT*totalContracts).toFixed(2):"";
-  }
-  const varEl=document.getElementById("fi-fee-variable");
-  if(varEl&&!feeVariableManual){
-    const tkEl=document.getElementById("fi-ticker");
-    const perContract=tkEl?FEE_VARIABLE_DEFAULTS[tkEl.value]:undefined;
-    varEl.value=(perContract!==undefined&&totalContracts>0)?(perContract*totalContracts).toFixed(2):"";
-  }
+// ── Fees — single total ($), platform-aware ──────────────────────────────────
+// Auto-fills from every logged fill (both adds and exits — each fill is its own
+// billable side) × the selected platform's per-ticker rate, unless the person
+// has typed directly into the field, or picked "Other" (manual entry, no table).
+function markFeesManual(){feesManual=true;recomputeAutoResult();}
+function markPlatformChanged(){
+  // Switching platforms means the old auto-computed number (if any) belonged to
+  // the previous platform's rate — reset the manual-override flag so it recomputes
+  // fresh for the newly-selected platform, unless the person types over it again.
+  feesManual=false;
+  const plEl=document.getElementById("fi-platform");
+  const hintEl=document.getElementById("fi-fees-hint");
+  if(hintEl)hintEl.textContent=(plEl&&plEl.value==="other")?"— enter manually":"— exchange + NFA + clearing + commission, auto-calculated";
+  recomputeAutoResult();
+}
+function currentFeeRate(){
+  const tkEl=document.getElementById("fi-ticker");
+  const plEl=document.getElementById("fi-platform");
+  const ticker=tkEl?tkEl.value:form.ticker;
+  const platform=plEl?plEl.value:(form.platform||"tradovate");
+  if(platform==="other")return null; // manual entry — no table lookup
+  const table=FEE_RATES[platform];
+  return table?table[ticker]:undefined;
+}
+function recomputeFees(){
+  const feeEl=document.getElementById("fi-fees");
+  if(!feeEl||feesManual)return;
+  const rate=currentFeeRate();
+  if(rate===null)return; // "Other" — leave field as-is, freely editable
+  // Every logged fill (add AND exit) is its own billable side — sum contracts
+  // across all of them rather than just the entry leg, so partial closes,
+  // adds, and reversals all naturally accrue the right number of fee-events.
+  const totalUnits=form.fills.reduce((sum,f)=>{
+    const q=parseFloat(f.contracts),p=parseFloat(f.price);
+    return sum+((!isNaN(q)&&q>0&&!isNaN(p))?q:0);
+  },0);
+  feeEl.value=(rate!==undefined&&totalUnits>0)?(rate*totalUnits).toFixed(2):"";
 }
 function getFeesTotal(){
-  const fixedEl=document.getElementById("fi-fee-fixed");
-  const varEl=document.getElementById("fi-fee-variable");
-  const fixed=fixedEl?parseFloat(fixedEl.value):NaN;
-  const vari=varEl?parseFloat(varEl.value):NaN;
-  return(isNaN(fixed)?0:fixed)+(isNaN(vari)?0:vari);
+  const feeEl=document.getElementById("fi-fees");
+  const v=feeEl?parseFloat(feeEl.value):parseFloat(form.fees);
+  return isNaN(v)?0:v;
 }
 
-// ── Fills (scale-in / scale-out) ──────────────────────────────────────────────
+// ── Segments (fills → segments) ───────────────────────────────────────────────
+// A trade is a chain of fills from flat back to flat. Walking the fills in order
+// and tracking a running open-quantity per leg is enough to auto-detect adds,
+// partial closes, full closes, and reversals — no manual "this is a reversal"
+// flag needed anywhere. An "Exit" fill whose contracts exceed what's currently
+// open simply spills its remainder into a brand-new segment in the opposite
+// direction (that's exactly what a reversal *is*, arithmetically). Each segment
+// carries its own setup tag (Bounce/Break/Reject) so a trade that flips
+// direction can correctly credit each leg to its own setup in the dashboard.
+// A trade logged before the multi-fill editor existed only stores a single
+// entry/exit pair directly on the trade (t.entry / t.exit), not a fills array.
+// Anywhere we need to run such a trade through computeSegments(), we must
+// synthesize an equivalent fills array — including the exit fill when the
+// trade has one — or the trade will look permanently "open" (no exit fill
+// ever closes it) even though it's actually fully closed. This mirrors the
+// migration editTrade() already does when loading a legacy trade into the form.
+function legacyFillsFor(t){
+  const fills=[{id:1,type:"add",price:t.entry,contracts:t.contracts||"1"}];
+  if(t.exit){fills.push({id:2,type:"exit",price:t.exit,contracts:t.contracts||"1"});}
+  return fills;
+}
+function computeSegments(fills,initialDirection,initialSetup){
+  const segs=[];
+  let cur=null;
+  function startSeg(direction,setup,isReversal){
+    cur={direction,setup:setup||initialSetup,entryFills:[],exitFills:[],openQty:0,isReversal:!!isReversal,triggerFillId:null,reversalFrom:null};
+    segs.push(cur);
+    return cur;
+  }
+  (fills||[]).forEach(f=>{
+    const qty=parseFloat(f.contracts)||0;
+    const price=parseFloat(f.price);
+    if(isNaN(price)||qty<=0)return;
+    if(!cur)startSeg(initialDirection,initialSetup,false);
+    if(f.type!=="exit"){
+      cur.entryFills.push({price,qty});
+      cur.openQty+=qty;
+    }else{
+      const closeQty=Math.min(qty,cur.openQty);
+      if(closeQty>0){
+        cur.exitFills.push({price,qty:closeQty});
+        cur.openQty-=closeQty;
+      }
+      const remainder=qty-closeQty;
+      if(remainder>0){
+        const prevDirection=cur.direction;
+        const newDir=prevDirection==="short"?"long":"short";
+        const newSetup=f.segSetup||initialSetup;
+        cur=startSeg(newDir,newSetup,true);
+        cur.triggerFillId=f.id;
+        cur.reversalFrom={prevDirection,closedQty:closeQty,openedQty:remainder};
+        cur.entryFills.push({price,qty:remainder});
+        cur.openQty+=remainder;
+      }
+    }
+  });
+  return segs.map(seg=>{
+    const totalEntryQty=seg.entryFills.reduce((s,f)=>s+f.qty,0);
+    const closedQty=seg.exitFills.reduce((s,f)=>s+f.qty,0);
+    const weightedEntry=totalEntryQty>0?seg.entryFills.reduce((s,f)=>s+f.price*f.qty,0)/totalEntryQty:NaN;
+    const weightedExit=closedQty>0?seg.exitFills.reduce((s,f)=>s+f.price*f.qty,0)/closedQty:NaN;
+    return{...seg,totalEntryQty,closedQty,weightedEntry,weightedExit};
+  });
+}
+function segmentDollarResult(seg,ti){
+  if(!ti||isNaN(seg.weightedEntry)||isNaN(seg.weightedExit)||seg.closedQty<=0)return null;
+  const dirPts=seg.direction==="short"?(seg.weightedEntry-seg.weightedExit):(seg.weightedExit-seg.weightedEntry);
+  return dirPts*ti.perPoint*seg.closedQty;
+}
+// A trade's overall setup tags — the unique list across all its segments, in the
+// order they first occurred. Used for the abbreviated multi-tag log display and
+// for inclusive (OR) setup filtering.
+function tradeSetups(t){
+  const segs=computeSegments(t.fills&&t.fills.length?t.fills:legacyFillsFor(t),t.direction||"long",t.setup||"Bounce");
+  const out=[];
+  segs.forEach(s=>{if(s.setup&&!out.includes(s.setup))out.push(s.setup);});
+  return out.length?out:[t.setup].filter(Boolean);
+}
+
+// ── Fills (scale-in / scale-out / reversal) ───────────────────────────────────
 // A trade can have multiple "fills": each is an Add (opened/scaled in) or an
 // Exit (closed/reduced). Contracts, weighted-avg entry/exit price, and the
-// cumulative $ result all roll up automatically from the fill list.
+// cumulative $ result all roll up automatically from the fill list, including
+// across a reversal — see computeSegments() above.
+// A trade is still "open" if its most recent segment never fully closed — i.e.
+// the position never returned back to flat. Purely informational: this never
+// blocks entering, editing, or saving anything, it's just a heads-up.
+function isTradeOpen(t){
+  const fills=t.fills&&t.fills.length?t.fills:legacyFillsFor(t);
+  const segs=computeSegments(fills,t.direction||"long",t.setup||"Bounce");
+  if(!segs.length)return false;
+  const last=segs[segs.length-1];
+  return last.openQty>0;
+}
 function nextFillId(){fillSeq+=1;return fillSeq;}
 function fillsSectionHtml(){
+  const setupEl=document.getElementById("fi-setup"),dirEl=document.getElementById("fi-direction");
+  const initialSetup=setupEl?setupEl.value:form.setup;
+  const initialDirection=dirEl?dirEl.value:form.direction;
+  const segs=computeSegments(form.fills,initialDirection,initialSetup);
   const rows=form.fills.map((f,i)=>{
     const isAdd=f.type!=="exit";
+    // If this fill is the one that triggered a reversal, surface an inline
+    // "setup for this new leg" prompt right under its row — full setup words
+    // here (Bounce/Break/Reject), never the abbreviated log-view letters.
+    const triggeredSeg=segs.find(s=>s.triggerFillId===f.id);
     return`<div class="fillrow" data-fill="${f.id}">
       <div class="fillrowhead"><span class="fillnum">${i===0?"entry":"fill "+(i+1)}</span>${form.fills.length>1?`<button type="button" class="fillrm" onclick="removeFillRow(${f.id})" title="remove fill">×</button>`:""}</div>
       <div class="fgrid" style="margin-bottom:8px">
@@ -2517,13 +2977,19 @@ function fillsSectionHtml(){
         </div>
         <div class="field"><label>price</label><input id="fi-fill-price-${f.id}" type="number" placeholder="0.00" step="0.01" value="${f.price}" oninput="recomputeAutoResult();refreshRiskPreview()"/></div>
         <div class="field"><label>contracts</label>
-          <select id="fi-fill-contracts-${f.id}" onchange="recomputeAutoResult();refreshRiskPreview()">
+          <select id="fi-fill-contracts-${f.id}" onchange="renderFillsSection();recomputeAutoResult();refreshRiskPreview()">
             ${Array.from({length:10},(_,n)=>n+1).map(n=>`<option value="${n}"${String(f.contracts)===String(n)?" selected":""}>${n}</option>`).join("")}
           </select>
         </div>
         ${isAdd?`<div class="field"><label>stop loss</label><input id="fi-fill-stop-${f.id}" type="number" placeholder="0.00" step="0.01" value="${f.stop||""}" oninput="refreshRiskPreview()"/></div>
         <div class="field"><label>take profit</label><input id="fi-fill-target-${f.id}" type="number" placeholder="0.00" step="0.01" value="${f.target||""}" oninput="refreshRiskPreview()"/></div>`:""}
       </div>
+      ${triggeredSeg?`<div class="revnotice">
+        <div class="revnotice-label">Reversal detected — closed ${triggeredSeg.reversalFrom.closedQty} ${triggeredSeg.reversalFrom.prevDirection}, opened ${triggeredSeg.reversalFrom.openedQty} ${triggeredSeg.direction}. Tag the new leg's setup:</div>
+        <select id="fi-fill-segsetup-${f.id}" onchange="renderFillsSection();recomputeAutoResult()">
+          ${SETUPS.map(s=>`<option${(f.segSetup||initialSetup)===s?" selected":""}>${s}</option>`).join("")}
+        </select>
+      </div>`:""}
     </div>`;
   }).join("");
   return`${rows}<div id="fills-summary" class="fillsummary"></div>`;
@@ -2542,13 +3008,15 @@ function syncFillsFromDOM(){
     const conEl=document.getElementById(`fi-fill-contracts-${f.id}`);
     const stopEl=document.getElementById(`fi-fill-stop-${f.id}`);
     const targetEl=document.getElementById(`fi-fill-target-${f.id}`);
+    const segSetupEl=document.getElementById(`fi-fill-segsetup-${f.id}`);
     return{
       id:f.id,
       type:typeEl?typeEl.value:f.type,
       price:priceEl?priceEl.value:f.price,
       contracts:conEl?conEl.value:f.contracts,
       stop:stopEl?stopEl.value:(f.stop||""),
-      target:targetEl?targetEl.value:(f.target||"")
+      target:targetEl?targetEl.value:(f.target||""),
+      segSetup:segSetupEl?segSetupEl.value:(f.segSetup||"")
     };
   });
 }
@@ -2571,31 +3039,46 @@ function removeFillRow(id){
 }
 function getFillsSummary(){
   syncFillsFromDOM();
-  const tkEl=document.getElementById("fi-ticker"),dirEl=document.getElementById("fi-direction");
+  const tkEl=document.getElementById("fi-ticker"),dirEl=document.getElementById("fi-direction"),setupEl=document.getElementById("fi-setup");
   const ti=tkEl?tickerInfo(tkEl.value):null;
   const direction=dirEl?dirEl.value:"long";
-  const adds=form.fills.filter(f=>f.type!=="exit").map(f=>({price:parseFloat(f.price),contracts:parseFloat(f.contracts)||0})).filter(f=>!isNaN(f.price)&&f.contracts>0);
-  const exits=form.fills.filter(f=>f.type==="exit").map(f=>({price:parseFloat(f.price),contracts:parseFloat(f.contracts)||0})).filter(f=>!isNaN(f.price)&&f.contracts>0);
-  const totalContracts=adds.reduce((s,f)=>s+f.contracts,0);
-  const closedContracts=exits.reduce((s,f)=>s+f.contracts,0);
-  const weightedEntry=totalContracts>0?adds.reduce((s,f)=>s+f.price*f.contracts,0)/totalContracts:NaN;
-  const weightedExit=closedContracts>0?exits.reduce((s,f)=>s+f.price*f.contracts,0)/closedContracts:NaN;
+  const setup=setupEl?setupEl.value:form.setup;
+  const segs=computeSegments(form.fills,direction,setup);
+  const totalContracts=segs.reduce((s,seg)=>s+seg.totalEntryQty,0);
+  const closedContracts=segs.reduce((s,seg)=>s+seg.closedQty,0);
+  // Display entry = first segment's avg entry (the original thesis price); display
+  // exit = the most recently closed segment's avg exit (the final close price) —
+  // matches how a single-segment trade already looked, and degrades gracefully.
+  const firstSeg=segs[0];
+  const lastClosedSeg=[...segs].reverse().find(s=>s.closedQty>0);
+  const weightedEntry=firstSeg?firstSeg.weightedEntry:NaN;
+  const weightedExit=lastClosedSeg?lastClosedSeg.weightedExit:NaN;
   const lastAdd=[...form.fills].reverse().find(f=>f.type!=="exit");
   const stop=lastAdd?lastAdd.stop||"":"";
   const target=lastAdd?lastAdd.target||"":"";
+  // Overall $ result = sum of every segment's own realized P&L — a reversal's
+  // two legs (short leg + long leg) both contribute, netted into one trade total.
   let result=null;
-  if(ti&&!isNaN(weightedEntry)&&!isNaN(weightedExit)&&closedContracts>0){
-    const dirPts=direction==="short"?(weightedEntry-weightedExit):(weightedExit-weightedEntry);
-    result=dirPts*ti.perPoint*closedContracts;
+  if(ti){
+    const realized=segs.map(seg=>segmentDollarResult(seg,ti)).filter(v=>v!==null);
+    if(realized.length>0)result=realized.reduce((a,b)=>a+b,0);
   }
-  return{ti,direction,totalContracts,closedContracts,weightedEntry,weightedExit,stop,target,result};
+  return{ti,direction,totalContracts,closedContracts,weightedEntry,weightedExit,stop,target,result,segments:segs};
 }
 function refreshFillsSummary(){
   const c=document.getElementById("fills-summary");
   if(!c)return;
   const s=getFillsSummary();
   if(!s.totalContracts){c.innerHTML="";return;}
-  c.innerHTML=`position size <strong>${s.totalContracts}</strong>${!isNaN(s.weightedEntry)?` · avg entry <strong>$${f2(s.weightedEntry)}</strong>`:""}${s.closedContracts>0?` · closed ${s.closedContracts}/${s.totalContracts} @ avg $${f2(s.weightedExit)}`:""}`;
+  // Flag right here, before saving, if the fills entered so far leave the
+  // position still open (the most recent segment never returned to flat).
+  // Purely informational — never blocks saving — but catching it here means
+  // it's visible while you're still looking at the fill you just typed,
+  // instead of surfacing later as a mystery page-wide banner.
+  const lastSeg=s.segments[s.segments.length-1];
+  const stillOpen=lastSeg&&lastSeg.openQty>0;
+  c.innerHTML=`position size <strong>${s.totalContracts}</strong>${!isNaN(s.weightedEntry)?` · avg entry <strong>$${f2(s.weightedEntry)}</strong>`:""}${s.closedContracts>0?` · closed ${s.closedContracts}/${s.totalContracts} @ avg $${f2(s.weightedExit)}`:""}`+
+    (stillOpen?`<div class="fillopennotice">this position isn't fully closed yet — ${lastSeg.openQty} contract${lastSeg.openQty!==1?"s":""} still open. that's fine if the trade is still running, just flagging it before you save.</div>`:"");
 }
 // Fees are recomputed on every call regardless of resultManual — the fee fields
 // themselves always stay in sync with position size (unless individually
@@ -2604,7 +3087,7 @@ function refreshFillsSummary(){
 function recomputeAutoResult(){
   refreshFillsSummary();
   const s=getFillsSummary();
-  recomputeFees(s.totalContracts||0);
+  recomputeFees();
   if(resultManual)return;
   const resEl=document.getElementById("fi-result");
   if(!resEl)return;
@@ -2698,18 +3181,24 @@ function expSummaryHTML(includeStats){
   const dqJSON=JSON.stringify(dq).replace(/</g,"\\u003c");
   const losscatsJSON=JSON.stringify(LOSSCATS).replace(/</g,"\\u003c");
 
+  // Each reflection renders as a native <details> element, collapsed by
+  // default (see confirmExportSummary — this is a static file, so there's no
+  // JS re-render loop like the live app; <details> gives free, dependency-
+  // free collapse/expand behaviour once it's written to disk). Auto-collapsed
+  // on export because month/custom/all periods can carry dozens of entries.
   const reflectionCards=refList.map(rf=>{
     const secs=nonEmptySections(rf);
-    return `<div class="tcard">
-      <div class="thead2"><strong style="color:var(--refhead)">${refHeaderLabel(rf)}</strong><span style="font-size:11px;color:var(--t3);font-weight:400">entry date: ${ddmmyy(parseYMD(rf.entryDate))}</span></div>
+    return `<details class="tcard rdetails">
+      <summary class="thead2"><strong style="color:var(--refhead)">${refHeaderLabel(rf)}</strong><span style="font-size:11px;color:var(--t3);font-weight:400;font-style:italic">entry date: ${ddmmyy(parseYMD(rf.entryDate))}</span></summary>
       ${secs.map((s,i)=>`<div class="tcomment"${i===0?' style="margin-top:18px;padding-top:0;border-top:none"':' style="margin-top:14px;padding-top:14px"'}>
         <div style="font-weight:600;color:var(--t2);margin-bottom:4px">${esc(s.q)}</div>
         <div>${pWrap(s.a)}</div>
       </div>`).join("")}
-    </div>`;
+    </details>`;
   }).join("");
 
   const eqPointsJSON=JSON.stringify(equityPoints(en));
+  const eqPeriodBoundsJSON=JSON.stringify(periodBoundsForChart());
   const eqTradeCount=en.length;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Trading Journal Summary — ${periodLabel}</title>
@@ -2799,6 +3288,9 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px}
 .lcmeta{font-size:11px;font-weight:700;text-align:right;white-space:nowrap;flex-shrink:0}
 .tcard{background:var(--s1);border:.5px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:10px}
 .thead2{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;margin-bottom:4px}
+.rdetails>summary{cursor:pointer;list-style:none;user-select:none}
+.rdetails>summary::-webkit-details-marker{display:none}
+.rdetails[open]>summary{margin-bottom:4px}
 .tmeta{font-size:11px;color:var(--t3);line-height:1.5}
 .tcomment{font-size:12px;color:var(--t2);margin-top:8px;padding-top:8px;border-top:.5px solid var(--bd);line-height:1.5}
 .tshots{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
@@ -2858,7 +3350,7 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px}
 .twrap{overflow-x:auto;border:.5px solid var(--bd);border-radius:var(--radl)}
 table{width:100%;border-collapse:collapse;font-size:var(--fsm)}
 thead tr{background:var(--s2);border-bottom:.5px solid var(--bd)}
-thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:left}
+thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:center}
 thead th.sortable{cursor:pointer;user-select:none;transition:color .15s}
 thead th.sortable:hover{color:var(--t)}
 thead th.sortable.sorted{color:var(--t)}
@@ -2866,9 +3358,8 @@ thead th.sortable.sorted{color:var(--t)}
 tbody tr.trow{border-bottom:.5px solid var(--bd);transition:background .1s;cursor:pointer}
 tbody tr.trow:last-child{border-bottom:none}
 tbody tr.trow:hover{background:var(--s2)}
-tbody td{padding:8px 10px}
+tbody td{padding:8px 10px;text-align:center}
 tr.exprow td{padding:0;border-bottom:.5px solid var(--bd)}
-.chev{width:18px;color:var(--t3);font-size:10px;text-align:center;white-space:nowrap}
 .pill{display:inline-block;font-size:var(--fxs);padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap}
 .pwin{background:var(--gbg);color:var(--g);border:.5px solid var(--gbd)}
 .ploss{background:var(--rbg);color:var(--r);border:.5px solid var(--rbd)}
@@ -2876,14 +3367,14 @@ tr.exprow td{padding:0;border-bottom:.5px solid var(--bd)}
 .pneu{background:var(--s2);color:var(--t2);border:.5px solid var(--bd)}
 .pgood{background:var(--gbg);color:var(--g);border:.5px solid var(--gbd)}
 .pbad{background:var(--rbg);color:var(--r);border:.5px solid var(--rbd)}
-.spill{display:inline-flex;align-items:center;font-size:var(--fxs);font-weight:600;padding:3px 9px;border-radius:5px;white-space:nowrap;font-family:var(--mono);width:44px;justify-content:center}
-.rulesflex{display:flex;align-items:center;gap:5px}
+.spill{display:inline-flex;align-items:center;font-size:var(--fxs);font-weight:600;padding:3px 9px;border-radius:5px;white-space:nowrap;font-family:var(--mono);width:44px;justify-content:center;flex-shrink:0}
+.rulesflex{display:flex;align-items:center;justify-content:flex-start;gap:5px;text-align:left}
 .exppanel{padding:16px 18px;background:var(--s2)}
 .expmeta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:var(--fsm);color:var(--t2);margin-bottom:12px;white-space:normal}
 .expmeta strong{color:var(--t3);font-weight:600}
-.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px}
+.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px;text-align:left}
 .expsub:first-of-type{margin-top:0}
-.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap}
+.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap;text-align:left}
 .expcols{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
 @media(max-width:640px){.expcols{grid-template-columns:1fr}}
 .explistrow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:.5px solid var(--bd);font-size:var(--fsm);color:var(--t2);white-space:normal}
@@ -2921,7 +3412,7 @@ ${includeStats?`<details class="statsdetails" id="stats-details">
   </div>
 </div>
 </details>`:""}
-${calendarH(en)}
+${calendarH(en,{detailsMode:true})}
 <p class="seclab">good trade vs. bad trade</p>
 <div class="row2colEq">
   <div class="bpanel">${quad}</div>
@@ -2932,8 +3423,10 @@ ${calendarH(en)}
   <div class="bpanel">${dqRows}</div>
   <div class="bpanel">${rulesRows||`<div class="empty2">no data for this period</div>`}</div>
 </div>
-<p class="seclab">reflections (${refList.length})</p>
+<details class="statsdetails" id="reflections-details">
+<summary class="seclab">reflections (${refList.length})</summary>
 ${reflectionCards||`<div class="empty2">no reflections in this period</div>`}
+</details>
 <p class="seclab">trade log (${en.length})</p>
 <div id="exp-log-root"></div>
 </div>
@@ -2950,6 +3443,7 @@ function expToggleTheme(){
 (function(){var b=document.getElementById("exp-theme-btn");if(b)b.innerHTML=document.documentElement.getAttribute("data-theme")==="dark"?EXP_SUN_SVG:EXP_MOON_SVG;})();
 var EQ_POINTS=${eqPointsJSON};
 var EQ_TRADE_COUNT=${eqTradeCount};
+var EQ_PERIOD_BOUNDS=${eqPeriodBoundsJSON};
 function openLB(src){document.getElementById("lbox-img").src=src;document.getElementById("lbox").classList.add("show");}
 function closeLB(){document.getElementById("lbox").classList.remove("show");document.getElementById("lbox-img").src="";}
 
@@ -2959,7 +3453,7 @@ var EXP_RULES=${rulesJSON};
 var EXP_DQ=${dqJSON};
 var EXP_LOSSCATS=${losscatsJSON};
 var EXP_LCMAP={};EXP_LOSSCATS.forEach(function(c){EXP_LCMAP[c.id]=c.label;});
-var EXP_LOG_COLS=13;
+var EXP_LOG_COLS=12;
 var expLogSort={col:"date",dir:"desc"};
 var expLogFilters={ticker:[],setup:[],wl:[],process:[],lossCat:[]};
 var expLogFilterOpen=null;
@@ -3005,7 +3499,8 @@ function expFillsH(fills){
   }).join("");
 }
 function expUniqueTickers(){var s={};EXP_TRADES.forEach(function(t){s[(t.ticker||"").toUpperCase()]=1;});return Object.keys(s).sort();}
-function expUniqueSetups(){var s={};EXP_TRADES.forEach(function(t){if(t.setup)s[t.setup]=1;});return Object.keys(s).sort();}
+function expUniqueSetups(){var s={};EXP_TRADES.forEach(function(t){(t.setups||[t.setup]).forEach(function(su){if(su)s[su]=1;});});return Object.keys(s).sort();}
+function expSetupAbbr(su){return su==="Bounce"?"B":su==="Reject"?"R":su==="Break"?"Br":su;}
 function expSearchMatch(t){
   // Matches everything in a trade, not just the columns visible in the collapsed
   // row — comments only show once a row is expanded, but search still needs to
@@ -3013,13 +3508,14 @@ function expSearchMatch(t){
   var q=expSearchQuery.trim().toLowerCase();
   if(!q)return true;
   var lc=t.lossCat?(EXP_LCMAP[t.lossCat]||""):"";
-  var hay=[t.ticker,t.setup,t.wl,t.direction,expDispDate(t.date),t.comments,lc].filter(Boolean).join(" ").toLowerCase();
+  var hay=[t.ticker].concat(t.setups||[t.setup]).concat([t.wl,t.direction,expDispDate(t.date),t.comments,lc]).filter(Boolean).join(" ").toLowerCase();
   return hay.indexOf(q)!==-1;
 }
 function expApplyLogFilters(list){
   return list.filter(function(t){
+    var tsetups=t.setups||[t.setup];
     if(expLogFilters.ticker.length&&expLogFilters.ticker.indexOf((t.ticker||"").toUpperCase())===-1)return false;
-    if(expLogFilters.setup.length&&expLogFilters.setup.indexOf(t.setup)===-1)return false;
+    if(expLogFilters.setup.length&&!tsetups.some(function(su){return expLogFilters.setup.indexOf(su)!==-1;}))return false;
     if(expLogFilters.wl.length&&expLogFilters.wl.indexOf(t.wl)===-1)return false;
     if(expLogFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -3080,8 +3576,9 @@ function expClearOneLogFilter(key,ev){
 function expCloseLogFilterDropdown(){if(expLogFilterOpen){expLogFilterOpen=null;renderExpLog();}}
 function expCountForFilterOption(key,val,list){
   return list.filter(function(t){
+    var tsetups=t.setups||[t.setup];
     if(key!=="ticker"&&expLogFilters.ticker.length&&expLogFilters.ticker.indexOf((t.ticker||"").toUpperCase())===-1)return false;
-    if(key!=="setup"&&expLogFilters.setup.length&&expLogFilters.setup.indexOf(t.setup)===-1)return false;
+    if(key!=="setup"&&expLogFilters.setup.length&&!tsetups.some(function(su){return expLogFilters.setup.indexOf(su)!==-1;}))return false;
     if(key!=="wl"&&expLogFilters.wl.length&&expLogFilters.wl.indexOf(t.wl)===-1)return false;
     if(key!=="process"&&expLogFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -3092,7 +3589,7 @@ function expCountForFilterOption(key,val,list){
     if(!expSearchMatch(t))return false;
     switch(key){
       case"ticker":return(t.ticker||"").toUpperCase()===val;
-      case"setup":return t.setup===val;
+      case"setup":return tsetups.indexOf(val)!==-1;
       case"wl":return t.wl===val;
       case"process":return t.isGood!==null&&t.isGood!==undefined&&(t.isGood?"good":"bad")===val;
       case"lossCat":return t.lossCat===val;
@@ -3207,6 +3704,8 @@ function expExpandRowH(t){
     :(t.screenshots&&t.screenshots.length>0)
     ?'<div class="expsub">screenshots <span style="text-transform:none;color:var(--t3)">— click to view full size</span></div><div class="ssgallery">'+t.screenshots.map(function(sh){return'<img src="'+sh.dataUrl+'" alt="screenshot" onclick="openLB(this.src)"/>';}).join("")+'</div>'
     :'<div class="expsub">screenshots</div><div class="dqok">no screenshots attached</div>';
+  var feesNum=parseFloat(t.fees);
+  var platformLabel=t.platform==="tradovate"?"Tradovate":t.platform==="ninjatrader"?"NinjaTrader":"Other";
   return'<tr class="exprow"><td colspan="'+EXP_LOG_COLS+'"><div class="exppanel">'+
     '<div class="expmeta">'+
       '<span><strong>Direction</strong> '+dirLabel+'</span>'+
@@ -3215,8 +3714,15 @@ function expExpandRowH(t){
       '<span><strong>Duration</strong> '+expFdur(t.durationMin)+'</span>'+
       '<span><strong>Realized R</strong> '+((t.realizedR!==null&&t.realizedR!==undefined)?expF2(t.realizedR)+":1":"—")+'</span>'+
       '<span><strong>Rules score</strong> '+((t.rs!==null&&t.rs!==undefined)?expPc(t.rs):"—")+'</span>'+
+      ((!isNaN(feesNum)&&feesNum>0)?'<span><strong>Fees</strong> -'+expCuNoSign(feesNum)+' <span style="color:var(--t3)">('+platformLabel+')</span></span>':"")+
       (t.lossCat?'<span><strong>Loss type</strong> '+(EXP_LCMAP[t.lossCat]||"")+'</span>':"")+
     '</div>'+
+    (t.segsDisplay?'<div class="expmeta" style="margin-top:-6px">'+t.segsDisplay.map(function(seg,i){
+      var segDollars=seg.dollars;
+      var segCol=(segDollars===null||segDollars===undefined)?"var(--t3)":segDollars>0?"var(--g)":segDollars<0?"var(--r)":"var(--t)";
+      var dirLbl=seg.direction==="short"?"Short":"Long";
+      return'<span><strong>Leg '+(i+1)+' ('+dirLbl+' · '+seg.setup+')</strong> <span style="color:'+segCol+'">'+((segDollars!==null&&segDollars!==undefined)?expCuNoSign(segDollars):"open")+'</span></span>';
+    }).join("")+'</div>':"")+
     ((t.fills&&t.fills.length>1)?'<div class="expmeta" style="margin-top:-6px">'+expFillsH(t.fills)+'</div>':"")+
     ((t.comments&&t.comments.trim())?'<div class="expsub">comments</div><div class="expcomment">'+expHl(t.comments,expSearchQuery)+'</div>':"")+
     '<div class="expcols" style="margin-top:18px">'+
@@ -3232,7 +3738,7 @@ function renderExpLog(){
   var filtersOn=expHasLogFilters();
   var anyExpanded=list.some(function(t){return expExpandedIds.has(t.id);});
   var LOG_HEADERS=[
-    {key:null,label:""},{key:"date",label:"date"},{key:"ticker",label:"ticker"},{key:"setup",label:"setup"},
+    {key:"date",label:"date"},{key:"ticker",label:"ticker"},{key:"setup",label:"setup"},
     {key:null,label:"contracts"},{key:null,label:"entry"},{key:null,label:"stop"},{key:null,label:"target"},{key:null,label:"exit"},
     {key:"result",label:"result"},{key:"wl",label:"w/l"},{key:"rules",label:"rules"},{key:"process",label:"process"}
   ];
@@ -3240,7 +3746,8 @@ function renderExpLog(){
     if(!h.key)return"<th>"+h.label+"</th>";
     var active=expLogSort.col===h.key;
     var arrow=active?'<span class="sortarrow">'+(expLogSort.dir==="asc"?"▲":"▼")+'</span>':"";
-    return'<th class="sortable'+(active?" sorted":"")+'" onclick="expSetLogSort(\\''+h.key+'\\')" title="sort by '+h.label+'">'+h.label+arrow+"</th>";
+    var leftAlign=h.key==="rules"?' style="text-align:left"':"";
+    return'<th class="sortable'+(active?" sorted":"")+'"'+leftAlign+' onclick="expSetLogSort(\\''+h.key+'\\')" title="sort by '+h.label+'">'+h.label+arrow+"</th>";
   }).join("");
   var tickerOpts=expUniqueTickers().map(function(tk){return{val:tk,label:tk};});
   var setupOpts=expUniqueSetups().map(function(su){return{val:su,label:su};});
@@ -3285,11 +3792,10 @@ function renderExpLog(){
       var sl=(t.rs!==null&&t.rs!==undefined)?(t.fc+"/"+t.ac):"—";
       var isOpen=expExpandedIds.has(t.id);
       var row='<tr class="trow" id="exptraderow-'+t.id+'" onclick="expToggleExpand('+t.id+')">'+
-        '<td class="chev">'+(isOpen?"▾":"▸")+'</td>'+
-        '<td style="font-size:var(--fsm);color:var(--t2)">'+expHl(expDispDate(t.date),expSearchQuery)+'</td>'+
+        '<td style="font-size:var(--fsm);color:var(--t2);padding-left:20px;padding-right:20px">'+expHl(expDispDate(t.date),expSearchQuery)+'</td>'+
         '<td style="font-weight:700">'+expHl(t.ticker?t.ticker.toUpperCase():"",expSearchQuery)+'</td>'+
-        '<td><span class="pill pneu">'+expHl(t.setup,expSearchQuery)+'</span></td>'+
-        '<td style="text-align:center">'+(t.contracts||"—")+'</td>'+
+        '<td>'+(t.setups||[t.setup]).map(function(su){return'<span class="pill pneu">'+expHl(expSetupAbbr(su),expSearchQuery)+'</span>';}).join(" ")+'</td>'+
+        '<td style="padding-left:6px;padding-right:6px">'+(t.contracts||"—")+'</td>'+
         '<td>$'+expF2(t.entry)+'</td>'+
         '<td style="color:var(--r)">$'+expF2(t.stop)+'</td>'+
         '<td style="color:var(--g)">$'+expF2(t.target)+'</td>'+
@@ -3311,8 +3817,108 @@ document.addEventListener("click",function(){if(expLogFilterOpen)expCloseLogFilt
 document.addEventListener("keydown",function(ev){if(ev.key==="Escape"){if(expSearchOpen)expCloseSearch();if(expLogFilterOpen)expCloseLogFilterDropdown();}});
 var statsDetailsEl=document.getElementById("stats-details");
 if(statsDetailsEl){statsDetailsEl.addEventListener("toggle",function(){if(statsDetailsEl.open)layoutExpChart();});}
-function fmtDate(s){if(!s)return"Start";var p=s.split("-");return p[2]+"/"+p[1]+"/"+p[0].slice(2);}
-function fmtAxisDate(s){if(!s)return"";var p=s.split("-");return p[2]+"/"+p[1];}
+var eqSvgInstanceCounter=0;
+var EQ_MONTH_ABBR=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var AXIS_RULES={dayFormatMaxDays:90,monthFormatMaxDays:365,labelMarginPx:10};
+var EQ_XTICK_FONT=9.5,EQ_YTICK_FONT=10;
+function fmtDate(s){if(!s)return"Start";var p=s.split("-");if(p.length!==3)return s;return p[2]+" "+EQ_MONTH_ABBR[parseInt(p[1],10)-1]+" "+p[0].slice(2);}
+function getAxisFormatZone(rangeDays){
+  if(rangeDays<=AXIS_RULES.dayFormatMaxDays)return"day";
+  if(rangeDays<=AXIS_RULES.monthFormatMaxDays)return"month";
+  return"quarter";
+}
+function fmtAxisDate(s){if(!s)return"";var p=s.split("-");if(p.length!==3)return s;return p[2]+"/"+p[1];}
+function fmtAxisMonth(s){if(!s)return"";var p=s.split("-");if(p.length!==3)return s;return EQ_MONTH_ABBR[parseInt(p[1],10)-1]+" "+p[0].slice(2);}
+function fmtAxisQuarter(s){if(!s)return"";var p=s.split("-");if(p.length!==3)return s;var q=Math.floor((parseInt(p[1],10)-1)/3)+1;return"Q"+q+" "+p[0].slice(2);}
+function dateToTime(s){return new Date(s+"T00:00:00").getTime();}
+function timeToDateStr(t){var d=new Date(t);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function estLabelWidth(s){return s.length*EQ_XTICK_FONT*0.6;}
+// "Nice" step candidates per zone, in the natural unit for that zone.
+var EQ_DAY_STEPS=[1,2,3,5,7,14,21,28,45,60,90];
+var EQ_MONTH_STEPS=[1,2,3,6,12,24,36,60];
+var EQ_QUARTER_STEPS=[1,2,4,8,12,20,40];
+var EQ_DAY_MS=86400000;
+function eqFitsInMargins(x,label,padL,plotW,anchor){
+  var w=estLabelWidth(label);
+  if(anchor==="start")return x>=padL-0.5 && x+w<=padL+plotW+0.5;
+  if(anchor==="end")return x-w>=padL-0.5 && x<=padL+plotW+0.5;
+  var half=w/2;
+  return x-half>=padL-0.5 && x+half<=padL+plotW+0.5;
+}
+function eqTickExtents(t){
+  var w=estLabelWidth(t.label);
+  if(t.anchor==="start")return{left:0,right:w};
+  if(t.anchor==="end")return{left:w,right:0};
+  return{left:w/2,right:w/2};
+}
+function eqTicksOverlap(list){
+  for(var k=0;k<list.length-1;k++){
+    var a=eqTickExtents(list[k]),b=eqTickExtents(list[k+1]);
+    var need=a.right+b.left+AXIS_RULES.labelMarginPx;
+    if(list[k+1].x-list[k].x<need)return true;
+  }
+  return false;
+}
+function eqPairFits(a,b){
+  var ea=eqTickExtents(a),eb=eqTickExtents(b);
+  return (b.x-a.x)>=ea.right+eb.left+AXIS_RULES.labelMarginPx;
+}
+// Same root-cause redesign as the dashboard copy of this function: density
+// comes from the interior ticks alone (finest nice step whose own ticks
+// don't crowd each other); only the individual interior tick nearest an
+// edge gets dropped if it crowds that edge's label, instead of throwing
+// out the whole step over one bad neighbor.
+function buildAdaptiveDateTicks(periodStartTime,periodEndTime,plotW,padL){
+  var totalSpanMs=Math.max(1,periodEndTime-periodStartTime);
+  function xOf(t){
+    var frac=Math.min(1,Math.max(0,(t-periodStartTime)/totalSpanMs));
+    return padL+frac*plotW;
+  }
+  var zone=getAxisFormatZone(totalSpanMs/EQ_DAY_MS);
+  var isDay=zone==="day",isMonth=zone==="month";
+  var fmtFn=isDay?fmtAxisDate:(isMonth?fmtAxisMonth:fmtAxisQuarter);
+  var steps=isDay?EQ_DAY_STEPS:(isMonth?EQ_MONTH_STEPS:EQ_QUARTER_STEPS);
+  function label(t){return fmtFn(timeToDateStr(t));}
+
+  var idxToTime,periodEndIdx;
+  if(isDay){
+    idxToTime=function(idx){return periodStartTime+idx*EQ_DAY_MS;};
+    periodEndIdx=Math.round(totalSpanMs/EQ_DAY_MS);
+  }else{
+    var startD=new Date(periodStartTime),baseY=startD.getFullYear(),baseM=startD.getMonth();
+    var unit=isMonth?1:3;
+    idxToTime=function(idx){return new Date(baseY,baseM+idx*unit,1).getTime();};
+    var endD=new Date(periodEndTime);
+    periodEndIdx=Math.round(((endD.getFullYear()-baseY)*12+(endD.getMonth()-baseM))/unit);
+  }
+
+  function interiorForStep(step){
+    var out=[];
+    for(var idx=step;idx<periodEndIdx;idx+=step){
+      var t=idxToTime(idx);
+      out.push({x:xOf(t),label:label(t),anchor:"middle"});
+    }
+    return out;
+  }
+  function interiorOverlaps(interior){
+    for(var k=0;k<interior.length-1;k++)if(!eqPairFits(interior[k],interior[k+1]))return true;
+    return false;
+  }
+  var chosenInterior=[];
+  for(var si=0;si<steps.length;si++){
+    var interior=interiorForStep(steps[si]);
+    if(!interiorOverlaps(interior)){chosenInterior=interior;break;}
+  }
+
+  var startTick={x:padL,label:label(periodStartTime),anchor:"start"};
+  var endTick=periodEndIdx>0?{x:padL+plotW,label:label(periodEndTime),anchor:"end"}:null;
+  var kept=chosenInterior.slice();
+  if(kept.length&&!eqPairFits(startTick,kept[0]))kept.shift();
+  if(endTick&&kept.length&&!eqPairFits(kept[kept.length-1],endTick))kept.pop();
+  var result=[startTick].concat(kept);
+  if(endTick)result.push(endTick);
+  return result;
+}
 function fmtCur(n){if(n===null||isNaN(n))return"—";var a=Number(Math.abs(n)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});return n<0?"-$"+a:"$"+a;}
 // Same pixel-matched approach as the live app: viewBox == measured container size,
 // so nothing gets stretched. Recomputed on load and on resize.
@@ -3335,8 +3941,7 @@ function niceAxis(dataMin,dataMax,targetTicks){
   ticks.sort(function(a,b){return a-b;});
   return{min:niceLo,max:niceHi,step:step,ticks:ticks};
 }
-var EQ_SPARSE_DAYS=3,EQ_SPARSE_TRADES=8;
-function buildEqSVG(points,w,h,tradeCount){
+function buildEqSVG(points,w,h,tradeCount,periodBounds){
   w=Math.max(60,Math.round(w));h=Math.max(60,Math.round(h));
   var real=points.filter(function(p){return p.date!==null;});
   if(real.length<1){
@@ -3348,57 +3953,136 @@ function buildEqSVG(points,w,h,tradeCount){
   var longest=ax.ticks.reduce(function(a,v){return Math.max(a,fmtCur(v).length);},0);
   var padL=Math.max(52,longest*6.6+16),padR=28,padT=14,padB=24;
   var plotW=Math.max(10,w-padL-padR),plotH=Math.max(10,h-padT-padB);
-  var totalTrades=tradeCount!==undefined?tradeCount:real.reduce(function(a,p){return a+(p.count||0);},0);
-  var sparse=real.length<=EQ_SPARSE_DAYS&&totalTrades<=EQ_SPARSE_TRADES;
-  var cumCount=0;
-  var cumCounts=points.map(function(p){cumCount+=p.count||0;return cumCount;});
-  var xStep=points.length>1?plotW/(points.length-1):plotW;
-  function xFor(i){return sparse?padL+(cumCounts[i]/EQ_SPARSE_TRADES)*plotW:padL+i*xStep;}
+  // Horizontal positioning spans the VIEWED PERIOD (the full week / month /
+  // custom range) rather than just the stretch between the first and last
+  // real trade — same reasoning as the dashboard copy of this function.
+  var realIdxsForSpan=[];points.forEach(function(p,i){if(p.date)realIdxsForSpan.push(i);});
+  var firstRealTime=dateToTime(points[realIdxsForSpan[0]].date);
+  var lastRealTime=dateToTime(points[realIdxsForSpan[realIdxsForSpan.length-1]].date);
+  var spanStartTime=periodBounds?periodBounds.startT:firstRealTime;
+  var spanEndTime=periodBounds?periodBounds.endT:lastRealTime;
+  if(spanEndTime<=spanStartTime){
+    spanEndTime=spanStartTime+EQ_DAY_MS;
+  }
+  var totalSpanMs=spanEndTime-spanStartTime;
+  function timeFrac(i){
+    var d=points[i].date;
+    var t=d?dateToTime(d):spanStartTime;
+    return Math.min(1,Math.max(0,(t-spanStartTime)/totalSpanMs));
+  }
+  function xFor(i){return padL+timeFrac(i)*plotW;}
   function yFor(v){return padT+plotH-((v-min)/(max-min))*plotH;}
   var coords=points.map(function(p,i){return[xFor(i),yFor(p.cum)];});
   var yZero=yFor(0);
   var lastVal=points[points.length-1].cum;
   var lastC=coords[coords.length-1];
   var lastColor=lastVal>=0?"var(--g)":"var(--r)";
-  var lineEls="";
-  for(var i=0;i<coords.length-1;i++){
+  // The synthetic {date:null,cum:0} anchor at index 0 now sits at the true
+  // start of the viewed period, so the line always draws from flat-zero at
+  // the period's start through to the last real trade.
+  var lineStartIdx=0;
+  var runs=[];
+  var curRun=[{x:coords[lineStartIdx][0],y:coords[lineStartIdx][1]}];
+  var curSign=points[lineStartIdx].cum>=0?1:-1;
+  for(var i=lineStartIdx;i<coords.length-1;i++){
     var v0=points[i].cum,v1=points[i+1].cum;
-    var x0=coords[i][0],y0=coords[i][1],x1=coords[i+1][0],y1=coords[i+1][1];
+    var x1=coords[i+1][0],y1=coords[i+1][1];
     if((v0>=0&&v1>=0)||(v0<0&&v1<0)){
-      var col=v1>=0?"var(--g)":"var(--r)";
-      lineEls+='<line x1="'+x0.toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y2="'+y1.toFixed(1)+'" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/>';
+      curRun.push({x:x1,y:y1});
     }else{
       var t=v0/(v0-v1);
-      var xm=x0+(x1-x0)*t;
-      lineEls+='<line x1="'+x0.toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+xm.toFixed(1)+'" y2="'+yZero.toFixed(1)+'" stroke="'+(v0>=0?"var(--g)":"var(--r)")+'" stroke-width="2" stroke-linecap="round"/>';
-      lineEls+='<line x1="'+xm.toFixed(1)+'" y1="'+yZero.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y2="'+y1.toFixed(1)+'" stroke="'+(v1>=0?"var(--g)":"var(--r)")+'" stroke-width="2" stroke-linecap="round"/>';
+      var xm=coords[i][0]+(x1-coords[i][0])*t;
+      curRun.push({x:xm,y:yZero});
+      runs.push({pts:curRun,sign:curSign});
+      curRun=[{x:xm,y:yZero},{x:x1,y:y1}];
+      curSign=v1>=0?1:-1;
     }
   }
+  runs.push({pts:curRun,sign:curSign});
+  // Softly rounded corner at every real data point — a MONOTONE cubic
+  // Hermite spline (Fritsch–Carlson). See the dashboard copy of this
+  // function above for the full rationale.
+  function smoothCurveCmds(pts){
+    var n=pts.length;
+    if(n<2)return"";
+    var dx=new Array(n-1),dy=new Array(n-1),m=new Array(n-1);
+    var i;
+    for(i=0;i<n-1;i++){
+      dx[i]=pts[i+1].x-pts[i].x;
+      dy[i]=pts[i+1].y-pts[i].y;
+      m[i]=dx[i]!==0?dy[i]/dx[i]:0;
+    }
+    var t=new Array(n);
+    t[0]=m[0];
+    t[n-1]=m[n-2];
+    for(i=1;i<n-1;i++){
+      if(m[i-1]===0||m[i]===0||(m[i-1]<0)!==(m[i]<0)){
+        t[i]=0;
+      }else{
+        var w1=2*dx[i]+dx[i-1],w2=dx[i]+2*dx[i-1];
+        t[i]=(w1+w2)/(w1/m[i-1]+w2/m[i]);
+      }
+    }
+    for(i=0;i<n-1;i++){
+      if(m[i]===0){t[i]=0;t[i+1]=0;continue;}
+      var a=t[i]/m[i],b=t[i+1]/m[i],s=a*a+b*b;
+      if(s>9){var tau=3/Math.sqrt(s);t[i]=tau*a*m[i];t[i+1]=tau*b*m[i];}
+    }
+    var d="";
+    for(i=0;i<n-1;i++){
+      var p1=pts[i],p2=pts[i+1];
+      var c1x=p1.x+dx[i]/3,c1y=p1.y+t[i]*dx[i]/3;
+      var c2x=p2.x-dx[i]/3,c2y=p2.y-t[i+1]*dx[i]/3;
+      d+='C '+c1x.toFixed(1)+' '+c1y.toFixed(1)+', '+c2x.toFixed(1)+' '+c2y.toFixed(1)+', '+p2.x.toFixed(1)+' '+p2.y.toFixed(1)+' ';
+    }
+    return d;
+  }
+  var lineEls="";
+  runs.forEach(function(run){
+    if(run.pts.length<2)return;
+    var col=run.sign>=0?"var(--g)":"var(--r)";
+    var d='M '+run.pts[0].x.toFixed(1)+' '+run.pts[0].y.toFixed(1)+' '+smoothCurveCmds(run.pts);
+    lineEls+='<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+  });
+  var gradId="eqFill"+(eqSvgInstanceCounter++);
+  function fillPath(pts,sign){
+    if(pts.length<2)return"";
+    var d='M '+pts[0].x.toFixed(1)+' '+yZero.toFixed(1)+' L '+pts[0].x.toFixed(1)+' '+pts[0].y.toFixed(1)+' '+
+      smoothCurveCmds(pts)+
+      'L '+pts[pts.length-1].x.toFixed(1)+' '+yZero.toFixed(1)+' Z';
+    return'<path d="'+d+'" fill="'+(sign>=0?"url(#"+gradId+"G)":"url(#"+gradId+"R)")+'" stroke="none"/>';
+  }
+  var fillEls="";
+  runs.forEach(function(run){fillEls+=fillPath(run.pts,run.sign);});
   var tickLines=ax.ticks.map(function(v){
     var y=yFor(v).toFixed(1),isZero=v===0;
-    return'<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="var(--bd)" stroke-width="'+(isZero?1:0.75)+'" stroke-dasharray="'+(isZero?"none":"3,3")+'"/><text x="'+(padL-10)+'" y="'+(parseFloat(y)+4).toFixed(1)+'" text-anchor="end" font-size="11" font-weight="300" fill="var(--t3)">'+fmtCur(v)+'</text>';
+    return'<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="var(--bd)" stroke-width="'+(isZero?1:0.75)+'" stroke-dasharray="'+(isZero?"none":"3,3")+'"/><text x="'+(padL-10)+'" y="'+(parseFloat(y)+4).toFixed(1)+'" text-anchor="end" font-size="'+EQ_YTICK_FONT+'" font-weight="300" fill="var(--t3)">'+fmtCur(v)+'</text>';
   }).join("");
-  var realIdxs=[];points.forEach(function(p,i){if(p.date)realIdxs.push(i);});
-  var xTickIdxs=[];
-  if(realIdxs.length<=5){xTickIdxs=realIdxs;}
-  else{
-    for(var k=0;k<5;k++)xTickIdxs.push(realIdxs[Math.round(k*(realIdxs.length-1)/4)]);
-    xTickIdxs=xTickIdxs.filter(function(v,idx,arr){return arr.indexOf(v)===idx;});
-  }
-  var xTicks=xTickIdxs.map(function(i){
-    return'<text x="'+coords[i][0].toFixed(1)+'" y="'+(h-6)+'" text-anchor="middle" font-size="11" font-weight="300" fill="var(--t3)">'+fmtAxisDate(points[i].date)+'</text>';
+  var adaptiveTicks=buildAdaptiveDateTicks(spanStartTime,spanEndTime,plotW,padL);
+  var xTicks=adaptiveTicks.map(function(t){
+    return'<text x="'+t.x.toFixed(1)+'" y="'+(h-6)+'" text-anchor="'+(t.anchor||"middle")+'" font-size="'+EQ_XTICK_FONT+'" font-weight="300" fill="var(--t3)">'+t.label+'</text>';
   }).join("");
   var hitPts=[];points.forEach(function(p,i){if(p.date)hitPts.push({x:Number(coords[i][0].toFixed(1)),y:Number(coords[i][1].toFixed(1)),date:p.date,val:p.cum});});
   var dataAttr=encodeURIComponent(JSON.stringify(hitPts));
   return'<div class="eq-wrap" data-points="'+dataAttr+'" style="position:relative;width:100%;height:100%">'+
   '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" style="width:100%;height:100%;display:block;font-family:inherit">'+
-    tickLines+lineEls+xTicks+
+    '<defs>'+
+      '<linearGradient id="'+gradId+'G" x1="0" y1="'+padT+'" x2="0" y2="'+yZero.toFixed(1)+'" gradientUnits="userSpaceOnUse">'+
+        '<stop offset="0%" stop-color="var(--g)" stop-opacity="0.25"/>'+
+        '<stop offset="100%" stop-color="var(--g)" stop-opacity="0"/>'+
+      '</linearGradient>'+
+      '<linearGradient id="'+gradId+'R" x1="0" y1="'+yZero.toFixed(1)+'" x2="0" y2="'+(padT+plotH)+'" gradientUnits="userSpaceOnUse">'+
+        '<stop offset="0%" stop-color="var(--r)" stop-opacity="0"/>'+
+        '<stop offset="100%" stop-color="var(--r)" stop-opacity="0.25"/>'+
+      '</linearGradient>'+
+    '</defs>'+
+    tickLines+fillEls+lineEls+xTicks+
     '<circle cx="'+lastC[0].toFixed(1)+'" cy="'+lastC[1].toFixed(1)+'" r="3.5" fill="'+lastColor+'"/>'+
     '<line class="eq-cross" x1="0" y1="'+padT+'" x2="0" y2="'+(h-padB)+'" stroke="var(--t3)" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>'+
     '<circle class="eq-dot" cx="0" cy="0" r="4" fill="var(--t)" stroke="var(--bg)" stroke-width="1.5" opacity="0"/>'+
     '<rect class="eq-hitrect" x="'+padL+'" y="0" width="'+plotW+'" height="'+h+'" fill="transparent" style="cursor:crosshair"/>'+
   '</svg>'+
-  '<div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;transform:translate(-50%,-125%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>'+
+  '<div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;line-height:1.5;transform:translate(-50%,-135%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>'+
   '</div>';
 }
 function initEquityHover(wrap){
@@ -3422,7 +4106,7 @@ function initEquityHover(wrap){
     cross.setAttribute("x1",p.x);cross.setAttribute("x2",p.x);cross.setAttribute("opacity","1");
     dot.setAttribute("cx",p.x);dot.setAttribute("cy",p.y);dot.setAttribute("opacity","1");
     tip.style.opacity="1";tip.style.left=((p.x/vbW)*100)+"%";tip.style.top=((p.y/vbH)*100)+"%";
-    tip.innerHTML="<strong>"+fmtDate(p.date)+"</strong> · "+fmtCur(p.val);
+    tip.innerHTML="<div><strong>"+fmtDate(p.date)+"</strong></div><div>Equity: "+fmtCur(p.val)+"</div>";
   }
   function hide(){cross.setAttribute("opacity","0");dot.setAttribute("opacity","0");tip.style.opacity="0";}
   hitrect.addEventListener("mousemove",function(e){show(nearestTo(e.clientX));});
@@ -3441,7 +4125,7 @@ function layoutExpChart(){
   eqCol.style.height=targetH+"px";
   var w=outer.clientWidth,h=outer.clientHeight;
   if(w<20||h<20)return;
-  outer.innerHTML=buildEqSVG(EQ_POINTS,w,h,EQ_TRADE_COUNT);
+  outer.innerHTML=buildEqSVG(EQ_POINTS,w,h,EQ_TRADE_COUNT,EQ_PERIOD_BOUNDS);
   initEquityHover(outer.querySelector(".eq-wrap"));
 }
 layoutExpChart();
@@ -3626,16 +4310,25 @@ function calendarH(en,opts){
     }
     if(week.length>0){while(week.length<7)week.push(null);rowsHtml+=week.map(d=>cellFor(d)).join("")+totalCell(week);}
   }else{
+    // Sun–Fri only (6 columns) — no Saturday session, so no Saturday column.
     const s=startOfWeek(periodAnchor);
     const week=[];
-    for(let i=0;i<7;i++){const d=new Date(s);d.setDate(s.getDate()+i);week.push(d);}
+    for(let i=0;i<6;i++){const d=new Date(s);d.setDate(s.getDate()+i);week.push(d);}
     rowsHtml=week.map((d,i)=>cellFor(d,`${DOW[i]} ${d.getDate()}`)).join("")+totalCell(week);
   }
   const title=opts.label!==undefined?opts.label:(mode==="month"?"calendar":"week overview");
+  const dowHeaders=mode==="month"?DOW:DOW.slice(0,6);
+  const gridInner=`<div class="calgrid" style="grid-template-columns:repeat(${dowHeaders.length},1fr) 1.1fr">${[...dowHeaders,"Total"].map(d=>`<div class="caldow">${d}</div>`).join("")}${rowsHtml}</div>`;
+  if(opts.detailsMode){
+    // Static export build: a native <details> needs no JS to stay collapsible,
+    // and always starts open (open attribute present) — unlike the live
+    // journal, this never auto-collapses just because the period is "month".
+    return`<details class="statsdetails" open><summary class="seclab">${title}</summary>${gridInner}</details>`;
+  }
   const collapsible=!!opts.collapsible;
   const arrow=collapsible?(opts.collapsed?"▸ ":"▾ "):"";
   const headerHtml=`<p class="seclab"${collapsible?' style="cursor:pointer;user-select:none" onclick="toggleCalendarCollapse()"':""}>${arrow}${title}</p>`;
-  const gridHtml=(collapsible&&opts.collapsed)?"":`<div class="calgrid">${[...DOW,"Total"].map(d=>`<div class="caldow">${d}</div>`).join("")}${rowsHtml}</div>`;
+  const gridHtml=(collapsible&&opts.collapsed)?"":gridInner;
   return`<div class="calwrap">${headerHtml}${gridHtml}</div>`;
 }
 function toggleCalendarCollapse(){calendarCollapsed=!calendarCollapsed;render();}
@@ -3686,7 +4379,7 @@ ${drivePendingSync?`<div class="banner">
 ${periodBarH(filtered.length,trades.length)}
 ${tab==="log"?logH(en):tab==="dashboard"?dashH(s,en,ec,bc,em):reflectionH()}
 </div>`;
-  if(showForm){renderFillsSection();refreshRiskPreview();refreshRules();refreshDq();refreshScreenshots();}
+  if(showForm){renderFillsSection();recomputeAutoResult();refreshRiskPreview();refreshRules();refreshDq();refreshScreenshots();}
   if(tab==="dashboard"){
     dashboardEquityPoints=equityPoints(en);
     dashboardTradeCount=en.length;
@@ -3695,7 +4388,7 @@ ${tab==="log"?logH(en):tab==="dashboard"?dashH(s,en,ec,bc,em):reflectionH()}
 }
 
 // ── Log tab ───────────────────────────────────────────────────────────────────
-const LOG_COLS=15;
+const LOG_COLS=13;
 function expandRowH(t){
   const ra=t.ra||{},dqa=t.dqa||{};
   const lcMap=Object.fromEntries(LOSSCATS.map(c=>[c.id,c.label]));
@@ -3703,8 +4396,8 @@ function expandRowH(t){
   const entryStr=t.entryTime?`${dispDate(t.date)} ${t.entryTime}`:dispDate(t.date);
   const exitDateStr=effectiveExitDate(t);
   const exitStr=t.exitTime?`${dispDate(exitDateStr)} ${t.exitTime}`:"—";
-  const feeFixedNum=parseFloat(t.feeFixed),feeVarNum=parseFloat(t.feeVariable);
-  const feesTotal=(isNaN(feeFixedNum)?0:feeFixedNum)+(isNaN(feeVarNum)?0:feeVarNum);
+  const feesNum=parseFloat(t.fees);
+  const platformLabel=(PLATFORMS.find(p=>p.id===t.platform)||{}).label||"Other";
   return`<tr class="exprow"><td colspan="${LOG_COLS}"><div class="exppanel">
     <div class="expmeta">
       <span><strong>Direction</strong> ${dirLabel}</span>
@@ -3713,9 +4406,14 @@ function expandRowH(t){
       <span><strong>Duration</strong> ${fdur(t.durationMin)}</span>
       <span><strong>Realized R</strong> ${t.realizedR!==null?`${f2(t.realizedR)}:1`:"—"}</span>
       <span><strong>Rules score</strong> ${t.rs!==null?pc(t.rs):"—"}</span>
-      ${feesTotal>0?`<span><strong>Fees</strong> ${cu(-feesTotal)} <span style="color:var(--t3)">(${cu(feeFixedNum||0)} fixed${feeVarNum?` + ${cu(feeVarNum)} var`:""})</span></span>`:""}
+      ${!isNaN(feesNum)&&feesNum>0?`<span><strong>Fees</strong> ${cu(-feesNum)} <span style="color:var(--t3)">(${platformLabel})</span></span>`:""}
       ${t.lossCat?`<span><strong>Loss type</strong> ${lcMap[t.lossCat]||""}</span>`:""}
     </div>
+    ${t.segsDisplay?`<div class="expmeta" style="margin-top:-6px">${t.segsDisplay.map((seg,i)=>{
+      const segDollars=seg.dollars;
+      const segCol=segDollars===null?"var(--t3)":segDollars>0?"var(--g)":segDollars<0?"var(--r)":"var(--t)";
+      return`<span><strong>Leg ${i+1} (${seg.direction==="short"?"Short":"Long"} · ${seg.setup})</strong> <span style="color:${segCol}">${segDollars!==null?cuNoSign(segDollars):"open"}</span></span>`;
+    }).join("")}</div>`:""}
     ${t.fills&&t.fills.length>1?`<div class="expmeta" style="margin-top:-6px">${(()=>{
       let addIdx=0,exitIdx=0;
       return t.fills.map(f=>{
@@ -3797,8 +4495,9 @@ function closeLogFilterDropdown(){if(logFilterOpen){logFilterOpen=null;render();
 // picking ticker=MCL makes every other dropdown's counts reflect MCL-only trades).
 function countForFilterOption(key,val,list){
   return list.filter(t=>{
+    const tsetups=t.setups||[t.setup];
     if(key!=="ticker"&&logFilters.ticker.length&&!logFilters.ticker.includes((t.ticker||"").toUpperCase()))return false;
-    if(key!=="setup"&&logFilters.setup.length&&!logFilters.setup.includes(t.setup))return false;
+    if(key!=="setup"&&logFilters.setup.length&&!tsetups.some(su=>logFilters.setup.includes(su)))return false;
     if(key!=="wl"&&logFilters.wl.length&&!logFilters.wl.includes(t.wl))return false;
     if(key!=="process"&&logFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -3809,7 +4508,7 @@ function countForFilterOption(key,val,list){
     if(!logSearchMatch(t))return false;
     switch(key){
       case"ticker":return(t.ticker||"").toUpperCase()===val;
-      case"setup":return t.setup===val;
+      case"setup":return tsetups.includes(val);
       case"wl":return t.wl===val;
       case"process":return t.isGood!==null&&t.isGood!==undefined&&(t.isGood?"good":"bad")===val;
       case"lossCat":return t.lossCat===val;
@@ -3980,13 +4679,14 @@ function logSearchMatch(t){
   const q=logSearchQuery.trim().toLowerCase();
   if(!q)return true;
   const lc=t.lossCat?LOSSCATS.find(c=>c.id===t.lossCat):null;
-  const hay=[t.ticker,t.setup,t.wl,t.direction,dispDate(t.date),t.comments,lc?lc.label:""].filter(Boolean).join(" ").toLowerCase();
+  const hay=[t.ticker,...(t.setups||[t.setup]),t.wl,t.direction,dispDate(t.date),t.comments,lc?lc.label:""].filter(Boolean).join(" ").toLowerCase();
   return hay.includes(q);
 }
 function applyLogFilters(list){
   return list.filter(t=>{
+    const tsetups=t.setups||[t.setup];
     if(logFilters.ticker.length&&!logFilters.ticker.includes((t.ticker||"").toUpperCase()))return false;
-    if(logFilters.setup.length&&!logFilters.setup.includes(t.setup))return false;
+    if(logFilters.setup.length&&!tsetups.some(su=>logFilters.setup.includes(su)))return false;
     if(logFilters.wl.length&&!logFilters.wl.includes(t.wl))return false;
     if(logFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -4025,7 +4725,6 @@ function logH(en){
   const filtersOn=hasLogFilters();
   const filteredOut=(periodMode!=="all"||filtersOn)&&trades.length>0&&logList.length===0;
   const LOG_HEADERS=[
-    {key:null,label:""},
     {key:"date",label:"date"},
     {key:"ticker",label:"ticker"},
     {key:"setup",label:"setup"},
@@ -4039,13 +4738,13 @@ function logH(en){
     {key:"rules",label:"rules"},
     {key:"process",label:"process"},
     {key:null,label:""},
-    {key:null,label:""},
   ];
   const theadHtml=LOG_HEADERS.map(h=>{
     if(!h.key)return`<th>${h.label}</th>`;
     const active=logSort.col===h.key;
     const arrow=active?`<span class="sortarrow">${logSort.dir==="asc"?"▲":"▼"}</span>`:"";
-    return`<th class="sortable${active?" sorted":""}" onclick="setLogSort('${h.key}')" title="sort by ${h.label}">${h.label}${arrow}</th>`;
+    const leftAlign=h.key==="rules"?" style=\"text-align:left\"":"";
+    return`<th class="sortable${active?" sorted":""}"${leftAlign} onclick="setLogSort('${h.key}')" title="sort by ${h.label}">${h.label}${arrow}</th>`;
   }).join("");
   return`<div>
 <div class="logfilterbar${logSearchOpen?" sticky-search":""}">
@@ -4081,7 +4780,12 @@ ${showForm?`
 <div class="fcard">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
     <span style="font-size:var(--fmd);font-weight:700">${editingId!==null?"edit trade":"new trade entry"}</span>
-    <button class="topicon" onclick="addTrade()" aria-label="${editingId!==null?"save changes":"log trade"}" data-tt="${editingId!==null?"save changes":"log trade"}">${ICON_SAVE}</button>
+    <div style="display:flex;align-items:center;gap:6px">
+      <select id="fi-platform" class="platformdd" onchange="markPlatformChanged()" aria-label="fee platform" data-tt="fee platform (affects auto-calculated fees)">
+        ${PLATFORMS.map(p=>`<option value="${p.id}"${form.platform===p.id?" selected":""}>${p.label}</option>`).join("")}
+      </select>
+      <button class="topicon" onclick="addTrade()" aria-label="${editingId!==null?"save changes":"log trade"}" data-tt="${editingId!==null?"save changes":"log trade"}">${ICON_SAVE}</button>
+    </div>
   </div>
   <div class="fsec" style="margin-top:0;padding-top:0;border-top:none">trade details</div>
   <div class="fgrid">
@@ -4123,17 +4827,10 @@ ${showForm?`
   <div id="fills-section"></div>
   <div class="fgrid" style="margin-top:10px">
     <div class="field">
-      <label>non-variable fees ($) <span style="text-transform:none;color:var(--t3)">— commission + NFA + clearing</span></label>
-      <input id="fi-fee-fixed" type="text" inputmode="decimal" placeholder="0.00" value="${form.feeFixed}"
+      <label>fees ($) <span id="fi-fees-hint" style="text-transform:none;color:var(--t3)">${form.platform==="other"?"— enter manually":"— exchange + NFA + clearing + commission, auto-calculated"}</span></label>
+      <input id="fi-fees" type="text" inputmode="decimal" placeholder="0.00" value="${form.fees}"
         style="font-family:var(--sans)"
-        oninput="markFeeFixedManual()"
-        onkeypress="return /[-0-9.]/.test(event.key)||event.key==='Backspace'"/>
-    </div>
-    <div class="field">
-      <label>variable fees ($) <span style="text-transform:none;color:var(--t3)">— exchange fee</span></label>
-      <input id="fi-fee-variable" type="text" inputmode="decimal" placeholder="0.00" value="${form.feeVariable}"
-        style="font-family:var(--sans)"
-        oninput="markFeeVariableManual()"
+        oninput="markFeesManual()"
         onkeypress="return /[-0-9.]/.test(event.key)||event.key==='Backspace'"/>
     </div>
   </div>
@@ -4181,11 +4878,10 @@ ${logList.map(t=>{
   const isCurrent=logSearchOpen&&t.id===logSearchCurrentId;
   const isOpen=expandedIds.has(t.id)||isCurrent;
   const row=`<tr class="trow${isCurrent?" trow-current":""}" id="traderow-${t.id}" onclick="toggleExpand(${t.id})">
-<td class="chev">${isOpen?"▾":"▸"}</td>
-<td style="font-size:var(--fsm);color:var(--t2)">${hl(dispDate(t.date),logSearchQuery)}</td>
+<td style="font-size:var(--fsm);color:var(--t2);padding-left:20px;padding-right:20px">${hl(dispDate(t.date),logSearchQuery)}</td>
 <td style="font-weight:700;font-size:var(--fbase)">${hl(t.ticker.toUpperCase(),logSearchQuery)}</td>
-<td><span class="pill pneu">${hl(t.setup,logSearchQuery)}</span></td>
-<td style="text-align:center">${t.contracts||"—"}</td>
+<td>${(t.setups||[t.setup]).map(su=>`<span class="pill pneu">${hl(setupAbbr(su),logSearchQuery)}</span>`).join(" ")}</td>
+<td style="padding-left:6px;padding-right:6px">${t.contracts||"—"}</td>
 <td>$${f2(t.entry)}</td>
 <td style="color:var(--r)">$${f2(t.stop)}</td>
 <td style="color:var(--g)">$${f2(t.target)}</td>
@@ -4194,8 +4890,7 @@ ${logList.map(t=>{
 <td>${t.wl?`<span class="pill p${t.wl.toLowerCase()}">${t.wl}</span>`:"—"}</td>
 <td><div class="rulesflex"><span class="spill" style="background:${bg};color:${col};border:.5px solid ${bd}" title="rules followed">${sl}</span>${t.comments&&t.comments.trim()?`<span title="has comment">📝</span>`:""}${t.screenshots&&t.screenshots.length>0?`<span title="has screenshots">📷</span>`:""}</div></td>
 <td>${t.isGood!==null?`<span class="pill ${t.isGood?"pgood":"pbad"}">${t.isGood?"Good":"Bad"}</span>`:"—"}</td>
-<td><button class="delbtn" onclick="event.stopPropagation();editTrade(${t.id})" title="edit trade">✎</button></td>
-<td><button class="delbtn" onclick="event.stopPropagation();del(${t.id})" title="delete trade">×</button></td>
+<td class="rowactions"><div class="rowactions-inner"><button class="delbtn" onclick="event.stopPropagation();editTrade(${t.id})" title="edit trade">✎</button><span class="iconsep">|</span><button class="delbtn" onclick="event.stopPropagation();del(${t.id})" title="delete trade">×</button></div></td>
 </tr>`;
   return row+(isOpen?expandRowH(t):"");
 }).join("")}
@@ -4252,8 +4947,8 @@ ${calendarH(en,{collapsible:true,collapsed:calendarCollapsed,label:"calendar"})}
 <p class="seclab">stats</p>
 <div class="dashSplit">
   <div id="dash-stat-col">${statGridH(s,periodTitle,ec,bc,em)}</div>
-  <div class="bpanel eq-panel-auto" id="dash-eq-panel" style="margin-bottom:0">
-    <div class="plbl" style="margin-bottom:8px">equity curve</div>
+  <div class="bpanel eq-panel-auto" id="dash-eq-panel" style="margin-bottom:0;position:relative">
+    <div class="seclab" style="position:absolute;top:-24px;left:0;margin:0;white-space:nowrap">equity curve</div>
     <div class="eq-outer" id="dash-eq-outer"></div>
   </div>
 </div>
@@ -4315,11 +5010,11 @@ ${s.dqStats.filter(d=>d.total>0).map(d=>`<div class="rsrow"><span class="rsname"
 ${en.length>0?`
 <p class="seclab">setup breakdown</p>
 <div class="setuprow">
-${SETUPS.map(setup=>{
-  const ts=en.filter(t=>t.setup===setup),ws=ts.filter(t=>t.wl==="Win"),ls=ts.filter(t=>t.wl==="Loss"),wr=(ws.length+ls.length)>0?ws.length/(ws.length+ls.length):null;
+${(()=>{const segRecs=segmentRecords(en);return SETUPS.map(setup=>{
+  const ts=segRecs.filter(r=>r.setup===setup),ws=ts.filter(r=>r.wl==="Win"),ls=ts.filter(r=>r.wl==="Loss"),wr=(ws.length+ls.length)>0?ws.length/(ws.length+ls.length):null;
   const c=wr===null?"var(--t3)":wr>=.5?"var(--g)":"var(--r)";
-  return`<div class="setupcard"><div class="slabel">${setup}</div><div class="pbody"><div class="sval" style="color:${c}">${wr!==null?pc(wr):"—"}</div><div class="svalsub" style="font-weight:300;font-style:italic">(${ts.length} trade${ts.length!==1?"s":""})</div></div></div>`;
-}).join("")}
+  return`<div class="setupcard"><div class="slabel">${setup}</div><div class="pbody"><div class="sval" style="color:${c}">${wr!==null?pc(wr):"—"}</div><div class="svalsub" style="font-weight:300;font-style:italic">(${ts.length} leg${ts.length!==1?"s":""})</div></div></div>`;
+}).join("");})()}
 <div class="setupcard"><div class="slabel">Avg Hold Time</div><div class="pbody"><div class="sval">${s.adur!==null?fdur(s.adur):"—"}</div></div></div>
 <div class="setupcard streakcard">
   <div class="seclab" style="position:absolute;top:-24px;left:0;margin:0;white-space:nowrap">streak</div>
@@ -4354,10 +5049,13 @@ function reflectionH(){
   const list=getFilteredReflections().filter(refSearchMatch);
   const preSearchList=getFilteredReflections();
   const filteredOut=periodMode!=="all"&&reflections.length>0&&preSearchList.length===0;
+  const anyRefExpanded=list.some(r=>!refCollapsedIds.has(r.id));
   return`<div>
 <div class="lbar${refSearchOpen?" sticky-search":""}">
   <span class="lcount" style="font-size:var(--fxs);font-weight:300">${list.length} of ${reflections.length} reflection${reflections.length!==1?"s":""} shown</span>
   <div class="logbaricons">
+    ${list.length>0?`<button class="topicon" onclick="toggleAllReflections()" aria-label="${anyRefExpanded?"collapse all":"expand all"}" data-tt="${anyRefExpanded?"collapse all":"expand all"}">${anyRefExpanded?ICON_TRIDOWN:ICON_TRIRIGHT}</button>
+    <span class="iconsep">|</span>`:""}
     <span class="searchwrap">
       ${refSearchOpen&&currentRefSearchMatches().length>0?`
       <button class="topicon" onclick="refSearchNav(-1,event)" aria-label="previous match" data-tt="previous match">${ICON_TRILEFT}</button>
@@ -4408,19 +5106,22 @@ ${reflections.length===0
   :list.map(r=>{
     const secs=nonEmptySections(r);
     const isCurrent=refSearchOpen&&r.id===refSearchCurrentId;
+    // A search match auto-opens even if manually collapsed, same logic as the
+    // trade log's search-driven auto-expand.
+    const isCollapsed=refCollapsedIds.has(r.id)&&!isCurrent;
     return `
 <div class="fcard${isCurrent?" fcard-current":""}" id="reflectionrow-${r.id}" style="margin-bottom:10px">
-  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;${isCollapsed?"":"margin-bottom:18px;"}cursor:pointer" onclick="toggleReflectionExpand(${r.id})">
     <span style="font-size:var(--fsm);color:var(--refhead);font-weight:700;letter-spacing:.03em">${hl(refHeaderLabel(r),refSearchQuery)}</span>
     <div style="display:flex;align-items:center;gap:12px">
       <span style="font-size:var(--fxs);color:var(--t3);font-style:italic">entry date: ${hl(ddmmyy(parseYMD(r.entryDate)),refSearchQuery)}</span>
-      <div style="display:flex;gap:2px">
+      <div style="display:flex;gap:2px" onclick="event.stopPropagation()">
         <button class="delbtn" onclick="editReflection(${r.id})" title="edit reflection">✎</button>
         <button class="delbtn" onclick="delReflection(${r.id})" title="delete reflection">×</button>
       </div>
     </div>
   </div>
-  ${secs.map((s,i)=>`<div style="${i<secs.length-1?"margin-bottom:14px;padding-bottom:14px;border-bottom:.5px solid var(--bd)":""}">
+  ${isCollapsed?"":secs.map((s,i)=>`<div style="${i<secs.length-1?"margin-bottom:14px;padding-bottom:14px;border-bottom:.5px solid var(--bd)":""}">
     <div class="refq" style="margin-bottom:6px">${hl(s.q,refSearchQuery)}</div>
     <div style="font-size:var(--fbase);color:var(--t2);line-height:1.5">${pWrap(s.a,refSearchQuery)}</div>
   </div>`).join("")}
