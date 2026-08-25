@@ -181,20 +181,19 @@ body.tt-blurred [data-tt]::after{opacity:0!important}
 .dqeditrow input:focus{border-color:var(--t3)}
 .dqok{font-size:var(--fxs);color:var(--t3);margin-top:6px}
 /* Table */
-.lbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:8px}
+.lbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;padding:0 3px;flex-wrap:wrap;gap:8px}
 .lcount{font-size:var(--fbase);color:var(--t2)}
 .lcountbottom{text-align:right;font-size:var(--fxs);font-weight:300;font-style:italic;color:var(--t3);margin-top:8px}
 .empty{text-align:center;padding:3.5rem 1rem;border:.5px solid var(--bd);border-radius:var(--radl);color:var(--t2);font-size:var(--fbase)}
 .twrap{overflow-x:auto;border:.5px solid var(--bd);border-radius:var(--radl)}
 table{width:100%;border-collapse:collapse;font-size:var(--fsm)}
 thead tr{background:var(--s2);border-bottom:.5px solid var(--bd)}
-thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:left}
+thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:center}
 tbody tr.trow{border-bottom:.5px solid var(--bd);transition:background .1s;cursor:pointer}
 tbody tr.trow:last-child{border-bottom:none}
 tbody tr.trow:hover{background:var(--s2)}
 tr.exprow td{padding:0;border-bottom:.5px solid var(--bd)}
-td{padding:10px;vertical-align:middle;white-space:nowrap}
-.chev{width:18px;color:var(--t3);font-size:10px;text-align:center;white-space:nowrap}
+td{padding:10px;vertical-align:middle;white-space:nowrap;text-align:center}
 .mono{font-family:var(--mono)}
 .pill{display:inline-block;font-size:var(--fxs);padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap}
 .pwin{background:var(--gbg);color:var(--g);border:.5px solid var(--gbd)}
@@ -207,9 +206,9 @@ td{padding:10px;vertical-align:middle;white-space:nowrap}
 .exppanel{padding:16px 18px;background:var(--s2)}
 .expmeta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:var(--fsm);color:var(--t2);margin-bottom:12px;white-space:normal}
 .expmeta strong{color:var(--t3);font-weight:600}
-.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px}
+.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px;text-align:left}
 .expsub:first-of-type{margin-top:0}
-.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap}
+.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap;text-align:left}
 .expcols{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
 @media(max-width:640px){.expcols{grid-template-columns:1fr}}
 .explistrow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:.5px solid var(--bd);font-size:var(--fsm);color:var(--t2);white-space:normal}
@@ -279,6 +278,19 @@ textarea{width:100%;font-family:var(--sans);font-size:var(--fbase);padding:9px 1
 textarea:focus{border-color:var(--t3)}
 .seclab{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
 .delbtn{background:none;border:none;cursor:pointer;color:var(--t3);font-size:15px;padding:2px 5px;line-height:1;transition:color .1s}
+.rowactions{white-space:nowrap;width:1%;text-align:center}
+.rowactions-inner{display:inline-flex;align-items:center;gap:9px}
+.rowactions .delbtn{padding:2px 3px}
+.platformdd{height:16px;font-size:10px;font-weight:400;color:var(--t3);background:none;border:.5px solid var(--bdm);border-radius:5px;padding:0 4px;line-height:1;cursor:pointer;font-family:var(--sans)}
+.platformdd:hover{color:var(--t2);border-color:var(--t3)}
+.revnotice{margin-top:8px;margin-bottom:8px;padding:8px 10px;background:var(--abg);border:.5px solid var(--abd);border-radius:var(--rad)}
+.revnotice-label{font-size:var(--fxs);color:var(--a);margin-bottom:6px;line-height:1.4}
+.revnotice select{height:30px;padding:4px 8px;font-family:var(--sans);font-size:var(--fbase);border:.5px solid var(--bdm);border-radius:var(--rad);background:var(--surface);color:var(--t)}
+.fillopennotice{margin-top:8px;padding:8px 10px;background:var(--abg);border:.5px solid var(--abd);border-radius:var(--rad);font-size:var(--fxs);color:var(--a);line-height:1.4}
+.ssupload{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;color:var(--t2)}
+.ssupload:hover{color:var(--t)}
+.ssupload svg{width:20px;height:20px;flex-shrink:0;display:block}
+.ssuploadnote{font-style:italic;font-weight:400;font-size:10px;color:var(--t3)}
 .delbtn:hover{color:var(--r)}
 /* Good/Bad quadrant */
 .quad{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
@@ -355,14 +367,18 @@ textarea:focus{border-color:var(--t3)}
 .searchpill input{background:none;border:none;outline:none;font-family:var(--sans);font-size:var(--fbase);color:var(--t);width:130px}
 .searchpill input::placeholder{color:var(--t3)}
 .hlmark{background:var(--tabdashbg);color:var(--tabdash);border-radius:3px;padding:0 2px;font-weight:700}
+tbody tr.trow.trow-current{background:var(--tabdashbg);box-shadow:inset 3px 0 0 var(--tabdash)}
+tbody tr.trow.trow-current:hover{background:var(--tabdashbg)}
+.fcard.fcard-current{border-color:var(--tabdashbd);box-shadow:inset 3px 0 0 var(--tabdash),0 0 0 1px var(--tabdashbd)}
+.logfilterbar.sticky-search,.lbar.sticky-search{position:sticky;top:0;z-index:30;background:var(--bg);padding:8px 0;border-bottom:.5px solid var(--bd);box-shadow:0 6px 12px -8px rgba(0,0,0,.25)}
 /* Sortable table headers */
 thead th.sortable{cursor:pointer;user-select:none;transition:color .15s}
 thead th.sortable:hover{color:var(--t)}
 thead th.sortable.sorted{color:var(--t)}
 .sortarrow{color:var(--p);margin-left:3px}
 /* Fixed-width rules-score pill so trailing icons never shift with digit count */
-.spill{min-width:42px;justify-content:center}
-.rulesflex{display:flex;align-items:center;gap:5px}
+.spill{width:44px;justify-content:center;flex-shrink:0}
+.rulesflex{display:flex;align-items:center;justify-content:flex-start;gap:5px;text-align:left}
 /* Collapsible stats/equity-curve section (export summary) */
 details.statsdetails{margin-bottom:1.75rem}
 details.statsdetails>summary{cursor:pointer;list-style:none;user-select:none}
@@ -382,6 +398,9 @@ const ICON_MOON=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICON_SEARCH=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
 const ICON_X=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 const ICON_PLUS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+const ICON_UP=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+const ICON_DOC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l4 4v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M4 7v13a1 1 0 0 0 1 1h10"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="11" x2="17" y2="11"/><line x1="9" y1="14" x2="17" y2="14"/><line x1="9" y1="17" x2="15" y2="17"/></svg>`;
+const ICON_SAVE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`;
 const ICON_TRIRIGHT=`<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M9 6l9 6-9 6V6z"/></svg>`;
 const ICON_TRILEFT=`<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M15 6l-9 6 9 6V6z"/></svg>`;
 const ICON_TRIDOWN=`<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M6 9l6 9 6-9H6z"/></svg>`;
@@ -400,6 +419,13 @@ const RULES=[
   {id:"goal", text:"Not trading just to hit a daily $ goal"},
 ];
 const SETUPS=["Bounce","Reject","Break"];
+const SETUP_ABBR={Bounce:"B",Reject:"R",Break:"Br"};
+function setupAbbr(s){return SETUP_ABBR[s]||s;}
+const PLATFORMS=[{id:"tradovate",label:"Tradovate"},{id:"ninjatrader",label:"NinjaTrader"},{id:"other",label:"Other"}];
+const FEE_RATES={
+  tradovate:  {MES:0.95, MNQ:0.95, M2K:0.95, MYM:0.95, ES:2.88, NQ:2.88, RTY:2.88, YM:2.88, MCL:1.10, CL:3.00, MGC:1.20, GC:3.10},
+  ninjatrader:{MES:0.95, MNQ:0.95, M2K:0.95, MYM:0.95, ES:2.88, NQ:2.88, RTY:2.88, YM:2.88, MCL:1.10, CL:3.00, MGC:1.20, GC:3.10}
+};
 const LOSSCATS=[
   {id:"good", label:"Good Loss", hint:"Valid setup, correct execution and risk — it just didn't work."},
   {id:"exec", label:"Execution Loss", hint:"Idea was valid, execution was poor (early/late entry, oversized, moved stop)."},
@@ -449,7 +475,7 @@ function sortedTickers(){
 }
 function tickerInfo(symbol){return TICKERS.find(t=>t.symbol===symbol)||null;}
 
-let trades=[],reflections=[],dq=DQ_DEFAULT.map(d=>({...d})),tab="dashboard",showForm=false,editingDq=false,editingId=null,showRefForm=false,expandedIds=new Set();
+let trades=[],reflections=[],dq=DQ_DEFAULT.map(d=>({...d})),tab="dashboard",showForm=false,editingDq=false,editingId=null,showRefForm=false,expandedIds=new Set(),refCollapsedIds=new Set();
 let periodMode="week",periodAnchor=new Date(),customFrom="",customTo="";
 let calendarCollapsed=false; // dashboard's calendar section collapse state
 let logSort={col:"date",dir:"desc"};
@@ -459,11 +485,15 @@ let logSearchOpen=false;  // search field expanded/collapsed
 let logSearchQuery="";    // free-text search over the trade log
 let logSearchLocked=false;// true after Enter — search stays open through outside clicks until Esc
 let logSearchNavIndex=-1; // index of the currently-focused match, for prev/next navigation; -1 = none focused yet
+let logSearchCurrentId=null; // id of the trade the nav arrows are currently parked on — drives the
+                              // trow-current highlight and the search-driven auto-expand in logH
 let refSearchOpen=false;  // search field expanded/collapsed (reflections)
 let refSearchQuery="";    // free-text search over reflections
 let refSearchLocked=false;// true after Enter — search stays open through outside clicks until Esc
 let refSearchNavIndex=-1; // index of the currently-focused match, for prev/next navigation; -1 = none focused yet
+let refSearchCurrentId=null; // id of the reflection the nav arrows are currently parked on (see logSearchCurrentId)
 let resultManual=false;
+let feesManual=false; // true once the person types directly into the fees field (or picks "Other" platform)
 let fillSeq=1;
 
 // form state — kept separate so inputs are never re-rendered while typing
@@ -515,14 +545,28 @@ function storageInfo(){
   return{bytes,mb};
 }
 function migrateTrade(t){
+  // Legacy trades used two fee fields (feeFixed + feeVariable). Collapse them into
+  // the single `fees` total. Platform is unknown for these older trades, so it's
+  // set to "other" (manual/fixed) rather than guessing Tradovate or NinjaTrader —
+  // that keeps the stored dollar amount from silently changing if the trade is
+  // later re-opened and the fee auto-recalculates against today's rate table.
+  let fees=t.fees;
+  if(fees===undefined){
+    const ff=parseFloat(t.feeFixed),fv=parseFloat(t.feeVariable);
+    const sum=(isNaN(ff)?0:ff)+(isNaN(fv)?0:fv);
+    fees=sum>0?sum.toFixed(2):"";
+  }
   return{
     ...t,
+    ticker: t.ticker||"",
     entryTime: t.entryTime!==undefined&&t.entryTime!==null?t.entryTime:(t.time||""),
     exitTime: t.exitTime||"",
     direction: t.direction||"long",
     multiDay: !!t.multiDay,
     exitDate: t.exitDate||"",
-    exit: t.exit!==undefined?t.exit:""
+    exit: t.exit!==undefined?t.exit:"",
+    platform: t.platform||"other",
+    fees: fees
   };
 }
 function migrateReflection(r){
@@ -578,6 +622,11 @@ function periodRange(){
     return{start:s,end:e,label:`${customFrom} to ${customTo}`};
   }
   return null;
+}
+function periodBoundsForChart(){
+  const r=periodRange();
+  if(!r)return null;
+  return{startT:dateToTime(ymd(r.start)),endT:dateToTime(ymd(r.end))};
 }
 function isCurrentPeriod(){
   if(periodMode==="week")return ymd(startOfWeek(periodAnchor))===ymd(startOfWeek(new Date()));
@@ -654,6 +703,73 @@ function fdur(min){
   return h>0?`${h}h ${m}m`:`${m}m`;
 }
 
+function legacyFillsFor(t){
+  const fills=[{id:1,type:"add",price:t.entry,contracts:t.contracts||"1"}];
+  if(t.exit){fills.push({id:2,type:"exit",price:t.exit,contracts:t.contracts||"1"});}
+  return fills;
+}
+function computeSegments(fills,initialDirection,initialSetup){
+  const segs=[];
+  let cur=null;
+  function startSeg(direction,setup,isReversal){
+    cur={direction,setup:setup||initialSetup,entryFills:[],exitFills:[],openQty:0,isReversal:!!isReversal,triggerFillId:null,reversalFrom:null};
+    segs.push(cur);
+    return cur;
+  }
+  (fills||[]).forEach(f=>{
+    const qty=parseFloat(f.contracts)||0;
+    const price=parseFloat(f.price);
+    if(isNaN(price)||qty<=0)return;
+    if(!cur)startSeg(initialDirection,initialSetup,false);
+    if(f.type!=="exit"){
+      cur.entryFills.push({price,qty});
+      cur.openQty+=qty;
+    }else{
+      const closeQty=Math.min(qty,cur.openQty);
+      if(closeQty>0){
+        cur.exitFills.push({price,qty:closeQty});
+        cur.openQty-=closeQty;
+      }
+      const remainder=qty-closeQty;
+      if(remainder>0){
+        const prevDirection=cur.direction;
+        const newDir=prevDirection==="short"?"long":"short";
+        const newSetup=f.segSetup||initialSetup;
+        cur=startSeg(newDir,newSetup,true);
+        cur.triggerFillId=f.id;
+        cur.reversalFrom={prevDirection,closedQty:closeQty,openedQty:remainder};
+        cur.entryFills.push({price,qty:remainder});
+        cur.openQty+=remainder;
+      }
+    }
+  });
+  return segs.map(seg=>{
+    const totalEntryQty=seg.entryFills.reduce((s,f)=>s+f.qty,0);
+    const closedQty=seg.exitFills.reduce((s,f)=>s+f.qty,0);
+    const weightedEntry=totalEntryQty>0?seg.entryFills.reduce((s,f)=>s+f.price*f.qty,0)/totalEntryQty:NaN;
+    const weightedExit=closedQty>0?seg.exitFills.reduce((s,f)=>s+f.price*f.qty,0)/closedQty:NaN;
+    return{...seg,totalEntryQty,closedQty,weightedEntry,weightedExit};
+  });
+}
+function segmentDollarResult(seg,ti){
+  if(!ti||isNaN(seg.weightedEntry)||isNaN(seg.weightedExit)||seg.closedQty<=0)return null;
+  const dirPts=seg.direction==="short"?(seg.weightedEntry-seg.weightedExit):(seg.weightedExit-seg.weightedEntry);
+  return dirPts*ti.perPoint*seg.closedQty;
+}
+function tradeSetups(t){
+  const segs=computeSegments(t.fills&&t.fills.length?t.fills:legacyFillsFor(t),t.direction||"long",t.setup||"Bounce");
+  const out=[];
+  segs.forEach(s=>{if(s.setup&&!out.includes(s.setup))out.push(s.setup);});
+  return out.length?out:[t.setup].filter(Boolean);
+}
+function isTradeOpen(t){
+  const fills=t.fills&&t.fills.length?t.fills:legacyFillsFor(t);
+  const segs=computeSegments(fills,t.direction||"long",t.setup||"Bounce");
+  if(!segs.length)return false;
+  const last=segs[segs.length-1];
+  return last.openQty>0;
+}
+
 // ── Calculations ─────────────────────────────────────────────────────────────
 function enrich(t){
   const e=parseFloat(t.entry),s=parseFloat(t.stop),tg=parseFloat(t.target),ex=parseFloat(t.exit),r=parseFloat(t.result);
@@ -677,7 +793,15 @@ function enrich(t){
   const dqViol=dq.filter(d=>dqa[d.id]===true);
   const isGood=rs!==null?rs>=0.75:null;
   const durationMin=durationMinutes(t);
-  return{...t,direction,ti,riskPts,rewardPts,risk,reward,rr,realizedR,wl,rs,ac:ans.length,fc:fol.length,dqViol,dqViolCount:dqViol.length,isGood,durationMin};
+  const setups=tradeSetups(t); // unique setup tags across all segments, e.g. a reversal trade → ["Reject","Bounce"]
+  // Per-leg $ breakdown for reversal trades (e.g. Bounce leg + Break leg) — a
+  // single Entry/Exit pair can't represent multiple legs honestly, so this
+  // rides along on the enriched trade so both the live app's expanded row and
+  // the export's expanded row can render identical "Leg 1 ... Leg 2 ..." lines
+  // without each having to reimplement segment math themselves.
+  const segs=computeSegments(t.fills&&t.fills.length?t.fills:legacyFillsFor(t),direction,t.setup||"Bounce");
+  const segsDisplay=segs.length>1?segs.map(seg=>({direction:seg.direction,setup:seg.setup,dollars:segmentDollarResult(seg,ti)})):null;
+  return{...t,direction,ti,riskPts,rewardPts,risk,reward,rr,realizedR,wl,rs,ac:ans.length,fc:fol.length,dqViol,dqViolCount:dqViol.length,isGood,durationMin,setups,segsDisplay};
 }
 
 function calcStats(list){
@@ -897,8 +1021,152 @@ function niceAxis(dataMin,dataMax,targetTicks){
 // cumulative trade count against a fixed virtual capacity instead, so the
 // line has room to breathe; past the threshold it reverts to today's normal
 // one-slot-per-day spacing.
-const EQ_SPARSE_DAYS=3,EQ_SPARSE_TRADES=8;
-function buildEquityCurveSVG(points,w,h,tradeCount){
+let eqSvgInstanceCounter=0;
+const EQ_MONTH_ABBR=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Adaptive x-axis: only 3 format zones exist (day/month/quarter), decided by
+// the length of the VIEWED PERIOD (the whole displayed week / month /
+// custom range / all-time span) — not by where the real trades happen to
+// land inside it.
+//
+// DESIGN: the axis and the curve's own horizontal positioning both use the
+// same reference span — the viewed period, when one exists (Week/Month/
+// Custom each have a fixed start–end from the period picker), falling back
+// to the first–last real trade only for "All" (which has no natural
+// bounding period of its own). Anchoring everything to the viewed period
+// rather than to wherever the real trades landed is what makes a week
+// always draw as a full week, a month's ticks always reach the month's
+// actual end, and a custom range's ticks always include its own edges.
+//
+// Every tick's natural-unit index (day / month / quarter) is counted
+// relative to the period's OWN start, not a fixed global epoch. That's what
+// keeps a thinned-down grid anchored to the period's edges instead of
+// landing on whichever dates happen to align with some unrelated absolute
+// reference — e.g. a 5-month custom range that can't fit every month's
+// label still keeps its first and last month and drops alternating months
+// in between, rather than sliding onto two arbitrary interior months.
+const AXIS_RULES={dayFormatMaxDays:90,monthFormatMaxDays:365,labelMarginPx:10};
+// Tick label font sizes — x-axis kept a touch smaller/thinner than the
+// y-axis on purpose so more date labels (e.g. every weekday in a week
+// view) can fit before the overlap check starts dropping them.
+const EQ_XTICK_FONT=9.5,EQ_YTICK_FONT=10;
+function getAxisFormatZone(rangeDays){
+  if(rangeDays<=AXIS_RULES.dayFormatMaxDays)return"day";
+  if(rangeDays<=AXIS_RULES.monthFormatMaxDays)return"month";
+  return"quarter";
+}
+function fmtAxisDate(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;return `${p[2]}/${p[1]}`;}
+function fmtAxisMonth(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;return `${EQ_MONTH_ABBR[parseInt(p[1],10)-1]} ${p[0].slice(2)}`;}
+function fmtAxisQuarter(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;const q=Math.floor((parseInt(p[1],10)-1)/3)+1;return `Q${q} ${p[0].slice(2)}`;}
+function dateToTime(s){return new Date(s+"T00:00:00").getTime();}
+function timeToDateStr(t){const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function estLabelWidth(s){return s.length*EQ_XTICK_FONT*0.6;}
+const EQ_DAY_MS=86400000;
+// "Nice" step candidates per zone, in the natural unit for that zone (whole
+// days / whole months / whole quarters). Small and boring on purpose —
+// every one of these produces a clean, standard label.
+const EQ_DAY_STEPS=[1,2,3,5,7,14,21,28,45,60,90];
+const EQ_MONTH_STEPS=[1,2,3,6,12,24,36,60];
+const EQ_QUARTER_STEPS=[1,2,4,8,12,20,40];
+// Anchor-aware margin check. A center-anchored label needs clearance on
+// both sides of x; a "start"-anchored label only grows rightward from x
+// (its left edge IS x), and an "end"-anchored label only grows leftward
+// (its right edge IS x) — used because the period's own boundary ticks are
+// always placed exactly at the plot's true left/right edges, where a
+// center-anchored label would need (impossible) clearance past the edge.
+function eqFitsInMargins(x,label,padL,plotW,anchor){
+  const w=estLabelWidth(label);
+  if(anchor==="start")return x>=padL-0.5 && x+w<=padL+plotW+0.5;
+  if(anchor==="end")return x-w>=padL-0.5 && x<=padL+plotW+0.5;
+  const half=w/2;
+  return x-half>=padL-0.5 && x+half<=padL+plotW+0.5;
+}
+function eqTickExtents(t){
+  const w=estLabelWidth(t.label);
+  if(t.anchor==="start")return{left:0,right:w};
+  if(t.anchor==="end")return{left:w,right:0};
+  return{left:w/2,right:w/2};
+}
+function eqTicksOverlap(list){
+  for(let k=0;k<list.length-1;k++){
+    const a=eqTickExtents(list[k]),b=eqTickExtents(list[k+1]);
+    const need=a.right+b.left+AXIS_RULES.labelMarginPx;
+    if(list[k+1].x-list[k].x<need)return true;
+  }
+  return false;
+}
+// True if two ADJACENT ticks (in x order) have enough clearance not to
+// collide, given their own anchors (a start/end tick's label only grows in
+// one direction, so it only contributes its full width on that side).
+function eqPairFits(a,b){
+  const ea=eqTickExtents(a),eb=eqTickExtents(b);
+  return (b.x-a.x)>=ea.right+eb.left+AXIS_RULES.labelMarginPx;
+}
+// Builds the x-axis ticks for a chart spanning [periodStartTime,
+// periodEndTime] (both ms timestamps, both already truncated to their own
+// local midnight — see periodBoundsForChart). The period's own start and
+// end are ALWAYS included, anchored inward so their labels can't spill
+// past the plot.
+//
+// Density is chosen from the interior ticks alone: the finest "nice" step
+// (1/2/3/5/7/14 days, etc.) whose own evenly-spaced ticks don't crowd each
+// other. That choice used to also have to survive the two ticks nearest
+// each edge crowding the boundary labels — one bad neighbor near an edge
+// was enough to throw out the *whole* step and fall back to a much coarser
+// one (e.g. a 30-day month jumping straight from 1 interior tick to 6+
+// just because day 28 sat too close to day 30). Now only the individual
+// interior tick that actually crowds an edge gets dropped; every other
+// evenly-spaced tick at that step is kept, so density degrades gracefully
+// as the chart narrows instead of falling off a cliff.
+function buildAdaptiveDateTicks(periodStartTime,periodEndTime,plotW,padL){
+  const totalSpanMs=Math.max(1,periodEndTime-periodStartTime);
+  function xOf(t){
+    const frac=Math.min(1,Math.max(0,(t-periodStartTime)/totalSpanMs));
+    return padL+frac*plotW;
+  }
+  const zone=getAxisFormatZone(totalSpanMs/EQ_DAY_MS);
+  const isDay=zone==="day",isMonth=zone==="month";
+  const fmtFn=isDay?fmtAxisDate:(isMonth?fmtAxisMonth:fmtAxisQuarter);
+  const steps=isDay?EQ_DAY_STEPS:(isMonth?EQ_MONTH_STEPS:EQ_QUARTER_STEPS);
+  const label=t=>fmtFn(timeToDateStr(t));
+
+  // idxToTime/periodEndIdx work in the zone's natural unit, counted from
+  // the period's own start (index 0) — never a fixed global epoch.
+  let idxToTime,periodEndIdx;
+  if(isDay){
+    idxToTime=idx=>periodStartTime+idx*EQ_DAY_MS;
+    periodEndIdx=Math.round(totalSpanMs/EQ_DAY_MS);
+  }else{
+    const startD=new Date(periodStartTime),baseY=startD.getFullYear(),baseM=startD.getMonth();
+    const unit=isMonth?1:3; // months per unit (quarter = 3 months)
+    idxToTime=idx=>new Date(baseY,baseM+idx*unit,1).getTime();
+    const endD=new Date(periodEndTime);
+    periodEndIdx=Math.round(((endD.getFullYear()-baseY)*12+(endD.getMonth()-baseM))/unit);
+  }
+
+  function interiorForStep(step){
+    const out=[];
+    for(let idx=step;idx<periodEndIdx;idx+=step)out.push({x:xOf(idxToTime(idx)),label:label(idxToTime(idx)),anchor:"middle"});
+    return out;
+  }
+  function interiorOverlaps(interior){
+    for(let k=0;k<interior.length-1;k++)if(!eqPairFits(interior[k],interior[k+1]))return true;
+    return false;
+  }
+  let chosenInterior=[];
+  for(const step of steps){
+    const interior=interiorForStep(step);
+    if(!interiorOverlaps(interior)){chosenInterior=interior;break;}
+  }
+
+  const startTick={x:padL,label:label(periodStartTime),anchor:"start"};
+  const endTick=periodEndIdx>0?{x:padL+plotW,label:label(periodEndTime),anchor:"end"}:null;
+  const kept=chosenInterior.slice();
+  if(kept.length&&!eqPairFits(startTick,kept[0]))kept.shift();
+  if(endTick&&kept.length&&!eqPairFits(kept[kept.length-1],endTick))kept.pop();
+  return[startTick,...kept,...(endTick?[endTick]:[])];
+}
+function equityTooltipDate(s){if(!s)return"Start";const p=s.split("-");if(p.length!==3)return s;return `${p[2]} ${EQ_MONTH_ABBR[parseInt(p[1],10)-1]} ${p[0].slice(2)}`;}
+function buildEquityCurveSVG(points,w,h,tradeCount,periodBounds){
   w=Math.max(60,Math.round(w));h=Math.max(60,Math.round(h));
   const real=points.filter(p=>p.date!==null);
   if(real.length<1){
@@ -911,12 +1179,32 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
   const longest=ax.ticks.reduce((a,v)=>Math.max(a,cu(v).length),0);
   const padL=Math.max(52,longest*6.6+16),padR=28,padT=14,padB=24;
   const plotW=Math.max(10,w-padL-padR),plotH=Math.max(10,h-padT-padB);
-  const totalTrades=tradeCount!==undefined?tradeCount:real.reduce((a,p)=>a+(p.count||0),0);
-  const sparse=real.length<=EQ_SPARSE_DAYS&&totalTrades<=EQ_SPARSE_TRADES;
-  let cumCount=0;
-  const cumCounts=points.map(p=>{cumCount+=p.count||0;return cumCount;});
-  const xStep=points.length>1?plotW/(points.length-1):plotW;
-  const xFor=i=>sparse?padL+(cumCounts[i]/EQ_SPARSE_TRADES)*plotW:padL+i*xStep;
+
+  // Horizontal positioning spans the VIEWED PERIOD (the full week / month /
+  // custom range) rather than just the stretch between the first and last
+  // real trade — so a week with trades only Tue–Thu still draws across the
+  // whole week at the right spot, a lone trade sits at its actual point in
+  // the period instead of collapsing to a dot, and the axis below always
+  // lines up with where the curve actually is. "All" has no natural
+  // period, so it falls back to the real trade span, same as before.
+  const realIdxsForSpan=points.map((p,i)=>p.date?i:null).filter(i=>i!==null);
+  const firstRealTime=dateToTime(points[realIdxsForSpan[0]].date);
+  const lastRealTime=dateToTime(points[realIdxsForSpan[realIdxsForSpan.length-1]].date);
+  let spanStartTime=periodBounds?periodBounds.startT:firstRealTime;
+  let spanEndTime=periodBounds?periodBounds.endT:lastRealTime;
+  if(spanEndTime<=spanStartTime){
+    // No bounding period was available and every trade fell on the same
+    // single day — give the curve a nominal one-day-wide span so a lone
+    // trade still reads as a line from zero rather than collapsing to a dot.
+    spanEndTime=spanStartTime+EQ_DAY_MS;
+  }
+  const totalSpanMs=spanEndTime-spanStartTime;
+  const timeFrac=i=>{
+    const d=points[i].date;
+    const t=d?dateToTime(d):spanStartTime; // synthetic start point sits at the true period start
+    return Math.min(1,Math.max(0,(t-spanStartTime)/totalSpanMs));
+  };
+  const xFor=i=>padL+timeFrac(i)*plotW;
   const yFor=v=>padT+plotH-((v-min)/(max-min))*plotH;
   const coords=points.map((p,i)=>[xFor(i),yFor(p.cum)]);
   const yZero=yFor(0);
@@ -924,37 +1212,110 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
   const lastC=coords[coords.length-1];
   const lastColor=lastVal>=0?"var(--g)":"var(--r)";
 
-  let lineEls="";
-  for(let i=0;i<coords.length-1;i++){
+  // The underlying points array always has a synthetic {date:null, cum:0}
+  // anchor at index 0, now placed at the true start of the viewed period —
+  // so the line always draws from "flat at zero" at the period's start
+  // through to the last real trade, same as any account's equity curve.
+  const lineStartIdx=0;
+
+  // Runs of same-sign points — split exactly at the interpolated zero
+  // crossing (same math as before), one run per color. Shared by the line
+  // and its fill so they always agree on where the curve crosses zero.
+  const runs=[];
+  let curRun=[{x:coords[lineStartIdx][0],y:coords[lineStartIdx][1]}];
+  let curSign=points[lineStartIdx].cum>=0?1:-1;
+  for(let i=lineStartIdx;i<coords.length-1;i++){
     const v0=points[i].cum,v1=points[i+1].cum;
-    const[x0,y0]=coords[i],[x1,y1]=coords[i+1];
+    const[x1,y1]=coords[i+1];
     if((v0>=0&&v1>=0)||(v0<0&&v1<0)){
-      const col=v1>=0?"var(--g)":"var(--r)";
-      lineEls+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
+      curRun.push({x:x1,y:y1});
     }else{
       const t=v0/(v0-v1);
-      const xm=x0+(x1-x0)*t;
-      lineEls+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${xm.toFixed(1)}" y2="${yZero.toFixed(1)}" stroke="${v0>=0?"var(--g)":"var(--r)"}" stroke-width="2" stroke-linecap="round"/>`;
-      lineEls+=`<line x1="${xm.toFixed(1)}" y1="${yZero.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${v1>=0?"var(--g)":"var(--r)"}" stroke-width="2" stroke-linecap="round"/>`;
+      const xm=coords[i][0]+(x1-coords[i][0])*t;
+      curRun.push({x:xm,y:yZero});
+      runs.push({pts:curRun,sign:curSign});
+      curRun=[{x:xm,y:yZero},{x:x1,y:y1}];
+      curSign=v1>=0?1:-1;
     }
   }
+  runs.push({pts:curRun,sign:curSign});
+
+  // Softly rounded corner at every real data point — a MONOTONE cubic
+  // Hermite spline (Fritsch–Carlson), not a cardinal/Catmull-Rom spline.
+  // It passes EXACTLY through each coordinate above (never repositions a
+  // value, never invents a bump between two points), but unlike a plain
+  // straight-line join it rounds the vertex itself: at a local peak or
+  // valley the tangent goes flat, so a sharp V settles into the bottom of
+  // a U instead of a hard point. And unlike a cardinal spline it can never
+  // overshoot past the values on either side of that bend, so the rounding
+  // can't swing above a peak or below a valley that isn't actually there.
+  // Runs are already split at zero crossings, so it also can't overshoot
+  // past zero into the other color.
+  function smoothCurveCmds(pts){
+    const n=pts.length;
+    if(n<2)return"";
+    const dx=new Array(n-1),dy=new Array(n-1),m=new Array(n-1);
+    for(let i=0;i<n-1;i++){
+      dx[i]=pts[i+1].x-pts[i].x;
+      dy[i]=pts[i+1].y-pts[i].y;
+      m[i]=dx[i]!==0?dy[i]/dx[i]:0;
+    }
+    const t=new Array(n);
+    t[0]=m[0];
+    t[n-1]=m[n-2];
+    for(let i=1;i<n-1;i++){
+      if(m[i-1]===0||m[i]===0||(m[i-1]<0)!==(m[i]<0)){
+        t[i]=0; // direction changes here — flat tangent, so the vertex rounds instead of overshooting past the turn
+      }else{
+        const w1=2*dx[i]+dx[i-1],w2=dx[i]+2*dx[i-1];
+        t[i]=(w1+w2)/(w1/m[i-1]+w2/m[i]);
+      }
+    }
+    for(let i=0;i<n-1;i++){
+      if(m[i]===0){t[i]=0;t[i+1]=0;continue;}
+      const a=t[i]/m[i],b=t[i+1]/m[i],s=a*a+b*b;
+      if(s>9){const tau=3/Math.sqrt(s);t[i]=tau*a*m[i];t[i+1]=tau*b*m[i];}
+    }
+    let d="";
+    for(let i=0;i<n-1;i++){
+      const p1=pts[i],p2=pts[i+1];
+      const c1x=p1.x+dx[i]/3,c1y=p1.y+t[i]*dx[i]/3;
+      const c2x=p2.x-dx[i]/3,c2y=p2.y-t[i+1]*dx[i]/3;
+      d+=`C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} `;
+    }
+    return d;
+  }
+  let lineEls="";
+  runs.forEach(run=>{
+    if(run.pts.length<2)return;
+    const col=run.sign>=0?"var(--g)":"var(--r)";
+    const d=`M ${run.pts[0].x.toFixed(1)} ${run.pts[0].y.toFixed(1)} `+smoothCurveCmds(run.pts);
+    lineEls+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  });
+
+  // Subtle gradient fill beneath the line — traces the exact same rounded
+  // curve as the line above, so the fill boundary always agrees with the
+  // line exactly (never implies a value that isn't real).
+  const gradId="eqFill"+(eqSvgInstanceCounter++);
+  function fillPath(pts,sign){
+    if(pts.length<2)return"";
+    const d=`M ${pts[0].x.toFixed(1)} ${yZero.toFixed(1)} L ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} `+
+      smoothCurveCmds(pts)+
+      `L ${pts[pts.length-1].x.toFixed(1)} ${yZero.toFixed(1)} Z`;
+    return`<path d="${d}" fill="${sign>=0?`url(#${gradId}G)`:`url(#${gradId}R)`}" stroke="none"/>`;
+  }
+  let fillEls="";
+  runs.forEach(run=>{fillEls+=fillPath(run.pts,run.sign);});
 
   const tickLines=ax.ticks.map(v=>{
     const y=yFor(v).toFixed(1);
     const isZero=v===0;
-    return`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--bd)" stroke-width="${isZero?1:0.75}" stroke-dasharray="${isZero?"none":"3,3"}"/><text x="${padL-10}" y="${(parseFloat(y)+4).toFixed(1)}" text-anchor="end" font-size="11" font-weight="300" fill="var(--t3)">${cu(v)}</text>`;
+    return`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--bd)" stroke-width="${isZero?1:0.75}" stroke-dasharray="${isZero?"none":"3,3"}"/><text x="${padL-10}" y="${(parseFloat(y)+4).toFixed(1)}" text-anchor="end" font-size="${EQ_YTICK_FONT}" font-weight="300" fill="var(--t3)">${cu(v)}</text>`;
   }).join("");
 
-  const realIdxs=points.map((p,i)=>p.date?i:null).filter(i=>i!==null);
-  let xTickIdxs=[];
-  if(realIdxs.length<=5){xTickIdxs=realIdxs;}
-  else{
-    const nTicks=5;
-    for(let k=0;k<nTicks;k++)xTickIdxs.push(realIdxs[Math.round(k*(realIdxs.length-1)/(nTicks-1))]);
-    xTickIdxs=[...new Set(xTickIdxs)];
-  }
-  const xTicks=xTickIdxs.map(i=>{
-    return`<text x="${coords[i][0].toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="11" font-weight="300" fill="var(--t3)">${axisDate(points[i].date)}</text>`;
+  const adaptiveTicks=buildAdaptiveDateTicks(spanStartTime,spanEndTime,plotW,padL);
+  const xTicks=adaptiveTicks.map(t=>{
+    return`<text x="${t.x.toFixed(1)}" y="${h-6}" text-anchor="${t.anchor||"middle"}" font-size="${EQ_XTICK_FONT}" font-weight="300" fill="var(--t3)">${t.label}</text>`;
   }).join("");
 
   const hitPts=points.map((p,i)=>p.date?{x:Number(coords[i][0].toFixed(1)),y:Number(coords[i][1].toFixed(1)),date:p.date,val:p.cum}:null).filter(Boolean);
@@ -962,7 +1323,18 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
 
   return`<div class="eq-wrap" data-points="${dataAttr}" style="position:relative;width:100%;height:100%">
   <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="width:100%;height:100%;display:block;font-family:var(--sans)">
+    <defs>
+      <linearGradient id="${gradId}G" x1="0" y1="${padT}" x2="0" y2="${yZero.toFixed(1)}" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="var(--g)" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="var(--g)" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="${gradId}R" x1="0" y1="${yZero.toFixed(1)}" x2="0" y2="${padT+plotH}" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="var(--r)" stop-opacity="0"/>
+        <stop offset="100%" stop-color="var(--r)" stop-opacity="0.25"/>
+      </linearGradient>
+    </defs>
     ${tickLines}
+    ${fillEls}
     ${lineEls}
     ${xTicks}
     <circle cx="${lastC[0].toFixed(1)}" cy="${lastC[1].toFixed(1)}" r="3.5" fill="${lastColor}"/>
@@ -970,7 +1342,7 @@ function buildEquityCurveSVG(points,w,h,tradeCount){
     <circle class="eq-dot" cx="0" cy="0" r="4" fill="var(--t)" stroke="var(--bg)" stroke-width="1.5" opacity="0"/>
     <rect class="eq-hitrect" x="${padL}" y="0" width="${plotW}" height="${h}" fill="transparent" style="cursor:crosshair"/>
   </svg>
-  <div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;transform:translate(-50%,-125%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
+  <div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;line-height:1.5;transform:translate(-50%,-135%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
 </div>`;
 }
 // Interactive hover for one equity curve wrap element.
@@ -1026,7 +1398,7 @@ function layoutDashboardChart(){
   panel.style.height=targetH+"px";
   const w=outer.clientWidth,h=outer.clientHeight;
   if(w<20||h<20)return;
-  outer.innerHTML=buildEquityCurveSVG(dashboardEquityPoints,w,h,dashboardTradeCount);
+  outer.innerHTML=buildEquityCurveSVG(dashboardEquityPoints,w,h,dashboardTradeCount,periodBoundsForChart());
   initEquityHover(outer.querySelector(".eq-wrap"));
 }
 let eqResizeTimer=null;
@@ -1134,15 +1506,27 @@ function editTrade(id){
   render();
 }
 function toggleExpand(id){
-  if(expandedIds.has(id))expandedIds.delete(id);else expandedIds.add(id);
+  // A row can be open either because it's manually expanded (expandedIds) or
+  // because it's the search nav's current match (logSearchCurrentId) — a click
+  // should always collapse whichever is actually showing, and if that was the
+  // search-current row, clear the pointer too so it doesn't spring back open
+  // on the next render.
+  const isCurrent=logSearchOpen&&id===logSearchCurrentId;
+  const isOpen=expandedIds.has(id)||isCurrent;
+  if(isOpen){
+    expandedIds.delete(id);
+    if(isCurrent)logSearchCurrentId=null;
+  }else{
+    expandedIds.add(id);
+  }
   render();
 }
 // Master expand/collapse-all toggle for the trade log — collapses everything if
 // any currently visible (filtered/sorted) row is open, otherwise expands all.
 function toggleExpandAll(){
   const list=applyLogSort(applyLogFilters(getFilteredTrades()));
-  const anyOpen=list.some(t=>expandedIds.has(t.id));
-  if(anyOpen)expandedIds.clear();
+  const anyOpen=list.some(t=>expandedIds.has(t.id)||(logSearchOpen&&t.id===logSearchCurrentId));
+  if(anyOpen){expandedIds.clear();logSearchCurrentId=null;}
   else list.forEach(t=>expandedIds.add(t.id));
   render();
 }
@@ -1200,7 +1584,7 @@ function saveReflection(){
   }
   refForm=blankRef();editingRefId=null;showRefForm=false;save();render();
 }
-function delReflection(id){if(!confirm("Delete this reflection? This can't be undone."))return;reflections=reflections.filter(r=>r.id!==id);save();render();}
+function delReflection(id){if(!confirm("Delete this reflection? This can't be undone."))return;reflections=reflections.filter(r=>r.id!==id);refCollapsedIds.delete(id);save();render();}
 function fmtDMY(d){return `${d.getDate()} ${MON[d.getMonth()].slice(0,3).toUpperCase()} ${d.getFullYear()}`;}
 function refHeaderLabel(r){
   const d=parseYMD(r.periodDate);
@@ -1412,6 +1796,45 @@ function refreshFillsSummary(){
   if(!s.totalContracts){c.innerHTML="";return;}
   c.innerHTML=`position size <strong>${s.totalContracts}</strong>${!isNaN(s.weightedEntry)?` · avg entry <strong>$${f2(s.weightedEntry)}</strong>`:""}${s.closedContracts>0?` · closed ${s.closedContracts}/${s.totalContracts} @ avg $${f2(s.weightedExit)}`:""}`;
 }
+function markFeesManual(){feesManual=true;recomputeAutoResult();}
+function markPlatformChanged(){
+  // Switching platforms means the old auto-computed number (if any) belonged to
+  // the previous platform's rate — reset the manual-override flag so it recomputes
+  // fresh for the newly-selected platform, unless the person types over it again.
+  feesManual=false;
+  const plEl=document.getElementById("fi-platform");
+  const hintEl=document.getElementById("fi-fees-hint");
+  if(hintEl)hintEl.textContent=(plEl&&plEl.value==="other")?"— enter manually":"— exchange + NFA + clearing + commission, auto-calculated";
+  recomputeAutoResult();
+}
+function currentFeeRate(){
+  const tkEl=document.getElementById("fi-ticker");
+  const plEl=document.getElementById("fi-platform");
+  const ticker=tkEl?tkEl.value:form.ticker;
+  const platform=plEl?plEl.value:(form.platform||"tradovate");
+  if(platform==="other")return null; // manual entry — no table lookup
+  const table=FEE_RATES[platform];
+  return table?table[ticker]:undefined;
+}
+function recomputeFees(){
+  const feeEl=document.getElementById("fi-fees");
+  if(!feeEl||feesManual)return;
+  const rate=currentFeeRate();
+  if(rate===null)return; // "Other" — leave field as-is, freely editable
+  // Every logged fill (add AND exit) is its own billable side — sum contracts
+  // across all of them rather than just the entry leg, so partial closes,
+  // adds, and reversals all naturally accrue the right number of fee-events.
+  const totalUnits=form.fills.reduce((sum,f)=>{
+    const q=parseFloat(f.contracts),p=parseFloat(f.price);
+    return sum+((!isNaN(q)&&q>0&&!isNaN(p))?q:0);
+  },0);
+  feeEl.value=(rate!==undefined&&totalUnits>0)?(rate*totalUnits).toFixed(2):"";
+}
+function getFeesTotal(){
+  const feeEl=document.getElementById("fi-fees");
+  const v=feeEl?parseFloat(feeEl.value):parseFloat(form.fees);
+  return isNaN(v)?0:v;
+}
 function recomputeAutoResult(){
   refreshFillsSummary();
   if(resultManual)return;
@@ -1532,18 +1955,24 @@ function expSummaryHTML(includeStats){
   const dqJSON=JSON.stringify(dq).replace(/</g,"\\u003c");
   const losscatsJSON=JSON.stringify(LOSSCATS).replace(/</g,"\\u003c");
 
+  // Each reflection renders as a native <details> element, collapsed by
+  // default (see confirmExportSummary — this is a static file, so there's no
+  // JS re-render loop like the live app; <details> gives free, dependency-
+  // free collapse/expand behaviour once it's written to disk). Auto-collapsed
+  // on export because month/custom/all periods can carry dozens of entries.
   const reflectionCards=refList.map(rf=>{
     const secs=nonEmptySections(rf);
-    return `<div class="tcard">
-      <div class="thead2"><strong style="color:var(--refhead)">${refHeaderLabel(rf)}</strong><span style="font-size:11px;color:var(--t3);font-weight:400">entry date: ${ddmmyy(parseYMD(rf.entryDate))}</span></div>
+    return `<details class="tcard rdetails">
+      <summary class="thead2"><strong style="color:var(--refhead)">${refHeaderLabel(rf)}</strong><span style="font-size:11px;color:var(--t3);font-weight:400;font-style:italic">entry date: ${ddmmyy(parseYMD(rf.entryDate))}</span></summary>
       ${secs.map((s,i)=>`<div class="tcomment"${i===0?' style="margin-top:18px;padding-top:0;border-top:none"':' style="margin-top:14px;padding-top:14px"'}>
         <div style="font-weight:600;color:var(--t2);margin-bottom:4px">${esc(s.q)}</div>
         <div>${pWrap(s.a)}</div>
       </div>`).join("")}
-    </div>`;
+    </details>`;
   }).join("");
 
   const eqPointsJSON=JSON.stringify(equityPoints(en));
+  const eqPeriodBoundsJSON=JSON.stringify(periodBoundsForChart());
   const eqTradeCount=en.length;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Trading Journal Summary — ${periodLabel}</title>
@@ -1633,6 +2062,9 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px}
 .lcmeta{font-size:11px;font-weight:700;text-align:right;white-space:nowrap;flex-shrink:0}
 .tcard{background:var(--s1);border:.5px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:10px}
 .thead2{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;margin-bottom:4px}
+.rdetails>summary{cursor:pointer;list-style:none;user-select:none}
+.rdetails>summary::-webkit-details-marker{display:none}
+.rdetails[open]>summary{margin-bottom:4px}
 .tmeta{font-size:11px;color:var(--t3);line-height:1.5}
 .tcomment{font-size:12px;color:var(--t2);margin-top:8px;padding-top:8px;border-top:.5px solid var(--bd);line-height:1.5}
 .tshots{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
@@ -1692,7 +2124,7 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px}
 .twrap{overflow-x:auto;border:.5px solid var(--bd);border-radius:var(--radl)}
 table{width:100%;border-collapse:collapse;font-size:var(--fsm)}
 thead tr{background:var(--s2);border-bottom:.5px solid var(--bd)}
-thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:left}
+thead th{padding:9px 10px;font-size:var(--fxs);font-weight:600;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;text-align:center}
 thead th.sortable{cursor:pointer;user-select:none;transition:color .15s}
 thead th.sortable:hover{color:var(--t)}
 thead th.sortable.sorted{color:var(--t)}
@@ -1700,9 +2132,8 @@ thead th.sortable.sorted{color:var(--t)}
 tbody tr.trow{border-bottom:.5px solid var(--bd);transition:background .1s;cursor:pointer}
 tbody tr.trow:last-child{border-bottom:none}
 tbody tr.trow:hover{background:var(--s2)}
-tbody td{padding:8px 10px}
+tbody td{padding:8px 10px;text-align:center}
 tr.exprow td{padding:0;border-bottom:.5px solid var(--bd)}
-.chev{width:18px;color:var(--t3);font-size:10px;text-align:center;white-space:nowrap}
 .pill{display:inline-block;font-size:var(--fxs);padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap}
 .pwin{background:var(--gbg);color:var(--g);border:.5px solid var(--gbd)}
 .ploss{background:var(--rbg);color:var(--r);border:.5px solid var(--rbd)}
@@ -1710,14 +2141,14 @@ tr.exprow td{padding:0;border-bottom:.5px solid var(--bd)}
 .pneu{background:var(--s2);color:var(--t2);border:.5px solid var(--bd)}
 .pgood{background:var(--gbg);color:var(--g);border:.5px solid var(--gbd)}
 .pbad{background:var(--rbg);color:var(--r);border:.5px solid var(--rbd)}
-.spill{display:inline-flex;align-items:center;font-size:var(--fxs);font-weight:600;padding:3px 9px;border-radius:5px;white-space:nowrap;font-family:var(--mono);width:44px;justify-content:center}
-.rulesflex{display:flex;align-items:center;gap:5px}
+.spill{display:inline-flex;align-items:center;font-size:var(--fxs);font-weight:600;padding:3px 9px;border-radius:5px;white-space:nowrap;font-family:var(--mono);width:44px;justify-content:center;flex-shrink:0}
+.rulesflex{display:flex;align-items:center;justify-content:flex-start;gap:5px;text-align:left}
 .exppanel{padding:16px 18px;background:var(--s2)}
 .expmeta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:var(--fsm);color:var(--t2);margin-bottom:12px;white-space:normal}
 .expmeta strong{color:var(--t3);font-weight:600}
-.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px}
+.expsub{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px;text-align:left}
 .expsub:first-of-type{margin-top:0}
-.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap}
+.expcomment{font-size:var(--fbase);color:var(--t2);line-height:1.55;background:var(--surface);border:.5px solid var(--bd);border-radius:var(--rad);padding:10px 12px;white-space:pre-wrap;text-align:left}
 .expcols{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
 @media(max-width:640px){.expcols{grid-template-columns:1fr}}
 .explistrow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:.5px solid var(--bd);font-size:var(--fsm);color:var(--t2);white-space:normal}
@@ -1755,7 +2186,7 @@ ${includeStats?`<details class="statsdetails" id="stats-details">
   </div>
 </div>
 </details>`:""}
-${calendarH(en)}
+${calendarH(en,{detailsMode:true})}
 <p class="seclab">good trade vs. bad trade</p>
 <div class="row2colEq">
   <div class="bpanel">${quad}</div>
@@ -1766,8 +2197,10 @@ ${calendarH(en)}
   <div class="bpanel">${dqRows}</div>
   <div class="bpanel">${rulesRows||`<div class="empty2">no data for this period</div>`}</div>
 </div>
-<p class="seclab">reflections (${refList.length})</p>
+<details class="statsdetails" id="reflections-details">
+<summary class="seclab">reflections (${refList.length})</summary>
 ${reflectionCards||`<div class="empty2">no reflections in this period</div>`}
+</details>
 <p class="seclab">trade log (${en.length})</p>
 <div id="exp-log-root"></div>
 </div>
@@ -1784,6 +2217,7 @@ function expToggleTheme(){
 (function(){var b=document.getElementById("exp-theme-btn");if(b)b.innerHTML=document.documentElement.getAttribute("data-theme")==="dark"?EXP_SUN_SVG:EXP_MOON_SVG;})();
 var EQ_POINTS=${eqPointsJSON};
 var EQ_TRADE_COUNT=${eqTradeCount};
+var EQ_PERIOD_BOUNDS=${eqPeriodBoundsJSON};
 function openLB(src){document.getElementById("lbox-img").src=src;document.getElementById("lbox").classList.add("show");}
 function closeLB(){document.getElementById("lbox").classList.remove("show");document.getElementById("lbox-img").src="";}
 
@@ -1793,7 +2227,7 @@ var EXP_RULES=${rulesJSON};
 var EXP_DQ=${dqJSON};
 var EXP_LOSSCATS=${losscatsJSON};
 var EXP_LCMAP={};EXP_LOSSCATS.forEach(function(c){EXP_LCMAP[c.id]=c.label;});
-var EXP_LOG_COLS=13;
+var EXP_LOG_COLS=12;
 var expLogSort={col:"date",dir:"desc"};
 var expLogFilters={ticker:[],setup:[],wl:[],process:[],lossCat:[]};
 var expLogFilterOpen=null;
@@ -1839,7 +2273,8 @@ function expFillsH(fills){
   }).join("");
 }
 function expUniqueTickers(){var s={};EXP_TRADES.forEach(function(t){s[(t.ticker||"").toUpperCase()]=1;});return Object.keys(s).sort();}
-function expUniqueSetups(){var s={};EXP_TRADES.forEach(function(t){if(t.setup)s[t.setup]=1;});return Object.keys(s).sort();}
+function expUniqueSetups(){var s={};EXP_TRADES.forEach(function(t){(t.setups||[t.setup]).forEach(function(su){if(su)s[su]=1;});});return Object.keys(s).sort();}
+function expSetupAbbr(su){return su==="Bounce"?"B":su==="Reject"?"R":su==="Break"?"Br":su;}
 function expSearchMatch(t){
   // Matches everything in a trade, not just the columns visible in the collapsed
   // row — comments only show once a row is expanded, but search still needs to
@@ -1847,13 +2282,14 @@ function expSearchMatch(t){
   var q=expSearchQuery.trim().toLowerCase();
   if(!q)return true;
   var lc=t.lossCat?(EXP_LCMAP[t.lossCat]||""):"";
-  var hay=[t.ticker,t.setup,t.wl,t.direction,expDispDate(t.date),t.comments,lc].filter(Boolean).join(" ").toLowerCase();
+  var hay=[t.ticker].concat(t.setups||[t.setup]).concat([t.wl,t.direction,expDispDate(t.date),t.comments,lc]).filter(Boolean).join(" ").toLowerCase();
   return hay.indexOf(q)!==-1;
 }
 function expApplyLogFilters(list){
   return list.filter(function(t){
+    var tsetups=t.setups||[t.setup];
     if(expLogFilters.ticker.length&&expLogFilters.ticker.indexOf((t.ticker||"").toUpperCase())===-1)return false;
-    if(expLogFilters.setup.length&&expLogFilters.setup.indexOf(t.setup)===-1)return false;
+    if(expLogFilters.setup.length&&!tsetups.some(function(su){return expLogFilters.setup.indexOf(su)!==-1;}))return false;
     if(expLogFilters.wl.length&&expLogFilters.wl.indexOf(t.wl)===-1)return false;
     if(expLogFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -1914,8 +2350,9 @@ function expClearOneLogFilter(key,ev){
 function expCloseLogFilterDropdown(){if(expLogFilterOpen){expLogFilterOpen=null;renderExpLog();}}
 function expCountForFilterOption(key,val,list){
   return list.filter(function(t){
+    var tsetups=t.setups||[t.setup];
     if(key!=="ticker"&&expLogFilters.ticker.length&&expLogFilters.ticker.indexOf((t.ticker||"").toUpperCase())===-1)return false;
-    if(key!=="setup"&&expLogFilters.setup.length&&expLogFilters.setup.indexOf(t.setup)===-1)return false;
+    if(key!=="setup"&&expLogFilters.setup.length&&!tsetups.some(function(su){return expLogFilters.setup.indexOf(su)!==-1;}))return false;
     if(key!=="wl"&&expLogFilters.wl.length&&expLogFilters.wl.indexOf(t.wl)===-1)return false;
     if(key!=="process"&&expLogFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -1926,7 +2363,7 @@ function expCountForFilterOption(key,val,list){
     if(!expSearchMatch(t))return false;
     switch(key){
       case"ticker":return(t.ticker||"").toUpperCase()===val;
-      case"setup":return t.setup===val;
+      case"setup":return tsetups.indexOf(val)!==-1;
       case"wl":return t.wl===val;
       case"process":return t.isGood!==null&&t.isGood!==undefined&&(t.isGood?"good":"bad")===val;
       case"lossCat":return t.lossCat===val;
@@ -2036,9 +2473,13 @@ function expExpandRowH(t){
     var lb=a===true?"⚠ Violated":a===false?"Clean":"—";
     return'<div class="explistrow"><span>'+expEsc(d.text)+'</span><span style="color:'+c+';font-weight:700">'+lb+'</span></div>';
   }).join("");
-  var shots=(t.screenshots&&t.screenshots.length>0)
+  var shots=t.localCacheExcluded
+    ?'<div class="expsub">screenshots</div><div class="dqok">not cached locally — synced to Drive, open the app to view</div>'
+    :(t.screenshots&&t.screenshots.length>0)
     ?'<div class="expsub">screenshots <span style="text-transform:none;color:var(--t3)">— click to view full size</span></div><div class="ssgallery">'+t.screenshots.map(function(sh){return'<img src="'+sh.dataUrl+'" alt="screenshot" onclick="openLB(this.src)"/>';}).join("")+'</div>'
     :'<div class="expsub">screenshots</div><div class="dqok">no screenshots attached</div>';
+  var feesNum=parseFloat(t.fees);
+  var platformLabel=t.platform==="tradovate"?"Tradovate":t.platform==="ninjatrader"?"NinjaTrader":"Other";
   return'<tr class="exprow"><td colspan="'+EXP_LOG_COLS+'"><div class="exppanel">'+
     '<div class="expmeta">'+
       '<span><strong>Direction</strong> '+dirLabel+'</span>'+
@@ -2047,8 +2488,15 @@ function expExpandRowH(t){
       '<span><strong>Duration</strong> '+expFdur(t.durationMin)+'</span>'+
       '<span><strong>Realized R</strong> '+((t.realizedR!==null&&t.realizedR!==undefined)?expF2(t.realizedR)+":1":"—")+'</span>'+
       '<span><strong>Rules score</strong> '+((t.rs!==null&&t.rs!==undefined)?expPc(t.rs):"—")+'</span>'+
+      ((!isNaN(feesNum)&&feesNum>0)?'<span><strong>Fees</strong> -'+expCuNoSign(feesNum)+' <span style="color:var(--t3)">('+platformLabel+')</span></span>':"")+
       (t.lossCat?'<span><strong>Loss type</strong> '+(EXP_LCMAP[t.lossCat]||"")+'</span>':"")+
     '</div>'+
+    (t.segsDisplay?'<div class="expmeta" style="margin-top:-6px">'+t.segsDisplay.map(function(seg,i){
+      var segDollars=seg.dollars;
+      var segCol=(segDollars===null||segDollars===undefined)?"var(--t3)":segDollars>0?"var(--g)":segDollars<0?"var(--r)":"var(--t)";
+      var dirLbl=seg.direction==="short"?"Short":"Long";
+      return'<span><strong>Leg '+(i+1)+' ('+dirLbl+' · '+seg.setup+')</strong> <span style="color:'+segCol+'">'+((segDollars!==null&&segDollars!==undefined)?expCuNoSign(segDollars):"open")+'</span></span>';
+    }).join("")+'</div>':"")+
     ((t.fills&&t.fills.length>1)?'<div class="expmeta" style="margin-top:-6px">'+expFillsH(t.fills)+'</div>':"")+
     ((t.comments&&t.comments.trim())?'<div class="expsub">comments</div><div class="expcomment">'+expHl(t.comments,expSearchQuery)+'</div>':"")+
     '<div class="expcols" style="margin-top:18px">'+
@@ -2064,7 +2512,7 @@ function renderExpLog(){
   var filtersOn=expHasLogFilters();
   var anyExpanded=list.some(function(t){return expExpandedIds.has(t.id);});
   var LOG_HEADERS=[
-    {key:null,label:""},{key:"date",label:"date"},{key:"ticker",label:"ticker"},{key:"setup",label:"setup"},
+    {key:"date",label:"date"},{key:"ticker",label:"ticker"},{key:"setup",label:"setup"},
     {key:null,label:"contracts"},{key:null,label:"entry"},{key:null,label:"stop"},{key:null,label:"target"},{key:null,label:"exit"},
     {key:"result",label:"result"},{key:"wl",label:"w/l"},{key:"rules",label:"rules"},{key:"process",label:"process"}
   ];
@@ -2072,7 +2520,8 @@ function renderExpLog(){
     if(!h.key)return"<th>"+h.label+"</th>";
     var active=expLogSort.col===h.key;
     var arrow=active?'<span class="sortarrow">'+(expLogSort.dir==="asc"?"▲":"▼")+'</span>':"";
-    return'<th class="sortable'+(active?" sorted":"")+'" onclick="expSetLogSort(\\''+h.key+'\\')" title="sort by '+h.label+'">'+h.label+arrow+"</th>";
+    var leftAlign=h.key==="rules"?' style="text-align:left"':"";
+    return'<th class="sortable'+(active?" sorted":"")+'"'+leftAlign+' onclick="expSetLogSort(\\''+h.key+'\\')" title="sort by '+h.label+'">'+h.label+arrow+"</th>";
   }).join("");
   var tickerOpts=expUniqueTickers().map(function(tk){return{val:tk,label:tk};});
   var setupOpts=expUniqueSetups().map(function(su){return{val:su,label:su};});
@@ -2117,11 +2566,10 @@ function renderExpLog(){
       var sl=(t.rs!==null&&t.rs!==undefined)?(t.fc+"/"+t.ac):"—";
       var isOpen=expExpandedIds.has(t.id);
       var row='<tr class="trow" id="exptraderow-'+t.id+'" onclick="expToggleExpand('+t.id+')">'+
-        '<td class="chev">'+(isOpen?"▾":"▸")+'</td>'+
-        '<td style="font-size:var(--fsm);color:var(--t2)">'+expHl(expDispDate(t.date),expSearchQuery)+'</td>'+
+        '<td style="font-size:var(--fsm);color:var(--t2);padding-left:20px;padding-right:20px">'+expHl(expDispDate(t.date),expSearchQuery)+'</td>'+
         '<td style="font-weight:700">'+expHl(t.ticker?t.ticker.toUpperCase():"",expSearchQuery)+'</td>'+
-        '<td><span class="pill pneu">'+expHl(t.setup,expSearchQuery)+'</span></td>'+
-        '<td style="text-align:center">'+(t.contracts||"—")+'</td>'+
+        '<td>'+(t.setups||[t.setup]).map(function(su){return'<span class="pill pneu">'+expHl(expSetupAbbr(su),expSearchQuery)+'</span>';}).join(" ")+'</td>'+
+        '<td style="padding-left:6px;padding-right:6px">'+(t.contracts||"—")+'</td>'+
         '<td>$'+expF2(t.entry)+'</td>'+
         '<td style="color:var(--r)">$'+expF2(t.stop)+'</td>'+
         '<td style="color:var(--g)">$'+expF2(t.target)+'</td>'+
@@ -2143,8 +2591,108 @@ document.addEventListener("click",function(){if(expLogFilterOpen)expCloseLogFilt
 document.addEventListener("keydown",function(ev){if(ev.key==="Escape"){if(expSearchOpen)expCloseSearch();if(expLogFilterOpen)expCloseLogFilterDropdown();}});
 var statsDetailsEl=document.getElementById("stats-details");
 if(statsDetailsEl){statsDetailsEl.addEventListener("toggle",function(){if(statsDetailsEl.open)layoutExpChart();});}
-function fmtDate(s){if(!s)return"Start";var p=s.split("-");return p[2]+"/"+p[1]+"/"+p[0].slice(2);}
-function fmtAxisDate(s){if(!s)return"";var p=s.split("-");return p[2]+"/"+p[1];}
+var eqSvgInstanceCounter=0;
+var EQ_MONTH_ABBR=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var AXIS_RULES={dayFormatMaxDays:90,monthFormatMaxDays:365,labelMarginPx:10};
+var EQ_XTICK_FONT=9.5,EQ_YTICK_FONT=10;
+function fmtDate(s){if(!s)return"Start";var p=s.split("-");if(p.length!==3)return s;return p[2]+" "+EQ_MONTH_ABBR[parseInt(p[1],10)-1]+" "+p[0].slice(2);}
+function getAxisFormatZone(rangeDays){
+  if(rangeDays<=AXIS_RULES.dayFormatMaxDays)return"day";
+  if(rangeDays<=AXIS_RULES.monthFormatMaxDays)return"month";
+  return"quarter";
+}
+function fmtAxisDate(s){if(!s)return"";var p=s.split("-");if(p.length!==3)return s;return p[2]+"/"+p[1];}
+function fmtAxisMonth(s){if(!s)return"";var p=s.split("-");if(p.length!==3)return s;return EQ_MONTH_ABBR[parseInt(p[1],10)-1]+" "+p[0].slice(2);}
+function fmtAxisQuarter(s){if(!s)return"";var p=s.split("-");if(p.length!==3)return s;var q=Math.floor((parseInt(p[1],10)-1)/3)+1;return"Q"+q+" "+p[0].slice(2);}
+function dateToTime(s){return new Date(s+"T00:00:00").getTime();}
+function timeToDateStr(t){var d=new Date(t);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function estLabelWidth(s){return s.length*EQ_XTICK_FONT*0.6;}
+// "Nice" step candidates per zone, in the natural unit for that zone.
+var EQ_DAY_STEPS=[1,2,3,5,7,14,21,28,45,60,90];
+var EQ_MONTH_STEPS=[1,2,3,6,12,24,36,60];
+var EQ_QUARTER_STEPS=[1,2,4,8,12,20,40];
+var EQ_DAY_MS=86400000;
+function eqFitsInMargins(x,label,padL,plotW,anchor){
+  var w=estLabelWidth(label);
+  if(anchor==="start")return x>=padL-0.5 && x+w<=padL+plotW+0.5;
+  if(anchor==="end")return x-w>=padL-0.5 && x<=padL+plotW+0.5;
+  var half=w/2;
+  return x-half>=padL-0.5 && x+half<=padL+plotW+0.5;
+}
+function eqTickExtents(t){
+  var w=estLabelWidth(t.label);
+  if(t.anchor==="start")return{left:0,right:w};
+  if(t.anchor==="end")return{left:w,right:0};
+  return{left:w/2,right:w/2};
+}
+function eqTicksOverlap(list){
+  for(var k=0;k<list.length-1;k++){
+    var a=eqTickExtents(list[k]),b=eqTickExtents(list[k+1]);
+    var need=a.right+b.left+AXIS_RULES.labelMarginPx;
+    if(list[k+1].x-list[k].x<need)return true;
+  }
+  return false;
+}
+function eqPairFits(a,b){
+  var ea=eqTickExtents(a),eb=eqTickExtents(b);
+  return (b.x-a.x)>=ea.right+eb.left+AXIS_RULES.labelMarginPx;
+}
+// Same root-cause redesign as the dashboard copy of this function: density
+// comes from the interior ticks alone (finest nice step whose own ticks
+// don't crowd each other); only the individual interior tick nearest an
+// edge gets dropped if it crowds that edge's label, instead of throwing
+// out the whole step over one bad neighbor.
+function buildAdaptiveDateTicks(periodStartTime,periodEndTime,plotW,padL){
+  var totalSpanMs=Math.max(1,periodEndTime-periodStartTime);
+  function xOf(t){
+    var frac=Math.min(1,Math.max(0,(t-periodStartTime)/totalSpanMs));
+    return padL+frac*plotW;
+  }
+  var zone=getAxisFormatZone(totalSpanMs/EQ_DAY_MS);
+  var isDay=zone==="day",isMonth=zone==="month";
+  var fmtFn=isDay?fmtAxisDate:(isMonth?fmtAxisMonth:fmtAxisQuarter);
+  var steps=isDay?EQ_DAY_STEPS:(isMonth?EQ_MONTH_STEPS:EQ_QUARTER_STEPS);
+  function label(t){return fmtFn(timeToDateStr(t));}
+
+  var idxToTime,periodEndIdx;
+  if(isDay){
+    idxToTime=function(idx){return periodStartTime+idx*EQ_DAY_MS;};
+    periodEndIdx=Math.round(totalSpanMs/EQ_DAY_MS);
+  }else{
+    var startD=new Date(periodStartTime),baseY=startD.getFullYear(),baseM=startD.getMonth();
+    var unit=isMonth?1:3;
+    idxToTime=function(idx){return new Date(baseY,baseM+idx*unit,1).getTime();};
+    var endD=new Date(periodEndTime);
+    periodEndIdx=Math.round(((endD.getFullYear()-baseY)*12+(endD.getMonth()-baseM))/unit);
+  }
+
+  function interiorForStep(step){
+    var out=[];
+    for(var idx=step;idx<periodEndIdx;idx+=step){
+      var t=idxToTime(idx);
+      out.push({x:xOf(t),label:label(t),anchor:"middle"});
+    }
+    return out;
+  }
+  function interiorOverlaps(interior){
+    for(var k=0;k<interior.length-1;k++)if(!eqPairFits(interior[k],interior[k+1]))return true;
+    return false;
+  }
+  var chosenInterior=[];
+  for(var si=0;si<steps.length;si++){
+    var interior=interiorForStep(steps[si]);
+    if(!interiorOverlaps(interior)){chosenInterior=interior;break;}
+  }
+
+  var startTick={x:padL,label:label(periodStartTime),anchor:"start"};
+  var endTick=periodEndIdx>0?{x:padL+plotW,label:label(periodEndTime),anchor:"end"}:null;
+  var kept=chosenInterior.slice();
+  if(kept.length&&!eqPairFits(startTick,kept[0]))kept.shift();
+  if(endTick&&kept.length&&!eqPairFits(kept[kept.length-1],endTick))kept.pop();
+  var result=[startTick].concat(kept);
+  if(endTick)result.push(endTick);
+  return result;
+}
 function fmtCur(n){if(n===null||isNaN(n))return"—";var a=Number(Math.abs(n)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});return n<0?"-$"+a:"$"+a;}
 // Same pixel-matched approach as the live app: viewBox == measured container size,
 // so nothing gets stretched. Recomputed on load and on resize.
@@ -2167,8 +2715,7 @@ function niceAxis(dataMin,dataMax,targetTicks){
   ticks.sort(function(a,b){return a-b;});
   return{min:niceLo,max:niceHi,step:step,ticks:ticks};
 }
-var EQ_SPARSE_DAYS=3,EQ_SPARSE_TRADES=8;
-function buildEqSVG(points,w,h,tradeCount){
+function buildEqSVG(points,w,h,tradeCount,periodBounds){
   w=Math.max(60,Math.round(w));h=Math.max(60,Math.round(h));
   var real=points.filter(function(p){return p.date!==null;});
   if(real.length<1){
@@ -2180,57 +2727,136 @@ function buildEqSVG(points,w,h,tradeCount){
   var longest=ax.ticks.reduce(function(a,v){return Math.max(a,fmtCur(v).length);},0);
   var padL=Math.max(52,longest*6.6+16),padR=28,padT=14,padB=24;
   var plotW=Math.max(10,w-padL-padR),plotH=Math.max(10,h-padT-padB);
-  var totalTrades=tradeCount!==undefined?tradeCount:real.reduce(function(a,p){return a+(p.count||0);},0);
-  var sparse=real.length<=EQ_SPARSE_DAYS&&totalTrades<=EQ_SPARSE_TRADES;
-  var cumCount=0;
-  var cumCounts=points.map(function(p){cumCount+=p.count||0;return cumCount;});
-  var xStep=points.length>1?plotW/(points.length-1):plotW;
-  function xFor(i){return sparse?padL+(cumCounts[i]/EQ_SPARSE_TRADES)*plotW:padL+i*xStep;}
+  // Horizontal positioning spans the VIEWED PERIOD (the full week / month /
+  // custom range) rather than just the stretch between the first and last
+  // real trade — same reasoning as the dashboard copy of this function.
+  var realIdxsForSpan=[];points.forEach(function(p,i){if(p.date)realIdxsForSpan.push(i);});
+  var firstRealTime=dateToTime(points[realIdxsForSpan[0]].date);
+  var lastRealTime=dateToTime(points[realIdxsForSpan[realIdxsForSpan.length-1]].date);
+  var spanStartTime=periodBounds?periodBounds.startT:firstRealTime;
+  var spanEndTime=periodBounds?periodBounds.endT:lastRealTime;
+  if(spanEndTime<=spanStartTime){
+    spanEndTime=spanStartTime+EQ_DAY_MS;
+  }
+  var totalSpanMs=spanEndTime-spanStartTime;
+  function timeFrac(i){
+    var d=points[i].date;
+    var t=d?dateToTime(d):spanStartTime;
+    return Math.min(1,Math.max(0,(t-spanStartTime)/totalSpanMs));
+  }
+  function xFor(i){return padL+timeFrac(i)*plotW;}
   function yFor(v){return padT+plotH-((v-min)/(max-min))*plotH;}
   var coords=points.map(function(p,i){return[xFor(i),yFor(p.cum)];});
   var yZero=yFor(0);
   var lastVal=points[points.length-1].cum;
   var lastC=coords[coords.length-1];
   var lastColor=lastVal>=0?"var(--g)":"var(--r)";
-  var lineEls="";
-  for(var i=0;i<coords.length-1;i++){
+  // The synthetic {date:null,cum:0} anchor at index 0 now sits at the true
+  // start of the viewed period, so the line always draws from flat-zero at
+  // the period's start through to the last real trade.
+  var lineStartIdx=0;
+  var runs=[];
+  var curRun=[{x:coords[lineStartIdx][0],y:coords[lineStartIdx][1]}];
+  var curSign=points[lineStartIdx].cum>=0?1:-1;
+  for(var i=lineStartIdx;i<coords.length-1;i++){
     var v0=points[i].cum,v1=points[i+1].cum;
-    var x0=coords[i][0],y0=coords[i][1],x1=coords[i+1][0],y1=coords[i+1][1];
+    var x1=coords[i+1][0],y1=coords[i+1][1];
     if((v0>=0&&v1>=0)||(v0<0&&v1<0)){
-      var col=v1>=0?"var(--g)":"var(--r)";
-      lineEls+='<line x1="'+x0.toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y2="'+y1.toFixed(1)+'" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/>';
+      curRun.push({x:x1,y:y1});
     }else{
       var t=v0/(v0-v1);
-      var xm=x0+(x1-x0)*t;
-      lineEls+='<line x1="'+x0.toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+xm.toFixed(1)+'" y2="'+yZero.toFixed(1)+'" stroke="'+(v0>=0?"var(--g)":"var(--r)")+'" stroke-width="2" stroke-linecap="round"/>';
-      lineEls+='<line x1="'+xm.toFixed(1)+'" y1="'+yZero.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y2="'+y1.toFixed(1)+'" stroke="'+(v1>=0?"var(--g)":"var(--r)")+'" stroke-width="2" stroke-linecap="round"/>';
+      var xm=coords[i][0]+(x1-coords[i][0])*t;
+      curRun.push({x:xm,y:yZero});
+      runs.push({pts:curRun,sign:curSign});
+      curRun=[{x:xm,y:yZero},{x:x1,y:y1}];
+      curSign=v1>=0?1:-1;
     }
   }
+  runs.push({pts:curRun,sign:curSign});
+  // Softly rounded corner at every real data point — a MONOTONE cubic
+  // Hermite spline (Fritsch–Carlson). See the dashboard copy of this
+  // function above for the full rationale.
+  function smoothCurveCmds(pts){
+    var n=pts.length;
+    if(n<2)return"";
+    var dx=new Array(n-1),dy=new Array(n-1),m=new Array(n-1);
+    var i;
+    for(i=0;i<n-1;i++){
+      dx[i]=pts[i+1].x-pts[i].x;
+      dy[i]=pts[i+1].y-pts[i].y;
+      m[i]=dx[i]!==0?dy[i]/dx[i]:0;
+    }
+    var t=new Array(n);
+    t[0]=m[0];
+    t[n-1]=m[n-2];
+    for(i=1;i<n-1;i++){
+      if(m[i-1]===0||m[i]===0||(m[i-1]<0)!==(m[i]<0)){
+        t[i]=0;
+      }else{
+        var w1=2*dx[i]+dx[i-1],w2=dx[i]+2*dx[i-1];
+        t[i]=(w1+w2)/(w1/m[i-1]+w2/m[i]);
+      }
+    }
+    for(i=0;i<n-1;i++){
+      if(m[i]===0){t[i]=0;t[i+1]=0;continue;}
+      var a=t[i]/m[i],b=t[i+1]/m[i],s=a*a+b*b;
+      if(s>9){var tau=3/Math.sqrt(s);t[i]=tau*a*m[i];t[i+1]=tau*b*m[i];}
+    }
+    var d="";
+    for(i=0;i<n-1;i++){
+      var p1=pts[i],p2=pts[i+1];
+      var c1x=p1.x+dx[i]/3,c1y=p1.y+t[i]*dx[i]/3;
+      var c2x=p2.x-dx[i]/3,c2y=p2.y-t[i+1]*dx[i]/3;
+      d+='C '+c1x.toFixed(1)+' '+c1y.toFixed(1)+', '+c2x.toFixed(1)+' '+c2y.toFixed(1)+', '+p2.x.toFixed(1)+' '+p2.y.toFixed(1)+' ';
+    }
+    return d;
+  }
+  var lineEls="";
+  runs.forEach(function(run){
+    if(run.pts.length<2)return;
+    var col=run.sign>=0?"var(--g)":"var(--r)";
+    var d='M '+run.pts[0].x.toFixed(1)+' '+run.pts[0].y.toFixed(1)+' '+smoothCurveCmds(run.pts);
+    lineEls+='<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+  });
+  var gradId="eqFill"+(eqSvgInstanceCounter++);
+  function fillPath(pts,sign){
+    if(pts.length<2)return"";
+    var d='M '+pts[0].x.toFixed(1)+' '+yZero.toFixed(1)+' L '+pts[0].x.toFixed(1)+' '+pts[0].y.toFixed(1)+' '+
+      smoothCurveCmds(pts)+
+      'L '+pts[pts.length-1].x.toFixed(1)+' '+yZero.toFixed(1)+' Z';
+    return'<path d="'+d+'" fill="'+(sign>=0?"url(#"+gradId+"G)":"url(#"+gradId+"R)")+'" stroke="none"/>';
+  }
+  var fillEls="";
+  runs.forEach(function(run){fillEls+=fillPath(run.pts,run.sign);});
   var tickLines=ax.ticks.map(function(v){
     var y=yFor(v).toFixed(1),isZero=v===0;
-    return'<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="var(--bd)" stroke-width="'+(isZero?1:0.75)+'" stroke-dasharray="'+(isZero?"none":"3,3")+'"/><text x="'+(padL-10)+'" y="'+(parseFloat(y)+4).toFixed(1)+'" text-anchor="end" font-size="11" font-weight="300" fill="var(--t3)">'+fmtCur(v)+'</text>';
+    return'<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="var(--bd)" stroke-width="'+(isZero?1:0.75)+'" stroke-dasharray="'+(isZero?"none":"3,3")+'"/><text x="'+(padL-10)+'" y="'+(parseFloat(y)+4).toFixed(1)+'" text-anchor="end" font-size="'+EQ_YTICK_FONT+'" font-weight="300" fill="var(--t3)">'+fmtCur(v)+'</text>';
   }).join("");
-  var realIdxs=[];points.forEach(function(p,i){if(p.date)realIdxs.push(i);});
-  var xTickIdxs=[];
-  if(realIdxs.length<=5){xTickIdxs=realIdxs;}
-  else{
-    for(var k=0;k<5;k++)xTickIdxs.push(realIdxs[Math.round(k*(realIdxs.length-1)/4)]);
-    xTickIdxs=xTickIdxs.filter(function(v,idx,arr){return arr.indexOf(v)===idx;});
-  }
-  var xTicks=xTickIdxs.map(function(i){
-    return'<text x="'+coords[i][0].toFixed(1)+'" y="'+(h-6)+'" text-anchor="middle" font-size="11" font-weight="300" fill="var(--t3)">'+fmtAxisDate(points[i].date)+'</text>';
+  var adaptiveTicks=buildAdaptiveDateTicks(spanStartTime,spanEndTime,plotW,padL);
+  var xTicks=adaptiveTicks.map(function(t){
+    return'<text x="'+t.x.toFixed(1)+'" y="'+(h-6)+'" text-anchor="'+(t.anchor||"middle")+'" font-size="'+EQ_XTICK_FONT+'" font-weight="300" fill="var(--t3)">'+t.label+'</text>';
   }).join("");
   var hitPts=[];points.forEach(function(p,i){if(p.date)hitPts.push({x:Number(coords[i][0].toFixed(1)),y:Number(coords[i][1].toFixed(1)),date:p.date,val:p.cum});});
   var dataAttr=encodeURIComponent(JSON.stringify(hitPts));
   return'<div class="eq-wrap" data-points="'+dataAttr+'" style="position:relative;width:100%;height:100%">'+
   '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" style="width:100%;height:100%;display:block;font-family:inherit">'+
-    tickLines+lineEls+xTicks+
+    '<defs>'+
+      '<linearGradient id="'+gradId+'G" x1="0" y1="'+padT+'" x2="0" y2="'+yZero.toFixed(1)+'" gradientUnits="userSpaceOnUse">'+
+        '<stop offset="0%" stop-color="var(--g)" stop-opacity="0.25"/>'+
+        '<stop offset="100%" stop-color="var(--g)" stop-opacity="0"/>'+
+      '</linearGradient>'+
+      '<linearGradient id="'+gradId+'R" x1="0" y1="'+yZero.toFixed(1)+'" x2="0" y2="'+(padT+plotH)+'" gradientUnits="userSpaceOnUse">'+
+        '<stop offset="0%" stop-color="var(--r)" stop-opacity="0"/>'+
+        '<stop offset="100%" stop-color="var(--r)" stop-opacity="0.25"/>'+
+      '</linearGradient>'+
+    '</defs>'+
+    tickLines+fillEls+lineEls+xTicks+
     '<circle cx="'+lastC[0].toFixed(1)+'" cy="'+lastC[1].toFixed(1)+'" r="3.5" fill="'+lastColor+'"/>'+
     '<line class="eq-cross" x1="0" y1="'+padT+'" x2="0" y2="'+(h-padB)+'" stroke="var(--t3)" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>'+
     '<circle class="eq-dot" cx="0" cy="0" r="4" fill="var(--t)" stroke="var(--bg)" stroke-width="1.5" opacity="0"/>'+
     '<rect class="eq-hitrect" x="'+padL+'" y="0" width="'+plotW+'" height="'+h+'" fill="transparent" style="cursor:crosshair"/>'+
   '</svg>'+
-  '<div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;transform:translate(-50%,-125%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>'+
+  '<div class="eq-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface);border:.5px solid var(--bdm);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--t);white-space:nowrap;line-height:1.5;transform:translate(-50%,-135%);z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>'+
   '</div>';
 }
 function initEquityHover(wrap){
@@ -2254,7 +2880,7 @@ function initEquityHover(wrap){
     cross.setAttribute("x1",p.x);cross.setAttribute("x2",p.x);cross.setAttribute("opacity","1");
     dot.setAttribute("cx",p.x);dot.setAttribute("cy",p.y);dot.setAttribute("opacity","1");
     tip.style.opacity="1";tip.style.left=((p.x/vbW)*100)+"%";tip.style.top=((p.y/vbH)*100)+"%";
-    tip.innerHTML="<strong>"+fmtDate(p.date)+"</strong> · "+fmtCur(p.val);
+    tip.innerHTML="<div><strong>"+fmtDate(p.date)+"</strong></div><div>Equity: "+fmtCur(p.val)+"</div>";
   }
   function hide(){cross.setAttribute("opacity","0");dot.setAttribute("opacity","0");tip.style.opacity="0";}
   hitrect.addEventListener("mousemove",function(e){show(nearestTo(e.clientX));});
@@ -2273,7 +2899,7 @@ function layoutExpChart(){
   eqCol.style.height=targetH+"px";
   var w=outer.clientWidth,h=outer.clientHeight;
   if(w<20||h<20)return;
-  outer.innerHTML=buildEqSVG(EQ_POINTS,w,h,EQ_TRADE_COUNT);
+  outer.innerHTML=buildEqSVG(EQ_POINTS,w,h,EQ_TRADE_COUNT,EQ_PERIOD_BOUNDS);
   initEquityHover(outer.querySelector(".eq-wrap"));
 }
 layoutExpChart();
@@ -2458,16 +3084,25 @@ function calendarH(en,opts){
     }
     if(week.length>0){while(week.length<7)week.push(null);rowsHtml+=week.map(d=>cellFor(d)).join("")+totalCell(week);}
   }else{
+    // Sun–Fri only (6 columns) — no Saturday session, so no Saturday column.
     const s=startOfWeek(periodAnchor);
     const week=[];
-    for(let i=0;i<7;i++){const d=new Date(s);d.setDate(s.getDate()+i);week.push(d);}
+    for(let i=0;i<6;i++){const d=new Date(s);d.setDate(s.getDate()+i);week.push(d);}
     rowsHtml=week.map((d,i)=>cellFor(d,`${DOW[i]} ${d.getDate()}`)).join("")+totalCell(week);
   }
   const title=opts.label!==undefined?opts.label:(mode==="month"?"calendar":"week overview");
+  const dowHeaders=mode==="month"?DOW:DOW.slice(0,6);
+  const gridInner=`<div class="calgrid" style="grid-template-columns:repeat(${dowHeaders.length},1fr) 1.1fr">${[...dowHeaders,"Total"].map(d=>`<div class="caldow">${d}</div>`).join("")}${rowsHtml}</div>`;
+  if(opts.detailsMode){
+    // Static export build: a native <details> needs no JS to stay collapsible,
+    // and always starts open (open attribute present) — unlike the live
+    // journal, this never auto-collapses just because the period is "month".
+    return`<details class="statsdetails" open><summary class="seclab">${title}</summary>${gridInner}</details>`;
+  }
   const collapsible=!!opts.collapsible;
   const arrow=collapsible?(opts.collapsed?"▸ ":"▾ "):"";
   const headerHtml=`<p class="seclab"${collapsible?' style="cursor:pointer;user-select:none" onclick="toggleCalendarCollapse()"':""}>${arrow}${title}</p>`;
-  const gridHtml=(collapsible&&opts.collapsed)?"":`<div class="calgrid">${[...DOW,"Total"].map(d=>`<div class="caldow">${d}</div>`).join("")}${rowsHtml}</div>`;
+  const gridHtml=(collapsible&&opts.collapsed)?"":gridInner;
   return`<div class="calwrap">${headerHtml}${gridHtml}</div>`;
 }
 function toggleCalendarCollapse(){calendarCollapsed=!calendarCollapsed;render();}
@@ -2517,7 +3152,7 @@ ${tab==="log"?logH(en):tab==="dashboard"?dashH(s,en,ec,bc,em):reflectionH()}
 }
 
 // ── Log tab ───────────────────────────────────────────────────────────────────
-const LOG_COLS=15;
+const LOG_COLS=13;
 function expandRowH(t){
   const ra=t.ra||{},dqa=t.dqa||{};
   const lcMap=Object.fromEntries(LOSSCATS.map(c=>[c.id,c.label]));
@@ -2525,6 +3160,8 @@ function expandRowH(t){
   const entryStr=t.entryTime?`${dispDate(t.date)} ${t.entryTime}`:dispDate(t.date);
   const exitDateStr=effectiveExitDate(t);
   const exitStr=t.exitTime?`${dispDate(exitDateStr)} ${t.exitTime}`:"—";
+  const feesNum=parseFloat(t.fees);
+  const platformLabel=(PLATFORMS.find(p=>p.id===t.platform)||{}).label||"Other";
   return`<tr class="exprow"><td colspan="${LOG_COLS}"><div class="exppanel">
     <div class="expmeta">
       <span><strong>Direction</strong> ${dirLabel}</span>
@@ -2533,8 +3170,14 @@ function expandRowH(t){
       <span><strong>Duration</strong> ${fdur(t.durationMin)}</span>
       <span><strong>Realized R</strong> ${t.realizedR!==null?`${f2(t.realizedR)}:1`:"—"}</span>
       <span><strong>Rules score</strong> ${t.rs!==null?pc(t.rs):"—"}</span>
+      ${!isNaN(feesNum)&&feesNum>0?`<span><strong>Fees</strong> ${cu(-feesNum)} <span style="color:var(--t3)">(${platformLabel})</span></span>`:""}
       ${t.lossCat?`<span><strong>Loss type</strong> ${lcMap[t.lossCat]||""}</span>`:""}
     </div>
+    ${t.segsDisplay?`<div class="expmeta" style="margin-top:-6px">${t.segsDisplay.map((seg,i)=>{
+      const segDollars=seg.dollars;
+      const segCol=segDollars===null?"var(--t3)":segDollars>0?"var(--g)":segDollars<0?"var(--r)":"var(--t)";
+      return`<span><strong>Leg ${i+1} (${seg.direction==="short"?"Short":"Long"} · ${seg.setup})</strong> <span style="color:${segCol}">${segDollars!==null?cuNoSign(segDollars):"open"}</span></span>`;
+    }).join("")}</div>`:""}
     ${t.fills&&t.fills.length>1?`<div class="expmeta" style="margin-top:-6px">${(()=>{
       let addIdx=0,exitIdx=0;
       return t.fills.map(f=>{
@@ -2567,7 +3210,9 @@ function expandRowH(t){
         }).join("")}
       </div>
       <div>
-        ${t.screenshots&&t.screenshots.length>0
+        ${t.localCacheExcluded
+          ?`<div class="expsub">screenshots</div><div class="dqok">not cached locally — synced to Drive, screenshots freed up automatically to stay under your browser's storage limit</div>`
+          :t.screenshots&&t.screenshots.length>0
           ?`<div class="expsub">screenshots <span style="text-transform:none;color:var(--t3)">— click to view full size</span></div><div class="ssgallery">${t.screenshots.map(sh=>`<img src="${sh.dataUrl}" alt="screenshot" onclick="openLightbox('${sh.dataUrl.replace(/'/g,"\\'")}')"/>`).join("")}</div>`
           :`<div class="expsub">screenshots</div><div class="dqok">no screenshots attached</div>`}
       </div>
@@ -2660,6 +3305,7 @@ function toggleLogSearch(ev){
   logSearchOpen=!logSearchOpen;
   logSearchLocked=false;
   logSearchNavIndex=-1;
+  logSearchCurrentId=null;
   if(!logSearchOpen)logSearchQuery="";
   render();
   if(logSearchOpen){
@@ -2668,12 +3314,13 @@ function toggleLogSearch(ev){
 }
 function closeLogSearch(){
   if(!logSearchOpen)return;
-  logSearchOpen=false;logSearchQuery="";logSearchLocked=false;logSearchNavIndex=-1;
+  logSearchOpen=false;logSearchQuery="";logSearchLocked=false;logSearchNavIndex=-1;logSearchCurrentId=null;
   render();
 }
 function onLogSearchInput(el){
   logSearchQuery=el.value;
   logSearchNavIndex=-1;
+  logSearchCurrentId=null;
   const pos=el.selectionStart;
   render();
   requestAnimationFrame(()=>{
@@ -2682,7 +3329,7 @@ function onLogSearchInput(el){
   });
 }
 function onLogSearchKeydown(ev){
-  if(ev.key==="Enter"){ev.preventDefault();logSearchLocked=true;}
+  if(ev.key==="Enter"){ev.preventDefault();logSearchLocked=true;logSearchNav(ev.shiftKey?-1:1,ev);}
   else if(ev.key==="Escape"){ev.preventDefault();closeLogSearch();}
 }
 function currentLogSearchMatches(){
@@ -2697,11 +3344,13 @@ function logSearchNav(dir,ev){
   else logSearchNavIndex=(logSearchNavIndex+dir+list.length)%list.length;
   const t=list[logSearchNavIndex];
   if(!t)return;
-  expandedIds.add(t.id); // reveal fields (e.g. comments) that only show once expanded
+  logSearchCurrentId=t.id;
   render();
   requestAnimationFrame(()=>{
     const el=document.getElementById(`traderow-${t.id}`);
     if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
+    const input=document.getElementById("logsearch-input");
+    if(input)input.focus();
   });
 }
 function logSearchMatch(t){
@@ -2711,7 +3360,7 @@ function logSearchMatch(t){
   const q=logSearchQuery.trim().toLowerCase();
   if(!q)return true;
   const lc=t.lossCat?LOSSCATS.find(c=>c.id===t.lossCat):null;
-  const hay=[t.ticker,t.setup,t.wl,t.direction,dispDate(t.date),t.comments,lc?lc.label:""].filter(Boolean).join(" ").toLowerCase();
+  const hay=[t.ticker,...(t.setups||[t.setup]),t.wl,t.direction,dispDate(t.date),t.comments,lc?lc.label:""].filter(Boolean).join(" ").toLowerCase();
   return hay.includes(q);
 }
 function applyLogFilters(list){
@@ -2756,7 +3405,6 @@ function logH(en){
   const filtersOn=hasLogFilters();
   const filteredOut=(periodMode!=="all"||filtersOn)&&trades.length>0&&logList.length===0;
   const LOG_HEADERS=[
-    {key:null,label:""},
     {key:"date",label:"date"},
     {key:"ticker",label:"ticker"},
     {key:"setup",label:"setup"},
@@ -2770,16 +3418,17 @@ function logH(en){
     {key:"rules",label:"rules"},
     {key:"process",label:"process"},
     {key:null,label:""},
-    {key:null,label:""},
   ];
   const theadHtml=LOG_HEADERS.map(h=>{
     if(!h.key)return`<th>${h.label}</th>`;
     const active=logSort.col===h.key;
     const arrow=active?`<span class="sortarrow">${logSort.dir==="asc"?"▲":"▼"}</span>`:"";
-    return`<th class="sortable${active?" sorted":""}" onclick="setLogSort('${h.key}')" title="sort by ${h.label}">${h.label}${arrow}</th>`;
+    const leftAlign=h.key==="rules"?" style=\"text-align:left\"":"";
+    return`<th class="sortable${active?" sorted":""}"${leftAlign} onclick="setLogSort('${h.key}')" title="sort by ${h.label}">${h.label}${arrow}</th>`;
   }).join("");
   return`<div>
-${trades.length>0?`<div class="logfilterbar">
+<div class="logfilterbar${logSearchOpen?" sticky-search":""}">
+  ${trades.length>0?`
   <button class="topicon" onclick="toggleExpandAll()" aria-label="${anyExpanded?"collapse all":"expand all"}" data-tt="${anyExpanded?"collapse all":"expand all"}">${anyExpanded?ICON_TRIDOWN:ICON_TRIRIGHT}</button>
   <span class="topicon" style="cursor:default;margin-right:-4px" aria-label="filters">${ICON_FILTER}</span>
   ${renderFilterBtn("ticker","all tickers",uniqueTickersUsed().map(tk=>({val:tk,label:tk})),en)}
@@ -2792,30 +3441,39 @@ ${trades.length>0?`<div class="logfilterbar">
   <span class="iconsep">|</span>
   ${renderFilterBtn("lossCat","all loss types",LOSSCATS.map(c=>({val:c.id,label:c.label})),en)}
   ${filtersOn?`<button class="filterclear" onclick="clearLogFilters()" aria-label="clear all filters">${ICON_X}</button>`:""}
+  `:""}
   <div class="logbaricons">
     <span class="searchwrap">
       ${logSearchOpen&&currentLogSearchMatches().length>0?`
       <button class="topicon" onclick="logSearchNav(-1,event)" aria-label="previous match" data-tt="previous match">${ICON_TRILEFT}</button>
       <button class="topicon" onclick="logSearchNav(1,event)" aria-label="next match" data-tt="next match">${ICON_TRIRIGHT}</button>
       `:""}
-      ${logSearchOpen?`<span class="searchpill" onclick="event.stopPropagation()">${ICON_SEARCH}<input id="logsearch-input" placeholder="search trades..." value="${escAttr(logSearchQuery)}" oninput="onLogSearchInput(this)" onkeydown="onLogSearchKeydown(event)"/></span>`
+      ${logSearchOpen?`<span class="searchpill" onclick="event.stopPropagation()">${ICON_SEARCH}<input id="logsearch-input" placeholder="" value="${escAttr(logSearchQuery)}" oninput="onLogSearchInput(this)" onkeydown="onLogSearchKeydown(event)"/></span>`
       :`<button class="topicon" onclick="toggleLogSearch(event)" aria-label="search trades" data-tt="search trades">${ICON_SEARCH}</button>`}
     </span>
     <span class="iconsep" data-edit="1">|</span>
-    <button class="topicon" data-edit="1" onclick="tog()" title="${showForm?"cancel":"add trade"}">${showForm?ICON_X:ICON_PLUS}</button>
+    <button class="topicon" data-edit="1" onclick="tog()" aria-label="${showForm?"cancel":"add trade"}" data-tt="${showForm?"cancel":"add trade"}">${showForm?ICON_X:ICON_PLUS}</button>
   </div>
-</div>`:""}
+</div>
 
 ${showForm?`
 <div class="fcard">
-  <div style="font-size:var(--fmd);font-weight:700;margin-bottom:1rem">${editingId!==null?"edit trade":"new trade entry"}</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+    <span style="font-size:var(--fmd);font-weight:700">${editingId!==null?"edit trade":"new trade entry"}</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <select id="fi-platform" class="platformdd" onchange="markPlatformChanged()" aria-label="fee platform" data-tt="fee platform (affects auto-calculated fees)">
+        ${PLATFORMS.map(p=>`<option value="${p.id}"${form.platform===p.id?" selected":""}>${p.label}</option>`).join("")}
+      </select>
+      <button class="topicon" onclick="addTrade()" aria-label="${editingId!==null?"save changes":"log trade"}" data-tt="${editingId!==null?"save changes":"log trade"}">${ICON_SAVE}</button>
+    </div>
+  </div>
   <div class="fsec" style="margin-top:0;padding-top:0;border-top:none">trade details</div>
   <div class="fgrid">
     <div class="field"><label>date</label><input id="fi-date" type="date" value="${form.date}"/></div>
     <div class="field"><label>entry time</label><input id="fi-entrytime" type="time" value="${form.entryTime||""}"/></div>
-    <div class="field"><label>exit time</label><input id="fi-exittime" type="time" value="${form.exitTime||""}" onchange="refreshRiskPreview();recomputeAutoResult()"/></div>
+    <div class="field"><label>exit time</label><input id="fi-exittime" type="time" value="${form.exitTime||""}" onchange="recomputeAutoResult();refreshRiskPreview()"/></div>
     <div class="field"><label>ticker</label>
-      <select id="fi-ticker" onchange="refreshRiskPreview();recomputeAutoResult()">
+      <select id="fi-ticker" onchange="recomputeAutoResult();refreshRiskPreview()">
         <optgroup label="Micros">
           ${sortedTickers().filter(t=>t.category==="micro").map(t=>`<option value="${t.symbol}"${form.ticker===t.symbol?" selected":""}>${t.symbol}</option>`).join("")}
         </optgroup>
@@ -2842,8 +3500,20 @@ ${showForm?`
       <label>exit date</label><input id="fi-exitdate" type="date" value="${form.exitDate||form.date}"/>
     </div>
   </div>
-  <div class="fsec" style="margin-top:1.1rem">fills <span style="font-weight:400;color:var(--t3);text-transform:none;letter-spacing:normal"> — log each add/entry or exit/reduce; contracts, avg price, and $ result roll up automatically. New fills copy the previous one's values — edit whatever changed.</span></div>
+  <div class="fsec" style="margin-top:1.1rem;display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <span>fills <span style="font-weight:400;color:var(--t3);text-transform:none;letter-spacing:normal"> — log each add/entry or exit/reduce; contracts, avg price, and $ result roll up automatically.</span></span>
+    <button type="button" class="topicon" onclick="addFillRow()" aria-label="add fill (scaled in/out)" data-tt="add fill (scaled in/out)" style="flex-shrink:0">${ICON_PLUS}</button>
+  </div>
   <div id="fills-section"></div>
+  <div class="fgrid" style="margin-top:10px">
+    <div class="field">
+      <label>fees ($) <span id="fi-fees-hint" style="text-transform:none;color:var(--t3)">${form.platform==="other"?"— enter manually":"— exchange + NFA + clearing + commission, auto-calculated"}</span></label>
+      <input id="fi-fees" type="text" inputmode="decimal" placeholder="0.00" value="${form.fees}"
+        style="font-family:var(--sans)"
+        oninput="markFeesManual()"
+        onkeypress="return /[-0-9.]/.test(event.key)||event.key==='Backspace'"/>
+    </div>
+  </div>
   <div class="fgrid" style="margin-top:10px">
     <div class="field">
       <label>result ($)</label>
@@ -2860,7 +3530,7 @@ ${showForm?`
     </div>
   </div>
   <div id="risk-preview"></div>
-  <div id="rules-section"></div>
+  <div id="rules-section" style="margin-top:1.1rem;padding-top:1rem;border-top:.5px solid var(--bd)"></div>
   <div id="dq-section" style="margin-top:1.1rem;padding-top:1rem;border-top:.5px solid var(--bd)"></div>
   <div id="ss-section" style="margin-top:1.1rem;padding-top:1rem;border-top:.5px solid var(--bd)"></div>
   <div class="fsec">comments <span style="font-weight:400;color:var(--t3)"> — anything else worth remembering about this trade</span></div>
@@ -2882,24 +3552,27 @@ ${logList.map(t=>{
   const rc=t.wl==="Win"?"var(--g)":t.wl==="Loss"?"var(--r)":"var(--t)";
   const col=sc(t.rs),bg=sbg(t.rs),bd=sbd(t.rs);
   const sl=t.rs!==null?`${t.fc}/${t.ac}`:"—";
-  const row=`<tr class="trow" id="traderow-${t.id}" onclick="toggleExpand(${t.id})">
-<td class="chev">${expandedIds.has(t.id)?"▾":"▸"}</td>
-<td style="font-size:var(--fsm);color:var(--t2)">${hl(dispDate(t.date),logSearchQuery)}</td>
+  // A search match auto-opens its row via logSearchCurrentId (not expandedIds) so
+  // stepping to the next result doesn't permanently pile up every row it's ever
+  // visited — moving on closes it back up unless it was also opened by hand.
+  const isCurrent=logSearchOpen&&t.id===logSearchCurrentId;
+  const isOpen=expandedIds.has(t.id)||isCurrent;
+  const row=`<tr class="trow${isCurrent?" trow-current":""}" id="traderow-${t.id}" onclick="toggleExpand(${t.id})">
+<td style="font-size:var(--fsm);color:var(--t2);padding-left:20px;padding-right:20px">${hl(dispDate(t.date),logSearchQuery)}</td>
 <td style="font-weight:700;font-size:var(--fbase)">${hl(t.ticker.toUpperCase(),logSearchQuery)}</td>
-<td><span class="pill pneu">${hl(t.setup,logSearchQuery)}</span></td>
-<td style="text-align:center">${t.contracts||"—"}</td>
+<td>${(t.setups||[t.setup]).map(su=>`<span class="pill pneu">${hl(setupAbbr(su),logSearchQuery)}</span>`).join(" ")}</td>
+<td style="padding-left:6px;padding-right:6px">${t.contracts||"—"}</td>
 <td>$${f2(t.entry)}</td>
 <td style="color:var(--r)">$${f2(t.stop)}</td>
 <td style="color:var(--g)">$${f2(t.target)}</td>
 <td>${t.exit?`$${f2(t.exit)}`:"—"}</td>
 <td style="font-weight:700;color:${rc}">${!isNaN(res)?cuNoSign(res):"—"}</td>
 <td>${t.wl?`<span class="pill p${t.wl.toLowerCase()}">${t.wl}</span>`:"—"}</td>
-<td><div class="rulesflex"><span class="spill" style="background:${bg};color:${col};border:.5px solid ${bd}" title="rules followed">${sl}</span>${t.comments&&t.comments.trim()?`<span title="has comment">📝</span>`:""}${t.screenshots&&t.screenshots.length>0?`<span title="has screenshots">📷${t.screenshots.length}</span>`:""}</div></td>
+<td><div class="rulesflex"><span class="spill" style="background:${bg};color:${col};border:.5px solid ${bd}" title="rules followed">${sl}</span>${t.comments&&t.comments.trim()?`<span title="has comment">📝</span>`:""}${t.screenshots&&t.screenshots.length>0?`<span title="has screenshots">📷</span>`:""}</div></td>
 <td>${t.isGood!==null?`<span class="pill ${t.isGood?"pgood":"pbad"}">${t.isGood?"Good":"Bad"}</span>`:"—"}</td>
-<td><button class="delbtn" data-edit="1" onclick="event.stopPropagation();editTrade(${t.id})" title="edit trade">✎</button></td>
-<td><button class="delbtn" data-edit="1" onclick="event.stopPropagation();del(${t.id})" title="delete trade">×</button></td>
+<td class="rowactions"><div class="rowactions-inner"><button class="delbtn" data-edit="1" onclick="event.stopPropagation();editTrade(${t.id})" title="edit trade">✎</button><span class="iconsep" data-edit="1">|</span><button class="delbtn" data-edit="1" onclick="event.stopPropagation();del(${t.id})" title="delete trade">×</button></div></td>
 </tr>`;
-  return row+(expandedIds.has(t.id)?expandRowH(t):"");
+  return row+(isOpen?expandRowH(t):"");
 }).join("")}
 </tbody></table></div>`}
 ${trades.length>0?`<div class="lcountbottom">${logList.length} of ${trades.length} trades shown</div>`:""}
@@ -3049,11 +3722,23 @@ ${SETUPS.map(setup=>{
 }
 
 // ── Reflection tab ────────────────────────────────────────────────────────────
+function toggleReflectionExpand(id){
+  if(refCollapsedIds.has(id))refCollapsedIds.delete(id);else refCollapsedIds.add(id);
+  render();
+}
+function toggleAllReflections(){
+  const list=getFilteredReflections().filter(refSearchMatch);
+  const anyExpanded=list.some(r=>!refCollapsedIds.has(r.id));
+  if(anyExpanded)list.forEach(r=>refCollapsedIds.add(r.id));
+  else list.forEach(r=>refCollapsedIds.delete(r.id));
+  render();
+}
 function toggleRefSearch(ev){
   if(ev)ev.stopPropagation();
   refSearchOpen=!refSearchOpen;
   refSearchLocked=false;
   refSearchNavIndex=-1;
+  refSearchCurrentId=null;
   if(!refSearchOpen)refSearchQuery="";
   render();
   if(refSearchOpen){
@@ -3062,12 +3747,13 @@ function toggleRefSearch(ev){
 }
 function closeRefSearch(){
   if(!refSearchOpen)return;
-  refSearchOpen=false;refSearchQuery="";refSearchLocked=false;refSearchNavIndex=-1;
+  refSearchOpen=false;refSearchQuery="";refSearchLocked=false;refSearchNavIndex=-1;refSearchCurrentId=null;
   render();
 }
 function onRefSearchInput(el){
   refSearchQuery=el.value;
   refSearchNavIndex=-1;
+  refSearchCurrentId=null;
   const pos=el.selectionStart;
   render();
   requestAnimationFrame(()=>{
@@ -3076,7 +3762,7 @@ function onRefSearchInput(el){
   });
 }
 function onRefSearchKeydown(ev){
-  if(ev.key==="Enter"){ev.preventDefault();refSearchLocked=true;}
+  if(ev.key==="Enter"){ev.preventDefault();refSearchLocked=true;refSearchNav(ev.shiftKey?-1:1,ev);}
   else if(ev.key==="Escape"){ev.preventDefault();closeRefSearch();}
 }
 function currentRefSearchMatches(){
@@ -3091,10 +3777,13 @@ function refSearchNav(dir,ev){
   else refSearchNavIndex=(refSearchNavIndex+dir+list.length)%list.length;
   const r=list[refSearchNavIndex];
   if(!r)return;
+  refSearchCurrentId=r.id;
   render();
   requestAnimationFrame(()=>{
-    const el=document.getElementById(`refcard-${r.id}`);
+    const el=document.getElementById(`reflectionrow-${r.id}`);
     if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
+    const input=document.getElementById("refsearch-input");
+    if(input)input.focus();
   });
 }
 function refSearchMatch(r){
@@ -3109,10 +3798,13 @@ function reflectionH(){
   const list=getFilteredReflections().filter(refSearchMatch);
   const preSearchList=getFilteredReflections();
   const filteredOut=periodMode!=="all"&&reflections.length>0&&preSearchList.length===0;
+  const anyRefExpanded=list.some(r=>!refCollapsedIds.has(r.id));
   return`<div>
-<div class="lbar">
+<div class="lbar${refSearchOpen?" sticky-search":""}">
   <span class="lcount" style="font-size:var(--fxs);font-weight:300">${list.length} of ${reflections.length} reflection${reflections.length!==1?"s":""} shown</span>
   <div class="logbaricons">
+    ${list.length>0?`<button class="topicon" onclick="toggleAllReflections()" aria-label="${anyRefExpanded?"collapse all":"expand all"}" data-tt="${anyRefExpanded?"collapse all":"expand all"}">${anyRefExpanded?ICON_TRIDOWN:ICON_TRIRIGHT}</button>
+    <span class="iconsep">|</span>`:""}
     <span class="searchwrap">
       ${refSearchOpen&&currentRefSearchMatches().length>0?`
       <button class="topicon" onclick="refSearchNav(-1,event)" aria-label="previous match" data-tt="previous match">${ICON_TRILEFT}</button>
@@ -3122,7 +3814,7 @@ function reflectionH(){
       :`<button class="topicon" onclick="toggleRefSearch(event)" aria-label="search reflections" data-tt="search reflections">${ICON_SEARCH}</button>`}
     </span>
     <span class="iconsep" data-edit="1">|</span>
-    <button class="topicon" data-edit="1" onclick="toggleRefForm()" aria-label="${showRefForm?"cancel":"add reflection"}" title="${showRefForm?"cancel":"add reflection"}">${showRefForm?ICON_X:ICON_PLUS}</button>
+    <button class="topicon" data-edit="1" onclick="toggleRefForm()" aria-label="${showRefForm?"cancel":"add reflection"}" data-tt="${showRefForm?"cancel":"add reflection"}">${showRefForm?ICON_X:ICON_PLUS}</button>
   </div>
 </div>
 
@@ -3133,7 +3825,7 @@ ${showRefForm?`
     <button class="pbtn${refForm.periodType==="week"?" on":""}" onclick="setRefPeriodType('week')">weekly</button>
     <button class="pbtn${refForm.periodType==="month"?" on":""}" onclick="setRefPeriodType('month')">monthly</button>
   </div>
-  <div class="fgrid" style="max-width:460px;margin-bottom:8px">
+  <div class="fgrid" style="max-width:460px;margin-bottom:20px">
     ${refForm.periodType==="week"
       ?`<div class="field"><label>week containing</label><input id="rf-weekdate" type="date" value="${refForm.periodDate}" onchange="updateRefPeriodDate()"/></div>`
       :`<div class="field"><label>month</label><input id="rf-monthdate" type="month" value="${refForm.periodDate.slice(0,7)}" onchange="updateRefPeriodDate()"/></div>`}
@@ -3162,19 +3854,23 @@ ${reflections.length===0
   ?`<div class="empty"><div style="font-size:28px;margin-bottom:8px">🔍</div><p>no reflections match your search</p></div>`
   :list.map(r=>{
     const secs=nonEmptySections(r);
+    const isCurrent=refSearchOpen&&r.id===refSearchCurrentId;
+    // A search match auto-opens even if manually collapsed, same logic as the
+    // trade log's search-driven auto-expand.
+    const isCollapsed=refCollapsedIds.has(r.id)&&!isCurrent;
     return `
-<div class="fcard" id="refcard-${r.id}" style="margin-bottom:10px">
-  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+<div class="fcard${isCurrent?" fcard-current":""}" id="reflectionrow-${r.id}" style="margin-bottom:10px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;${isCollapsed?"":"margin-bottom:18px;"}cursor:pointer" onclick="toggleReflectionExpand(${r.id})">
     <span style="font-size:var(--fsm);color:var(--refhead);font-weight:700;letter-spacing:.03em">${hl(refHeaderLabel(r),refSearchQuery)}</span>
     <div style="display:flex;align-items:center;gap:12px">
       <span style="font-size:var(--fxs);color:var(--t3);font-style:italic">entry date: ${hl(ddmmyy(parseYMD(r.entryDate)),refSearchQuery)}</span>
-      <div style="display:flex;gap:2px">
+      <div style="display:flex;gap:2px" onclick="event.stopPropagation()">
         <button class="delbtn" data-edit="1" onclick="editReflection(${r.id})" title="edit reflection">✎</button>
         <button class="delbtn" data-edit="1" onclick="delReflection(${r.id})" title="delete reflection">×</button>
       </div>
     </div>
   </div>
-  ${secs.map((s,i)=>`<div style="${i<secs.length-1?"margin-bottom:14px;padding-bottom:14px;border-bottom:.5px solid var(--bd)":""}">
+  ${isCollapsed?"":secs.map((s,i)=>`<div style="${i<secs.length-1?"margin-bottom:14px;padding-bottom:14px;border-bottom:.5px solid var(--bd)":""}">
     <div class="refq" style="margin-bottom:6px">${hl(s.q,refSearchQuery)}</div>
     <div style="font-size:var(--fbase);color:var(--t2);line-height:1.5">${pWrap(s.a,refSearchQuery)}</div>
   </div>`).join("")}
