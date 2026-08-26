@@ -599,7 +599,7 @@ function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"
 function dispDate(s){if(!s)return"—";const p=s.split("-");if(p.length!==3)return s;return `${p[2]}/${p[1]}/${p[0].slice(2)}`;}
 function axisDate(s){if(!s)return"";const p=s.split("-");if(p.length!==3)return s;return `${p[2]}/${p[1]}`;}
 function startOfWeek(d){const r=new Date(d);r.setHours(0,0,0,0);r.setDate(r.getDate()-r.getDay());return r;}
-function endOfWeek(d){const s=startOfWeek(d);const r=new Date(s);r.setDate(r.getDate()+6);r.setHours(23,59,59,999);return r;}
+function endOfWeek(d){const s=startOfWeek(d);const r=new Date(s);r.setDate(r.getDate()+5);r.setHours(23,59,59,999);return r;}
 function startOfMonth(d){return new Date(d.getFullYear(),d.getMonth(),1);}
 function endOfMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0,23,59,59,999);}
 
@@ -607,7 +607,7 @@ function periodRange(){
   if(periodMode==="week"){
     const s=startOfWeek(periodAnchor),e=endOfWeek(periodAnchor);
     const label=s.getMonth()===e.getMonth()
-      ?`Week of ${MON[s.getMonth()].slice(0,3)} ${s.getDate()}–${e.getDate()}, ${e.getFullYear()}`
+      ?`Week of ${MON[s.getMonth()].slice(0,3)} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`
       :`Week of ${MON[s.getMonth()].slice(0,3)} ${s.getDate()} – ${MON[e.getMonth()].slice(0,3)} ${e.getDate()}, ${e.getFullYear()}`;
     return{start:s,end:e,label};
   }
@@ -768,6 +768,20 @@ function isTradeOpen(t){
   if(!segs.length)return false;
   const last=segs[segs.length-1];
   return last.openQty>0;
+}
+function segmentRecords(list){
+  const out=[];
+  list.forEach(t=>{
+    const fills=t.fills&&t.fills.length?t.fills:legacyFillsFor(t);
+    const segs=computeSegments(fills,t.direction||"long",t.setup||"Bounce");
+    segs.forEach(seg=>{
+      if(seg.closedQty<=0)return; // only realized legs count toward setup win-rate
+      const dollars=segmentDollarResult(seg,t.ti);
+      if(dollars===null)return;
+      out.push({setup:seg.setup,wl:dollars>0?"Win":dollars<0?"Loss":"BE",result:dollars});
+    });
+  });
+  return out;
 }
 
 // ── Calculations ─────────────────────────────────────────────────────────────
@@ -1374,7 +1388,7 @@ function initEquityHover(wrap){
     tip.style.opacity="1";
     tip.style.left=((p.x/vbW)*100)+"%";
     tip.style.top=((p.y/vbH)*100)+"%";
-    tip.innerHTML=`<strong>${dispDate(p.date)}</strong> · ${cu(p.val)}`;
+    tip.innerHTML=`<div><strong>${equityTooltipDate(p.date)}</strong></div><div>Equity: ${cu(p.val)}</div>`;
   }
   function hide(){cross.setAttribute("opacity","0");dot.setAttribute("opacity","0");tip.style.opacity="0";}
   hitrect.addEventListener("mousemove",e=>show(nearestTo(e.clientX)));
@@ -3261,8 +3275,9 @@ window.addEventListener("blur",()=>{document.body.classList.add("tt-blurred");})
 window.addEventListener("focus",()=>{document.body.classList.remove("tt-blurred");});
 function countForFilterOption(key,val,list){
   return list.filter(t=>{
+    const tsetups=t.setups||[t.setup];
     if(key!=="ticker"&&logFilters.ticker.length&&!logFilters.ticker.includes((t.ticker||"").toUpperCase()))return false;
-    if(key!=="setup"&&logFilters.setup.length&&!logFilters.setup.includes(t.setup))return false;
+    if(key!=="setup"&&logFilters.setup.length&&!tsetups.some(su=>logFilters.setup.includes(su)))return false;
     if(key!=="wl"&&logFilters.wl.length&&!logFilters.wl.includes(t.wl))return false;
     if(key!=="process"&&logFilters.process.length){
       if(t.isGood===null||t.isGood===undefined)return false;
@@ -3273,7 +3288,7 @@ function countForFilterOption(key,val,list){
     if(!logSearchMatch(t))return false;
     switch(key){
       case"ticker":return(t.ticker||"").toUpperCase()===val;
-      case"setup":return t.setup===val;
+      case"setup":return tsetups.includes(val);
       case"wl":return t.wl===val;
       case"process":return t.isGood!==null&&t.isGood!==undefined&&(t.isGood?"good":"bad")===val;
       case"lossCat":return t.lossCat===val;
@@ -3365,11 +3380,12 @@ function logSearchMatch(t){
 }
 function applyLogFilters(list){
   return list.filter(t=>{
-    if(logFilters.ticker.length&&!logFilters.ticker.includes(t.ticker.toUpperCase()))return false;
-    if(logFilters.setup.length&&!logFilters.setup.includes(t.setup))return false;
+    const tsetups=t.setups||[t.setup];
+    if(logFilters.ticker.length&&!logFilters.ticker.includes((t.ticker||"").toUpperCase()))return false;
+    if(logFilters.setup.length&&!tsetups.some(su=>logFilters.setup.includes(su)))return false;
     if(logFilters.wl.length&&!logFilters.wl.includes(t.wl))return false;
     if(logFilters.process.length){
-      if(t.isGood===null)return false;
+      if(t.isGood===null||t.isGood===undefined)return false;
       const procVal=t.isGood?"good":"bad";
       if(!logFilters.process.includes(procVal))return false;
     }
@@ -3387,8 +3403,8 @@ function applyLogSort(list){
       case"setup":return t.setup||"";
       case"result":{const r=parseFloat(t.result);return isNaN(r)?-Infinity:r;}
       case"wl":return t.wl||"";
-      case"rules":return t.rs===null?-1:t.rs;
-      case"process":return t.isGood===null?-1:(t.isGood?1:0);
+      case"rules":return(t.rs===null||t.rs===undefined)?-1:t.rs;
+      case"process":return(t.isGood===null||t.isGood===undefined)?-1:(t.isGood?1:0);
       default:return t.date||"";
     }
   };
@@ -3626,8 +3642,8 @@ ${calendarH(en,{collapsible:true,collapsed:calendarCollapsed,label:"calendar"})}
 <p class="seclab">stats</p>
 <div class="dashSplit">
   <div id="dash-stat-col">${statGridH(s,periodTitle,ec,bc,em)}</div>
-  <div class="bpanel eq-panel-auto" id="dash-eq-panel" style="margin-bottom:0">
-    <div class="plbl" style="margin-bottom:8px">equity curve</div>
+  <div class="bpanel eq-panel-auto" id="dash-eq-panel" style="margin-bottom:0;position:relative">
+    <div class="seclab" style="position:absolute;top:-24px;left:0;margin:0;white-space:nowrap">equity curve</div>
     <div class="eq-outer" id="dash-eq-outer"></div>
   </div>
 </div>
@@ -3646,11 +3662,13 @@ ${calendarH(en,{collapsible:true,collapsed:calendarCollapsed,label:"calendar"})}
   <div class="bpanel" style="margin-bottom:0;display:flex;flex-direction:column">
     <div class="plbl" style="margin-bottom:10px">loss categories</div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
-    ${s.lcStats.map(c=>{
+    ${s.lcStats.every(c=>c.count===0)
+      ?`<div class="dqok">no losses categorized yet</div>`
+      :s.lcStats.map(c=>{
         const col=c.id==="good"?"var(--g)":c.id==="exec"?"var(--a)":c.id==="dec"?"var(--p)":"var(--r)";
         const dolCol=c.dollars>0?"var(--r)":"var(--t3)";
         return`<div class="losscat-item" title="${c.hint}">
-          <div class="lcrow"><div class="lcname">${c.label}</div><div class="lcmeta" style="color:${dolCol}">${c.count} · ${c.pct!==null?pc(c.pct):"0.0%"} · ${cuNoSign(c.dollars)}</div></div>
+          <div class="lcrow"><div class="lcname">${c.label}</div><div class="lcmeta" style="color:${dolCol}">${c.count} · ${c.pct!==null?pc(c.pct):"—"} · ${cuNoSign(c.dollars)}</div></div>
           <div class="lcbarwrap"><div class="lcbar" style="width:${c.pct!==null?(c.pct*100).toFixed(0)+"%":"0%"};background:${col}"></div></div>
         </div>`;
       }).join("")}
@@ -3687,11 +3705,11 @@ ${s.dqStats.filter(d=>d.total>0).map(d=>`<div class="rsrow"><span class="rsname"
 ${en.length>0?`
 <p class="seclab">setup breakdown</p>
 <div class="setuprow">
-${SETUPS.map(setup=>{
-  const ts=en.filter(t=>t.setup===setup),ws=ts.filter(t=>t.wl==="Win"),ls=ts.filter(t=>t.wl==="Loss"),wr=(ws.length+ls.length)>0?ws.length/(ws.length+ls.length):null;
+${(()=>{const segRecs=segmentRecords(en);return SETUPS.map(setup=>{
+  const ts=segRecs.filter(r=>r.setup===setup),ws=ts.filter(r=>r.wl==="Win"),ls=ts.filter(r=>r.wl==="Loss"),wr=(ws.length+ls.length)>0?ws.length/(ws.length+ls.length):null;
   const c=wr===null?"var(--t3)":wr>=.5?"var(--g)":"var(--r)";
-  return`<div class="setupcard"><div class="slabel">${setup}</div><div class="pbody"><div class="sval" style="color:${c}">${wr!==null?pc(wr):"—"}</div><div class="svalsub" style="font-weight:300;font-style:italic">(${ts.length} trade${ts.length!==1?"s":""})</div></div></div>`;
-}).join("")}
+  return`<div class="setupcard"><div class="slabel">${setup}</div><div class="pbody"><div class="sval" style="color:${c}">${wr!==null?pc(wr):"—"}</div><div class="svalsub" style="font-weight:300;font-style:italic">(${ts.length} leg${ts.length!==1?"s":""})</div></div></div>`;
+}).join("");})()}
 <div class="setupcard"><div class="slabel">Avg Hold Time</div><div class="pbody"><div class="sval">${s.adur!==null?fdur(s.adur):"—"}</div></div></div>
 <div class="setupcard streakcard">
   <div class="seclab" style="position:absolute;top:-24px;left:0;margin:0;white-space:nowrap">streak</div>
