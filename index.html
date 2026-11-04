@@ -385,6 +385,11 @@ details.statsdetails>summary{cursor:pointer;list-style:none;user-select:none}
 details.statsdetails>summary::-webkit-details-marker{display:none}
 details.statsdetails>summary:before{content:"▸ ";color:var(--t3)}
 details.statsdetails[open]>summary:before{content:"▾ "}
+.drivemenu-wrap{position:relative;display:inline-flex}
+.drivemenu{position:absolute;top:22px;right:0;min-width:210px;background:var(--tabdashbg-dd);border:.5px solid var(--tabdashbd);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px 0;z-index:50;text-align:left;cursor:default}
+.drivemenu-row{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:7px 12px;background:none;border:none;font-size:var(--fbase);color:var(--t);cursor:pointer;font-family:var(--sans)}
+.drivemenu-row:hover{background:var(--tabdashbd)}
+.drivemenu-row svg{width:14px;height:14px;flex-shrink:0;display:block}
 /* ── Mobile mode (html.mobile is toggled by JS: width <= 900px, or the manual layout override) ── */
 html.mobile{-webkit-text-size-adjust:100%}
 html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left));overflow-x:clip}
@@ -534,11 +539,22 @@ let viewMode="auto";
 try{viewMode=localStorage.getItem("wss_viewmode")||"auto";}catch(e){}
 const mobileMQ=window.matchMedia?window.matchMedia("(max-width:900px)"):{matches:false};
 function isMobile(){return viewMode==="mobile"?true:viewMode==="desktop"?false:!!mobileMQ.matches;}
-function cycleViewMode(){
-  viewMode=viewMode==="auto"?"mobile":viewMode==="mobile"?"desktop":"auto";
+// One-tap layout toggle (like the sun/moon theme toggle): the icon shows the layout you're in; a tap flips to the other.
+// Tapping back to whatever the screen auto-detects clears the override, so the page returns to plain auto-detect.
+const ICON_MONITOR=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2.5"/><line x1="3" y1="13.5" x2="21" y2="13.5"/><path d="M10 17v3h4v-3"/><line x1="8" y1="20" x2="16" y2="20"/></svg>`;
+const ICON_PHONE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><line x1="6.5" y1="6" x2="17.5" y2="6"/><line x1="6.5" y1="17" x2="17.5" y2="17"/><circle cx="12" cy="19.3" r=".5" fill="currentColor"/></svg>`;
+function toggleLayout(){
+  const target=isMobile()?"desktop":"mobile";
+  const detected=mobileMQ.matches?"mobile":"desktop";
+  viewMode=(target===detected)?"auto":target;
   try{localStorage.setItem("wss_viewmode",viewMode);}catch(e){}
   if(typeof moreMenuOpen!=="undefined")moreMenuOpen=false;
   render();
+}
+function layoutToggleH(){
+  const m=isMobile();
+  const tip=m?"switch to desktop layout":"switch to mobile layout";
+  return`<button class="topicon" onclick="toggleLayout()" aria-label="${tip}" data-tt="${tip}">${m?ICON_PHONE:ICON_MONITOR}</button>`;
 }
 if(mobileMQ.addEventListener)mobileMQ.addEventListener("change",()=>render());
 else if(mobileMQ.addListener)mobileMQ.addListener(()=>render());
@@ -3247,6 +3263,16 @@ function filterSheetH(en){
   <div class="fsheet-body" id="fsheet-body" onscroll="fsheetScroll=this.scrollTop">${defs.map(g=>`<div class="fsheet-grp"><div class="expsub" style="margin-top:14px">${g.title}</div>${g.opts.map(o=>`<label class="fsheet-opt"><input type="checkbox" ${logFilters[g.key].includes(o.val)?"checked":""} onchange="toggleLogFilterValue('${g.key}','${o.val}',event)"/><span>${esc(o.label)}</span><span class="fsheet-count">(${countForFilterOption(g.key,o.val,en)})</span></label>`).join("")}</div>`).join("")}</div>
 </div>`;
 }
+// ── Mobile top-bar overflow menu (index.html: share summary lives here on mobile) ──
+const ICON_MORE=`<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`;
+let moreMenuOpen=false;
+function toggleMoreMenu(ev){if(ev)ev.stopPropagation();moreMenuOpen=!moreMenuOpen;render();}
+function closeMoreMenu(){if(moreMenuOpen){moreMenuOpen=false;render();}}
+function indexMoreH(){
+  return`<span class="drivemenu-wrap"><button class="topicon" onclick="toggleMoreMenu(event)" aria-label="more options">${ICON_MORE}</button>${moreMenuOpen?`<div class="drivemenu" onclick="event.stopPropagation()">
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openExportOptions()">${ICON_DOC} share summary (.html)</button>
+      </div>`:""}</span>`;
+}
 // ── Main render ───────────────────────────────────────────────────────────────
 function render(){
   const mob=isMobile();
@@ -3272,7 +3298,8 @@ function render(){
     <div class="bacts bacts-slim">
       <button class="btn" data-edit="1" onclick="impData()">↑ import</button>
     </div>
-    <button class="topicon" onclick="openExportOptions()" aria-label="share summary (.html)" data-tt="share summary (.html)">${ICON_DOWN}</button>
+    ${mob?indexMoreH():`<button class="topicon" onclick="openExportOptions()" aria-label="share summary (.html)" data-tt="share summary (.html)">${ICON_DOWN}</button>`}
+    ${layoutToggleH()}
     <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}" data-tt="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>
   </div>
 </div>
@@ -3399,7 +3426,7 @@ function clearOneLogFilter(key,ev){
   render();
 }
 function closeLogFilterDropdown(){if(logFilterOpen){logFilterOpen=null;render();}}
-document.addEventListener("click",()=>{if(logFilterOpen)closeLogFilterDropdown();if(logSearchOpen&&!logSearchLocked)closeLogSearch();if(refSearchOpen&&!refSearchLocked)closeRefSearch();});
+document.addEventListener("click",()=>{if(moreMenuOpen)closeMoreMenu();if(logFilterOpen)closeLogFilterDropdown();if(logSearchOpen&&!logSearchLocked)closeLogSearch();if(refSearchOpen&&!refSearchLocked)closeRefSearch();});
 // [data-tt] tooltip the moment the window loses focus (e.g. clicking into another
 // tab/app while the pointer is still sitting on an icon) so it never gets stuck
 // floating over whatever comes next; :hover retakes over on refocus.
