@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <title>trading journal</title>
 <!-- Favicon: hand-drawn / sketchy replica of the play-button reference icon.
      Follows the BROWSER/OS's prefers-color-scheme, not the in-app manual theme toggle
@@ -411,6 +411,58 @@ details.statsdetails>summary{cursor:pointer;list-style:none;user-select:none}
 details.statsdetails>summary::-webkit-details-marker{display:none}
 details.statsdetails>summary:before{content:"▸ ";color:var(--t3)}
 details.statsdetails[open]>summary:before{content:"▾ "}
+/* ── Mobile mode (html.mobile is toggled by JS: width <= 900px, or the manual layout override) ── */
+html.mobile{-webkit-text-size-adjust:100%}
+html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left));overflow-x:clip}
+html.mobile h1{font-size:22px}
+html.mobile input,html.mobile select,html.mobile textarea{font-size:16px!important}
+html.mobile .platformdd{height:30px;padding:0 6px}
+html.mobile [data-tt]::after{display:none}
+html.mobile .topicon:not(.ok):not(.spin){height:32px;min-width:32px}
+html.mobile .topicons{gap:6px}
+html.mobile .delbtn{padding:6px 8px}
+html.mobile .periodbar{margin-bottom:1rem}
+html.mobile .pbrow{flex-direction:column}
+html.mobile .pbcenter{flex-direction:column;gap:8px}
+html.mobile .pbnav{margin-left:0}
+html.mobile .pbcustom{margin-left:0;margin-top:0;flex-wrap:wrap;justify-content:center}
+html.mobile .pbcount{position:static;margin-top:6px}
+html.mobile .pbtn{padding:6px 11px}
+html.mobile .tab{padding:8px 12px}
+html.mobile .tabs{gap:4px}
+html.mobile .dashSplit,html.mobile .row2col,html.mobile .row2colEq{grid-template-columns:1fr}
+html.mobile .calmobile .caldow{font-size:9px;letter-spacing:.02em}
+html.mobile .calmobile .calcell{min-height:46px;padding:4px 3px;align-items:center;text-align:center;justify-content:flex-start;gap:2px}
+html.mobile .calmobile .calpnl{font-size:11px}
+html.mobile .calmobile .caldate{font-size:10px}
+html.mobile .fcard{padding:1rem}
+html.mobile .formsave{position:sticky;bottom:0;z-index:20;background:var(--bg);padding:10px 0;margin-top:8px;border-top:.5px solid var(--bd)}
+html.mobile .formsave .btn{width:100%;padding:12px}
+/* mobile trade-log cards, filter bar + bottom sheet */
+.mcards{display:flex;flex-direction:column;gap:8px}
+.mcard{background:var(--s2);border:.5px solid var(--bd);border-radius:var(--radl);padding:12px 14px}
+.mcard.mcard-current{border-color:var(--tabdashbd);box-shadow:inset 3px 0 0 var(--tabdash)}
+.mhead{cursor:pointer}
+.mrow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mtk{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--fmd)}
+.mres{font-weight:700;font-size:var(--fmd);white-space:nowrap}
+.msub{font-size:var(--fsm);color:var(--t2);margin-top:6px}
+.mdetail .exppanel{background:none;padding:10px 0 0;margin-top:10px;border-top:.5px solid var(--bd)}
+.mactions{display:flex;gap:8px;margin-top:14px}
+.mactions .btn{flex:1;padding:10px}
+.mfilterbar{gap:8px}
+.mpill{padding:7px 12px;font-family:var(--sans);font-size:14px;border:.5px solid var(--bdm);border-radius:999px;background:none;color:var(--t2);cursor:pointer}
+.mpill.on{color:var(--tablr);background:var(--tablrbg);border-color:var(--tablrbd)}
+.mcount{font-size:var(--fxs);font-weight:300;color:var(--t3)}
+.fsheet-back{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:90}
+.fsheet{position:fixed;left:0;right:0;bottom:0;max-height:80vh;background:var(--surface);border-radius:16px 16px 0 0;z-index:91;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom);border-top:.5px solid var(--bdm)}
+.fsheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 16px;border-bottom:.5px solid var(--bd)}
+.fsheet-head strong{flex:1;font-size:var(--fmd)}
+.fsheet-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 16px}
+.fsheet-opt{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:15px;color:var(--t);cursor:pointer}
+.fsheet-opt input{width:20px;height:20px;accent-color:var(--tablr);flex-shrink:0}
+.fsheet-opt span:nth-of-type(1){flex:1}
+.fsheet-count{color:var(--t3);font-size:var(--fsm)}
 </style>
 </head>
 <body>
@@ -518,7 +570,7 @@ function stripScreenshotsForLocal(arr){
 // they're intentionally not cached locally; Drive still has the originals.
 function persistLocal(){
   try{
-    localStorage.setItem(KEY,JSON.stringify({trades:stripScreenshotsForLocal(trades),reflections,dq}));
+    localStorage.setItem(KEY,JSON.stringify({trades:stripScreenshotsForLocal(trades),reflections,dq,deleted:tombstones,dqUpdatedAt}));
   }catch(e){
     alert("Storage is full — the browser's local storage limit has been hit. Export a backup (.json) and let me know if you're still seeing this after the screenshot storage change.");
   }
@@ -703,6 +755,23 @@ const FEE_RATES={
 };
 const PLATFORMS=[{id:"tradovate",label:"Tradovate"},{id:"ninjatrader",label:"NinjaTrader"},{id:"other",label:"Other"}];
 
+// ── Layout mode — mobile layout applies at <= 900px (phones, tablets in Chrome's "mobile site" mode);
+// wider screens, including a tablet in "desktop site" mode, keep the desktop layout untouched.
+// Manual override (auto / mobile / desktop) is stored per-browser and shared by index.html and live.html.
+let viewMode="auto";
+try{viewMode=localStorage.getItem("wss_viewmode")||"auto";}catch(e){}
+const mobileMQ=window.matchMedia?window.matchMedia("(max-width:900px)"):{matches:false};
+function isMobile(){return viewMode==="mobile"?true:viewMode==="desktop"?false:!!mobileMQ.matches;}
+function cycleViewMode(){
+  viewMode=viewMode==="auto"?"mobile":viewMode==="mobile"?"desktop":"auto";
+  try{localStorage.setItem("wss_viewmode",viewMode);}catch(e){}
+  if(typeof moreMenuOpen!=="undefined")moreMenuOpen=false;
+  render();
+}
+if(mobileMQ.addEventListener)mobileMQ.addEventListener("change",()=>render());
+else if(mobileMQ.addListener)mobileMQ.addListener(()=>render());
+let filterSheetOpen=false,fsheetScroll=0;
+let tombstones=[],dqUpdatedAt=0;
 let trades=[],reflections=[],dq=DQ_DEFAULT.map(d=>({...d})),tab="dashboard",showForm=false,editingDq=false,editingId=null,showRefForm=false,expandedIds=new Set(),refCollapsedIds=new Set();
 let periodMode="week",periodAnchor=new Date(),customFrom="",customTo="";
 let logSort={col:"date",dir:"desc"};
@@ -793,6 +862,8 @@ function load(){
   try{
     const d=JSON.parse(localStorage.getItem(KEY)||"{}");
     if(d.trades)trades=d.trades.map(migrateTrade);
+    if(Array.isArray(d.deleted))tombstones=d.deleted;
+    if(d.dqUpdatedAt)dqUpdatedAt=d.dqUpdatedAt;
     if(d.dq&&d.dq.length)dq=d.dq;
     if(Array.isArray(d.reflections)){
       reflections=d.reflections.map(migrateReflection);
@@ -880,7 +951,7 @@ function driveStatusHtml(){
     <button class="topicon spin" onclick="toggleDriveMenu(event)" aria-label="${driveConnecting?"connecting":"syncing"} — click disconnect or force quit to cancel" data-tt="${driveConnecting?"connecting...":"syncing..."}"><span class="spin-ico">${DRIVE_SPIN_SVG}</span><span class="stop-ico">${ICON_X}</span></button>
     ${driveMenuOpen?driveMenuHtml():""}
   </span>`;
-  if(driveStaleConflict)return`<button class="topicon warn" onclick="driveReloadLatest()" aria-label="newer changes were saved from another device — click to reload them" data-tt="reload - newer changes saved">${ICON_WARN}</button>`;
+  if(driveStaleConflict)return`<button class="topicon warn" onclick="driveReloadLatest()" aria-label="newer changes were saved from another device — click to merge them with yours" data-tt="merge - newer changes saved">${ICON_WARN}</button>`;
   if(drivePendingSync)return`<span class="drivemenu-wrap">
     <button class="topicon warn" onclick="toggleDriveMenu(event)" aria-label="offline — your changes are saved locally and will sync automatically once you're back online" data-tt="offline - sync resumes once connection established">${ICON_CLOCK}</button>
     ${driveMenuOpen?driveMenuHtml():""}
@@ -953,7 +1024,7 @@ function closeDriveMenu(){
   driveMenuOpen=false;
   renderDriveStatus();
 }
-document.addEventListener("click",()=>{if(driveMenuOpen)closeDriveMenu();if(logFilterOpen)closeLogFilterDropdown();if(logSearchOpen&&!logSearchLocked)closeLogSearch();if(refSearchOpen&&!refSearchLocked)closeRefSearch();});
+document.addEventListener("click",()=>{if(moreMenuOpen)closeMoreMenu();if(driveMenuOpen)closeDriveMenu();if(logFilterOpen)closeLogFilterDropdown();if(logSearchOpen&&!logSearchLocked)closeLogSearch();if(refSearchOpen&&!refSearchLocked)closeRefSearch();});
 // Global Escape fallback — closes an open search even when focus has moved off the
 // input (e.g. a locked search, which intentionally survives outside clicks).
 document.addEventListener("keydown",(ev)=>{if(ev.key==="Escape"){if(logSearchOpen)closeLogSearch();if(refSearchOpen)closeRefSearch();if(driveMenuOpen)closeDriveMenu();}});
@@ -1381,7 +1452,7 @@ function driveSyncPayload(){
   // localCacheExcluded is a local-only caching flag (see auto-scrub above) —
   // strip it so it doesn't leak into the Drive backup / viewer.html's data.
   const cleanTrades=trades.map(t=>{const{localCacheExcluded,...rest}=t;return rest;});
-  return JSON.stringify({trades:cleanTrades,reflections,dq,lastModified:new Date().toISOString()});
+  return JSON.stringify({trades:cleanTrades,reflections,dq,deleted:tombstones,dqUpdatedAt,lastModified:new Date().toISOString()});
 }
 async function driveConnectFlow(){
   driveBreakerTripped=getDriveBreakerFlag(); // pull in whatever a previous session left behind before deciding anything below
@@ -1394,13 +1465,20 @@ async function driveConnectFlow(){
       driveKnownModifiedTime=foundAppData.modifiedTime;
       const raw=await driveDownloadFile(foundAppData.id);
       const d=JSON.parse(raw||"{}");
-      if(Array.isArray(d.trades))trades=d.trades.map(migrateTrade);
-      if(Array.isArray(d.reflections))reflections=d.reflections.map(migrateReflection);
-      if(d.dq&&d.dq.length)dq=d.dq;
+      const res=mergeWithRemote(d);
+      applyMerge(res);
+      if(res.contributed){
+        // this device has changes Drive doesn't: snapshot Drive's copy first, then push the merged result
+        await driveBackupBeforeMerge(raw);
+        const up=await driveUpdateFile(driveAppDataFileId,driveSyncPayload());
+        driveKnownModifiedTime=up.modifiedTime;
+      }
+      setLastSync();
     }else{
       const created=await driveCreateFile(DRIVE_APPDATA_NAME,driveSyncPayload(),true);
       driveAppDataFileId=created.id;
       driveKnownModifiedTime=created.modifiedTime;
+      setLastSync();
     }
     driveMirrorFolderId=await driveFindOrCreateMirrorFolder();
     const foundMirror=await driveFindFile(DRIVE_MIRROR_NAME,false);
@@ -1438,27 +1516,28 @@ async function driveConnectFlow(){
   }
 }
 async function driveReloadLatest(){
-  // Pulls whatever's currently on Drive and replaces in-memory state with it —
-  // used after a staleness conflict, where another device saved more recently
-  // than what we last loaded here. Whatever hadn't been saved locally is lost;
-  // that's the trade-off for not silently clobbering the other device's save.
+  // Another device saved newer changes. Merge them into what's on screen (nothing local is thrown away),
+  // then push the merged result back up if this device had anything Drive didn't.
   if(!driveAppDataFileId||!driveConnected)return;
   driveSyncing=true;driveStaleConflict=false;renderDriveStatus();
   driveBeginAttempt();
+  let needUpload=false;
   try{
     const raw=await driveDownloadFile(driveAppDataFileId);
     const d=JSON.parse(raw||"{}");
-    if(Array.isArray(d.trades))trades=d.trades.map(migrateTrade);
-    if(Array.isArray(d.reflections))reflections=d.reflections.map(migrateReflection);
-    if(d.dq&&d.dq.length)dq=d.dq;
+    const res=mergeWithRemote(d);
+    applyMerge(res);
     driveKnownModifiedTime=await driveGetModifiedTime(driveAppDataFileId);
     persistLocal();
     driveClearSyncError();
+    if(res.contributed){needUpload=true;await driveBackupBeforeMerge(raw);}
+    else setLastSync();
   }catch(e){
     if(driveForceQuitted){driveForceQuitted=false;return;}
-    driveSyncError="reload failed ("+(e.message||e)+") - retry";driveSyncErrorSeverity="error";
+    driveSyncError="merge failed ("+(e.message||e)+") - retry";driveSyncErrorSeverity="error";
   }
   driveSyncing=false;render();
+  if(needUpload)driveSaveAll();
 }
 // item 3 — the mirror-dirty flag itself. Cached in localStorage (not just in
 // memory) so a reload before the retry loop catches up doesn't lose track of
@@ -1645,6 +1724,7 @@ async function driveSaveAll(){
       }
       if(mirrorFailed){
         drivePendingSync=false; // the appData write above already succeeded — only the mirror lags
+        setLastSync();
         driveRegisterRetryFailure(/\b40[13]\b/.test(mirrorMsg));
         maybeRunWeeklyBackup();
         driveSaveInFlight=false;driveSyncing=false;renderDriveStatus();
@@ -1653,6 +1733,7 @@ async function driveSaveAll(){
       }
     }
     driveClearSyncError();drivePendingSync=false;
+    setLastSync();
     driveRegisterRetrySuccess();
     clearDriveRetry();
     maybeRunWeeklyBackup(); // item 7 — fire and forget, checked on every successful save
@@ -1717,7 +1798,7 @@ async function pruneOldBackups(){
     const params=new URLSearchParams({q:"trashed=false",fields:"files(id,name,createdTime)",spaces:"drive"});
     const res=await driveApiFetch("https://www.googleapis.com/drive/v3/files?"+params.toString());
     const d=await res.json();
-    const files=(d.files||[]).filter(f=>f.name&&f.name.indexOf("J.'s TS A")===0&&f.name.endsWith(".json"));
+    const files=(d.files||[]).filter(f=>f.name&&(f.name.indexOf("J.'s TS A")===0||f.name.indexOf("J.'s TS pre-merge")===0)&&f.name.endsWith(".json"));
     const cutoff=Date.now()-DRIVE_BACKUP_PRUNE_DAYS*24*60*60*1000;
     for(const f of files){
       const created=new Date(f.createdTime).getTime();
@@ -1733,6 +1814,96 @@ window.addEventListener("online",()=>{
   if(drivePendingSync&&driveConnected)driveSaveAll();
 });
 
+// ── Merge-on-connect (never replace local data with an older Drive copy) ─────
+// Records are unioned by id; if the same record exists on both sides the one with the newer
+// `updatedAt` wins. Deletes travel as tombstones ({type,id,deletedAt}, kept 90 days) so a delete
+// on one device isn't undone by a stale copy on another. A record that exists only locally is
+// kept if it was created/edited after this device last synced; if it predates the last sync and
+// is gone from Drive, it was deleted elsewhere (covers deletes made before tombstones existed).
+const TOMB_KEEP_MS=90*24*60*60*1000;
+const DRIVE_LASTSYNC_KEY="wss_drive_lastsync";
+function getLastSync(){try{return parseInt(localStorage.getItem(DRIVE_LASTSYNC_KEY),10)||0;}catch(e){return 0;}}
+function setLastSync(){try{localStorage.setItem(DRIVE_LASTSYNC_KEY,String(Date.now()));}catch(e){}}
+function recTs(r){return(r&&r.updatedAt)||0;}
+function recSig(r){const{screenshots,localCacheExcluded,...rest}=r;return JSON.stringify(rest);}
+function mergeList(type,localArr,remoteArr,tombMap,lastSync,info){
+  const L=new Map(localArr.map(r=>[String(r.id),r]));
+  const R=new Map(remoteArr.map(r=>[String(r.id),r]));
+  const out=[];
+  new Set([...L.keys(),...R.keys()]).forEach(id=>{
+    const l=L.get(id),r=R.get(id);
+    let pick=null,fromLocal=false;
+    if(l&&r){
+      if(recTs(l)>recTs(r)){pick=l;fromLocal=true;}
+      else if(recTs(l)===recTs(r)){pick=l;fromLocal=recSig(l)!==recSig(r);}
+      else pick=r;
+    }else if(l){
+      const born=Math.max(recTs(l),Number(l.id)||0);
+      if(lastSync&&born<lastSync)return;
+      pick=l;fromLocal=true;
+    }else pick=r;
+    const tb=tombMap.get(type+":"+id);
+    if(tb&&recTs(pick)<=tb.deletedAt)return;
+    if(fromLocal)info.contributed=true;
+    if(pick===l&&r&&!isHydrated(l.screenshots)&&isHydrated(r.screenshots)){
+      const{localCacheExcluded,...rest}=l;
+      pick={...rest,screenshots:r.screenshots};
+    }
+    out.push(pick);
+  });
+  out.sort((a,b)=>(Number(b.id)||0)-(Number(a.id)||0));
+  return out;
+}
+function mergeWithRemote(d){
+  const remoteTrades=Array.isArray(d.trades)?d.trades.map(migrateTrade):[];
+  const remoteRefs=Array.isArray(d.reflections)?d.reflections.map(migrateReflection):[];
+  const remoteTombs=Array.isArray(d.deleted)?d.deleted:[];
+  const lastSync=getLastSync();
+  const now=Date.now();
+  const tombMap=new Map();
+  tombstones.concat(remoteTombs).forEach(tb=>{
+    if(!tb||tb.id===undefined)return;
+    const k=tb.type+":"+tb.id,cur=tombMap.get(k);
+    if(!cur||(tb.deletedAt||0)>(cur.deletedAt||0))tombMap.set(k,{type:tb.type,id:tb.id,deletedAt:tb.deletedAt||0});
+  });
+  const info={contributed:false};
+  const mt=mergeList("trade",trades,remoteTrades,tombMap,lastSync,info);
+  const mr=mergeList("reflection",reflections,remoteRefs,tombMap,lastSync,info);
+  const remoteTombKeys=new Set(remoteTombs.map(tb=>tb.type+":"+tb.id));
+  if(tombstones.some(tb=>!remoteTombKeys.has(tb.type+":"+tb.id)))info.contributed=true;
+  const keptTombs=Array.from(tombMap.values()).filter(tb=>now-tb.deletedAt<TOMB_KEEP_MS);
+  const remoteDqAt=d.dqUpdatedAt||0;
+  let mdq=dq,mdqAt=dqUpdatedAt;
+  if(d.dq&&d.dq.length&&remoteDqAt>=dqUpdatedAt){mdq=d.dq;mdqAt=remoteDqAt;}
+  else if(dqUpdatedAt>remoteDqAt)info.contributed=true;
+  return{trades:mt,reflections:mr,dq:mdq,dqUpdatedAt:mdqAt,tombstones:keptTombs,contributed:info.contributed};
+}
+function applyMerge(res){trades=res.trades;reflections=res.reflections;dq=res.dq;dqUpdatedAt=res.dqUpdatedAt;tombstones=res.tombstones;}
+// Snapshot of Drive's copy taken right before a merge overwrites it — private, regular Drive space,
+// pruned with the other auto-backups after 60 days.
+async function driveBackupBeforeMerge(raw){
+  try{
+    const n=new Date();
+    await driveCreateFile(`J.'s TS pre-merge ${ddmmyy(n)}-${pad2(n.getHours())}${pad2(n.getMinutes())}.json`,raw,false);
+  }catch(e){console.log("[drive] pre-merge backup failed (merge continues, nothing is dropped):",e.message||e);}
+}
+// ── Mobile top-bar overflow menu (live.html) ─────────────────────────────────
+const ICON_MORE=`<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`;
+let moreMenuOpen=false;
+function toggleMoreMenu(ev){if(ev)ev.stopPropagation();moreMenuOpen=!moreMenuOpen;render();}
+function closeMoreMenu(){if(moreMenuOpen){moreMenuOpen=false;render();}}
+function mobileTopIcons(isDark){
+  return`<span id="drive-status">${driveStatusHtml()}</span>
+      <span class="iconsep">|</span>
+      <span class="drivemenu-wrap"><button class="topicon" onclick="toggleMoreMenu(event)" aria-label="more options">${ICON_MORE}</button>${moreMenuOpen?`<div class="drivemenu" onclick="event.stopPropagation()">
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();impData()">${ICON_UP} import backup (.json)</button>
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();expData()">${ICON_DOWN} export backup (.json)</button>
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openExportOptions()">${ICON_DOC} share summary (.html)</button>
+        <button class="drivemenu-row" onclick="cycleViewMode()">layout: ${viewMode} (tap to change)</button>
+      </div>`:""}</span>
+      <span class="iconsep">|</span>
+      <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>`;
+}
 // ── Date / period helpers ─────────────────────────────────────────────────────
 function parseYMD(s){const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2]);}
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
@@ -2033,11 +2204,12 @@ function dowBreakdown(list){
 // Trading sessions, defined in minutes-since-midnight. Windows can overlap (e.g. NY PM / London) —
 // a trade is assigned to whichever session it spends the most time in, not just where it opens.
 const SESSIONS=[
-  {id:"pre",    label:"Pre-Market", start:6*60,       end:9*60+30},
-  {id:"nyam",   label:"NY AM",      start:9*60+30,    end:12*60},
-  {id:"nypm",   label:"NY PM",      start:12*60,      end:16*60},
-  {id:"london", label:"London",     start:15*60,      end:18*60},
-  {id:"asia",   label:"Asia",       start:18*60,      end:24*60},
+  {id:"asia",   label:"Asia",        windows:[[18*60,24*60],[0,3*60]]}, // 18:00 -> 03:00, wraps midnight
+  {id:"london", label:"London",      windows:[[3*60,8*60]]},
+  {id:"pre",    label:"Pre-Market",  windows:[[8*60,9*60+30]]},
+  {id:"nyam",   label:"NY AM",       windows:[[9*60+30,12*60]]},
+  {id:"nypm",   label:"NY PM",       windows:[[12*60,16*60]]},
+  {id:"ah",     label:"After-hours", windows:[[16*60,18*60]]},
 ];
 function timeToMin(t){
   if(!t)return null;
@@ -2053,12 +2225,12 @@ function sessionForTrade(t){
   const endMin=timeToMin(t.exitTime);
   if(endMin===null||endMin<=startMin){
     // no usable duration — classify by entry point alone
-    const found=SESSIONS.find(s=>startMin>=s.start&&startMin<s.end);
+    const found=SESSIONS.find(s=>s.windows.some(w=>startMin>=w[0]&&startMin<w[1]));
     return found?found.id:null;
   }
   let best=null,bestOverlap=0;
   SESSIONS.forEach(s=>{
-    const ov=overlapMinutes(startMin,endMin,s.start,s.end);
+    const ov=s.windows.reduce((sum,w)=>sum+overlapMinutes(startMin,endMin,w[0],w[1]),0);
     if(ov>bestOverlap){bestOverlap=ov;best=s.id;}
   });
   return best;
@@ -2575,15 +2747,15 @@ function addTrade(){
   }
   const fillsClone=form.fills.map(f=>({...f}));
   if(editingId!==null){
-    trades=trades.map(t=>t.id===editingId?{...form,ra:{...form.ra},dqa:{...form.dqa},screenshots:[...form.screenshots],fills:fillsClone,id:editingId}:t);
+    trades=trades.map(t=>t.id===editingId?{...form,ra:{...form.ra},dqa:{...form.dqa},screenshots:[...form.screenshots],fills:fillsClone,id:editingId,updatedAt:Date.now()}:t);
     editingId=null;
   }else{
-    trades.unshift({...form,ra:{...form.ra},dqa:{...form.dqa},screenshots:[...form.screenshots],fills:fillsClone,id:Date.now()});
+    trades.unshift({...form,ra:{...form.ra},dqa:{...form.dqa},screenshots:[...form.screenshots],fills:fillsClone,id:Date.now(),updatedAt:Date.now()});
   }
   form=blank();showForm=false;save();render();
 }
 
-function del(id){if(!confirm("Delete this trade? This can't be undone."))return;trades=trades.filter(t=>t.id!==id);expandedIds.delete(id);idbDeleteScreenshots(id);save();render();}
+function del(id){if(!confirm("Delete this trade? This can't be undone."))return;trades=trades.filter(t=>t.id!==id);tombstones.push({type:"trade",id,deletedAt:Date.now()});expandedIds.delete(id);idbDeleteScreenshots(id);save();render();}
 function setTab(t){tab=t;render();}
 function tog(){
   if(showForm)editingId=null;
@@ -2682,13 +2854,13 @@ function saveReflection(){
   syncRefFormFromDOM();
   if(!refForm.entryDate||!refForm.periodDate)return;
   if(editingRefId!==null){
-    reflections=reflections.map(r=>r.id===editingRefId?{...refForm,id:editingRefId}:r);
+    reflections=reflections.map(r=>r.id===editingRefId?{...refForm,id:editingRefId,updatedAt:Date.now()}:r);
   }else{
-    reflections.unshift({...refForm,id:Date.now()});
+    reflections.unshift({...refForm,id:Date.now(),updatedAt:Date.now()});
   }
   refForm=blankRef();editingRefId=null;showRefForm=false;save();render();
 }
-function delReflection(id){if(!confirm("Delete this reflection? This can't be undone."))return;reflections=reflections.filter(r=>r.id!==id);refCollapsedIds.delete(id);save();render();}
+function delReflection(id){if(!confirm("Delete this reflection? This can't be undone."))return;reflections=reflections.filter(r=>r.id!==id);tombstones.push({type:"reflection",id,deletedAt:Date.now()});refCollapsedIds.delete(id);save();render();}
 // Individual reflection cards collapse to just their header (period + entry
 // date) so long history — month/custom/all views can easily rack up dozens
 // of entries — doesn't turn the tab into an endless scroll of full text.
@@ -2795,7 +2967,7 @@ function saveDqEdits(){
   dq.forEach(d=>{const el=document.getElementById(`dqe-${d.id}`);if(el)d.text=el.value.trim()||d.text;});
   dq=dq.filter(d=>d.text.trim()!=="");
   if(dq.length===0)dq=DQ_DEFAULT.map(d=>({...d}));
-  editingDq=false;save();refreshDq();
+  editingDq=false;dqUpdatedAt=Date.now();save();refreshDq();
 }
 
 // ── Multi-day / auto-result helpers ───────────────────────────────────────────
@@ -2975,14 +3147,14 @@ function fillsSectionHtml(){
             <option value="exit"${!isAdd?" selected":""}>Exit (closed / reduced)</option>
           </select>
         </div>
-        <div class="field"><label>price</label><input id="fi-fill-price-${f.id}" type="number" placeholder="0.00" step="0.01" value="${f.price}" oninput="recomputeAutoResult();refreshRiskPreview()"/></div>
+        <div class="field"><label>price</label><input id="fi-fill-price-${f.id}" type="number" inputmode="decimal" placeholder="0.00" step="0.01" value="${f.price}" oninput="recomputeAutoResult();refreshRiskPreview()"/></div>
         <div class="field"><label>contracts</label>
           <select id="fi-fill-contracts-${f.id}" onchange="renderFillsSection();recomputeAutoResult();refreshRiskPreview()">
             ${Array.from({length:10},(_,n)=>n+1).map(n=>`<option value="${n}"${String(f.contracts)===String(n)?" selected":""}>${n}</option>`).join("")}
           </select>
         </div>
-        ${isAdd?`<div class="field"><label>stop loss</label><input id="fi-fill-stop-${f.id}" type="number" placeholder="0.00" step="0.01" value="${f.stop||""}" oninput="refreshRiskPreview()"/></div>
-        <div class="field"><label>take profit</label><input id="fi-fill-target-${f.id}" type="number" placeholder="0.00" step="0.01" value="${f.target||""}" oninput="refreshRiskPreview()"/></div>`:""}
+        ${isAdd?`<div class="field"><label>stop loss</label><input id="fi-fill-stop-${f.id}" type="number" inputmode="decimal" placeholder="0.00" step="0.01" value="${f.stop||""}" oninput="refreshRiskPreview()"/></div>
+        <div class="field"><label>take profit</label><input id="fi-fill-target-${f.id}" type="number" inputmode="decimal" placeholder="0.00" step="0.01" value="${f.target||""}" oninput="refreshRiskPreview()"/></div>`:""}
       </div>
       ${triggeredSeg?`<div class="revnotice">
         <div class="revnotice-label">Reversal detected — closed ${triggeredSeg.reversalFrom.closedQty} ${triggeredSeg.reversalFrom.prevDirection}, opened ${triggeredSeg.reversalFrom.openedQty} ${triggeredSeg.direction}. Tag the new leg's setup:</div>
@@ -3123,7 +3295,7 @@ function confirmExportSummary(){
 
 // ── Export / Import ───────────────────────────────────────────────────────────
 function expData(){const b=new Blob([JSON.stringify({trades,reflections,dq},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`J.'s TS A${ddmmyy(new Date())}.json`;a.click();}
-function impData(){const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.trades)trades=d.trades.map(migrateTrade);if(Array.isArray(d.reflections))reflections=d.reflections.map(migrateReflection);else if(d.ref&&(d.ref.best||d.ref.broke||d.ref.improve))reflections=[migrateReflection({id:Date.now(),date:td(),best:d.ref.best||"",broke:d.ref.broke||"",improve:d.ref.improve||""})];if(d.dq&&d.dq.length)dq=d.dq;save();render();}catch(e){alert("Invalid file.")}};r.readAsText(f);};i.click();}
+function impData(){const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);const impNow=Date.now();if(d.trades)trades=d.trades.map(migrateTrade).map(t=>({...t,updatedAt:impNow}));if(Array.isArray(d.reflections))reflections=d.reflections.map(migrateReflection).map(r=>({...r,updatedAt:impNow}));else if(d.ref&&(d.ref.best||d.ref.broke||d.ref.improve))reflections=[migrateReflection({id:Date.now(),date:td(),best:d.ref.best||"",broke:d.ref.broke||"",improve:d.ref.improve||""})];if(d.dq&&d.dq.length)dq=d.dq;save();render();}catch(e){alert("Invalid file.")}};r.readAsText(f);};i.click();}
 
 function expSummaryHTML(includeStats){
   if(includeStats===undefined)includeStats=true;
@@ -4282,6 +4454,7 @@ function periodBarH(filteredCount,totalCount){
 // ── Calendar heatmap — includes a weekly "Total" column ───────────────────────
 function calendarH(en,opts){
   opts=opts||{};
+  const mob=isMobile()&&!opts.detailsMode;
   if(periodMode!=="week"&&periodMode!=="month")return"";
   const byDay=aggregateByDay(en);
   function cellFor(dObj,label){
@@ -4289,12 +4462,14 @@ function calendarH(en,opts){
     const info=byDay[ymd(dObj)];
     const cls=!info?"neutral":info.net>0?"win":info.net<0?"loss":"neutral";
     const lbl=label!==undefined?label:String(dObj.getDate());
+    if(mob)return`<div class="calcell ${cls}"${info?` onclick="showDayDetail('${ymd(dObj)}')" style="cursor:pointer"`:""}><span class="caldate">${dObj.getDate()}</span>${info?`<div class="calpnl">${cuRound(info.net)}</div>`:""}</div>`;
     return`<div class="calcell ${cls}"><span class="caldate">${lbl}</span>${info?`<div><div class="calpnl">${cu(info.net)}</div><div class="calcnt">${info.count} trade${info.count!==1?"s":""}</div></div>`:""}</div>`;
   }
   function totalCell(days){
     let net=0,count=0;
     days.forEach(d=>{if(!d)return;const info=byDay[ymd(d)];if(info){net+=info.net;count+=info.count;}});
     const cls=count===0?"neutral":net>0?"win":net<0?"loss":"neutral";
+    if(mob)return`<div class="calcell total ${cls}"><span class="caldate">&nbsp;</span>${count>0?`<div class="calpnl">${cuRound(net)}</div>`:""}</div>`;
     return`<div class="calcell total ${cls}"><span class="caldate">Total</span>${count>0?`<div><div class="calpnl">${cu(net)}</div><div class="calcnt">${count} trade${count!==1?"s":""}</div></div>`:""}</div>`;
   }
   const mode=periodMode;
@@ -4318,7 +4493,7 @@ function calendarH(en,opts){
   }
   const title=opts.label!==undefined?opts.label:(mode==="month"?"calendar":"week overview");
   const dowHeaders=mode==="month"?DOW:DOW.slice(0,6);
-  const gridInner=`<div class="calgrid" style="grid-template-columns:repeat(${dowHeaders.length},1fr) 1.1fr">${[...dowHeaders,"Total"].map(d=>`<div class="caldow">${d}</div>`).join("")}${rowsHtml}</div>`;
+  const gridInner=`<div class="calgrid${mob?" calmobile":""}" style="grid-template-columns:repeat(${dowHeaders.length},${mob?"minmax(0,1fr)":"1fr"}) ${mob?"minmax(0,1.2fr)":"1.1fr"}">${[...dowHeaders,"Total"].map(d=>`<div class="caldow">${d}</div>`).join("")}${rowsHtml}</div>`;
   if(opts.detailsMode){
     // Static export build: a native <details> needs no JS to stay collapsible,
     // and always starts open (open attribute present) — unlike the live
@@ -4333,8 +4508,65 @@ function calendarH(en,opts){
 }
 function toggleCalendarCollapse(){calendarCollapsed=!calendarCollapsed;render();}
 
+// ── Mobile helpers ───────────────────────────────────────────────────────────
+function cuRound(n){if(n===null||isNaN(n))return"—";const a=Math.round(Math.abs(n)).toLocaleString("en-US");return n<0?`-$${a}`:`$${a}`;}
+function activeFilterCount(){return Object.values(logFilters).reduce((a,v)=>a+v.length,0);}
+function openFilterSheet(ev){if(ev)ev.stopPropagation();filterSheetOpen=true;fsheetScroll=0;render();}
+function closeFilterSheet(){filterSheetOpen=false;render();}
+const MOBILE_SORTS=[["date:desc","Newest"],["date:asc","Oldest"],["result:desc","Best result"],["result:asc","Worst result"],["ticker:asc","Ticker A–Z"],["rules:desc","Rules score ↓"],["rules:asc","Rules score ↑"],["wl:asc","W/L"],["process:desc","Good process first"]];
+function setMobileSort(v){const p=v.split(":");logSort={col:p[0],dir:p[1]};render();}
+function mobileSortOptionsH(){
+  const cur=logSort.col+":"+logSort.dir;
+  const known=MOBILE_SORTS.some(o=>o[0]===cur);
+  return (known?"":`<option value="${cur}" selected>Sorted: ${logSort.col}</option>`)+MOBILE_SORTS.map(o=>`<option value="${o[0]}"${o[0]===cur?" selected":""}>${o[1]}</option>`).join("");
+}
+function showDayDetail(d){
+  const list=trades.filter(t=>t.date===d).slice().sort((a,b)=>(a.entryTime||"").localeCompare(b.entryTime||""));
+  const net=list.reduce((a,t)=>{const r=parseFloat(t.result);return a+(isNaN(r)?0:r);},0);
+  const rows=list.map(t=>{
+    const r=parseFloat(t.result);
+    const c=r>0?"var(--g)":r<0?"var(--r)":"var(--t)";
+    return`<div class="explistrow"><span><strong style="color:var(--t)">${esc((t.ticker||"").toUpperCase())}</strong> · ${tradeSetups(t).map(setupAbbr).join("/")} · ${esc(t.entryTime||"—")}</span><span style="color:${c};font-weight:700">${!isNaN(r)?cu(r):"—"}</span></div>`;
+  }).join("");
+  document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default" onclick="closeLightbox()"><div class="fcard" style="max-width:360px;width:100%;cursor:auto;margin:0;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
+    <div style="font-size:var(--fmd);font-weight:700;margin-bottom:4px">${dispDate(d)}</div>
+    <div style="font-size:var(--fsm);color:var(--t2);margin-bottom:10px">${list.length} trade${list.length!==1?"s":""} · <span style="color:${net>=0?"var(--g)":"var(--r)"}">${cu(net)}</span></div>
+    ${rows}
+    <div style="margin-top:14px;text-align:right"><button class="btn" onclick="closeLightbox()">close</button></div>
+  </div></div>`;
+}
+function mobileCardH(t,isCurrent,isOpen){
+  const res=parseFloat(t.result);
+  const rc=t.wl==="Win"?"var(--g)":t.wl==="Loss"?"var(--r)":"var(--t)";
+  const col=sc(t.rs),bg=sbg(t.rs),bd=sbd(t.rs);
+  const sl=t.rs!==null?`${t.fc}/${t.ac}`:"—";
+  return`<div class="mcard${isCurrent?" mcard-current":""}" id="traderow-${t.id}">
+  <div class="mhead" onclick="toggleExpand(${t.id})">
+    <div class="mrow"><span class="mtk"><b>${hl((t.ticker||"").toUpperCase(),logSearchQuery)}</b>${(t.setups||[t.setup]).map(su=>`<span class="pill pneu">${hl(setupAbbr(su),logSearchQuery)}</span>`).join("")}${t.wl?`<span class="pill p${t.wl.toLowerCase()}">${t.wl}</span>`:""}</span><span class="mres" style="color:${rc}">${!isNaN(res)?cuNoSign(res):"—"}</span></div>
+    <div class="msub">${hl(dispDate(t.date),logSearchQuery)} · ${t.contracts||"—"} ct · $${f2(t.entry)} → ${t.exit?`$${f2(t.exit)}`:"—"}</div>
+    <div class="mrow msub"><span><span class="spill" style="background:${bg};color:${col};border:.5px solid ${bd}">${sl}</span> ${t.isGood!==null?`<span class="pill ${t.isGood?"pgood":"pbad"}">${t.isGood?"Good":"Bad"}</span>`:""}</span><span>${t.comments&&t.comments.trim()?"📝 ":""}${t.screenshots&&t.screenshots.length>0?"📷":""}</span></div>
+  </div>
+  ${isOpen?`<div class="mdetail" onclick="event.stopPropagation()">${expandPanelInner(t)}<div class="mactions" data-edit="1"><button class="btn" onclick="editTrade(${t.id})">Edit</button><button class="btn" style="color:var(--r)" onclick="del(${t.id})">Delete</button></div></div>`:""}
+</div>`;
+}
+function filterSheetH(en){
+  const defs=[
+    {key:"ticker",title:"Ticker",opts:uniqueTickersUsed().map(tk=>({val:tk,label:tk}))},
+    {key:"setup",title:"Setup",opts:SETUPS.map(s=>({val:s,label:s}))},
+    {key:"wl",title:"Win / loss",opts:[{val:"Win",label:"Win"},{val:"Loss",label:"Loss"},{val:"BE",label:"Breakeven"}]},
+    {key:"process",title:"Process",opts:[{val:"good",label:"Good"},{val:"bad",label:"Bad"}]},
+    {key:"lossCat",title:"Loss type",opts:LOSSCATS.map(c=>({val:c.id,label:c.label}))},
+  ];
+  return`<div class="fsheet-back" onclick="closeFilterSheet()"></div><div class="fsheet" onclick="event.stopPropagation()">
+  <div class="fsheet-head"><strong>Filters</strong><button class="btn" onclick="clearLogFilters()">clear all</button><button class="btn btng" onclick="closeFilterSheet()">done</button></div>
+  <div class="fsheet-body" id="fsheet-body" onscroll="fsheetScroll=this.scrollTop">${defs.map(g=>`<div class="fsheet-grp"><div class="expsub" style="margin-top:14px">${g.title}</div>${g.opts.map(o=>`<label class="fsheet-opt"><input type="checkbox" ${logFilters[g.key].includes(o.val)?"checked":""} onchange="toggleLogFilterValue('${g.key}','${o.val}',event)"/><span>${esc(o.label)}</span><span class="fsheet-count">(${countForFilterOption(g.key,o.val,en)})</span></label>`).join("")}</div>`).join("")}</div>
+</div>`;
+}
 // ── Main render ───────────────────────────────────────────────────────────────
 function render(){
+  const mob=isMobile();
+  document.documentElement.classList.toggle("mobile",mob);
+  if(!mob){filterSheetOpen=false;if(typeof moreMenuOpen!=="undefined")moreMenuOpen=false;}
   const filtered=getFilteredTrades();
   const en=filtered.map(enrich),s=calcStats(en);
   const ec=s.edge===null?"var(--t3)":s.edge>0?"var(--g)":"var(--r)";
@@ -4349,7 +4581,7 @@ function render(){
     <h1 class="h1row">trading journal${storageQuotaLevel!=="ok"?`<span class="quotadot quotadot-${storageQuotaLevel}" title="${storageQuotaLevel==="red"?"Local storage nearly full — oldest cached screenshots are being freed up automatically (still on Drive)":"Local storage getting full"}"></span>`:""}</h1>
   </div>
   <div class="topbaracts">
-    <div class="topicons">
+    <div class="topicons">${mob?mobileTopIcons(isDark):`
       <span id="drive-status">${driveStatusHtml()}</span>
       <span class="iconsep">|</span>
       <button class="topicon" onclick="impData()" aria-label="import backup (.json)" data-tt="import backup (.json)">${ICON_UP}</button>
@@ -4358,13 +4590,13 @@ function render(){
       <span class="iconsep">|</span>
       <button class="topicon" onclick="openExportOptions()" aria-label="share summary (.html)" data-tt=".html summary export">${ICON_DOWN}${ICON_DOC}</button>
       <span class="iconsep">|</span>
-      <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}" data-tt="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>
+      <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}" data-tt="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>`}
     </div>
   </div>
 </div>
 ${driveStaleConflict?`<div class="banner" style="border-color:var(--abd);background:var(--abg)">
-  <span><strong>Newer changes were saved from another device.</strong> Your last change here wasn't synced, to avoid overwriting them.</span>
-  <div class="bacts"><button class="btn" onclick="driveReloadLatest()">reload latest</button></div>
+  <span><strong>Newer changes were saved from another device.</strong> Your last change here wasn't synced yet — merge them together and nothing is lost.</span>
+  <div class="bacts"><button class="btn" onclick="driveReloadLatest()">merge</button></div>
 </div>`:""}
 ${drivePendingSync?`<div class="banner">
   <span>You're offline — changes are saved on this device and will sync automatically once you're back online.</span>
@@ -4380,6 +4612,8 @@ ${periodBarH(filtered.length,trades.length)}
 ${tab==="log"?logH(en):tab==="dashboard"?dashH(s,en,ec,bc,em):reflectionH()}
 </div>`;
   if(showForm){renderFillsSection();recomputeAutoResult();refreshRiskPreview();refreshRules();refreshDq();refreshScreenshots();}
+  document.body.style.overflow=(filterSheetOpen&&tab==="log")?"hidden":"";
+  if(filterSheetOpen&&tab==="log"){const fb=document.getElementById("fsheet-body");if(fb)fb.scrollTop=fsheetScroll;}
   if(tab==="dashboard"){
     dashboardEquityPoints=equityPoints(en);
     dashboardTradeCount=en.length;
@@ -4389,7 +4623,7 @@ ${tab==="log"?logH(en):tab==="dashboard"?dashH(s,en,ec,bc,em):reflectionH()}
 
 // ── Log tab ───────────────────────────────────────────────────────────────────
 const LOG_COLS=13;
-function expandRowH(t){
+function expandPanelInner(t){
   const ra=t.ra||{},dqa=t.dqa||{};
   const lcMap=Object.fromEntries(LOSSCATS.map(c=>[c.id,c.label]));
   const dirLabel=t.direction==="short"?"Short":"Long";
@@ -4398,7 +4632,7 @@ function expandRowH(t){
   const exitStr=t.exitTime?`${dispDate(exitDateStr)} ${t.exitTime}`:"—";
   const feesNum=parseFloat(t.fees);
   const platformLabel=(PLATFORMS.find(p=>p.id===t.platform)||{}).label||"Other";
-  return`<tr class="exprow"><td colspan="${LOG_COLS}"><div class="exppanel">
+  return`<div class="exppanel">
     <div class="expmeta">
       <span><strong>Direction</strong> ${dirLabel}</span>
       <span><strong>Entry</strong> ${entryStr}</span>
@@ -4453,8 +4687,9 @@ function expandRowH(t){
           :`<div class="expsub">screenshots</div><div class="dqok">no screenshots attached</div>`}
       </div>
     </div>
-  </div></td></tr>`;
+  </div>`;
 }
+function expandRowH(t){return`<tr class="exprow"><td colspan="${LOG_COLS}">${expandPanelInner(t)}</td></tr>`;}
 // ── Trade log filter/sort ────────────────────────────────────────────────────
 // Applies only to the trade-log table view. Dashboard stats keep using the
 // period-filtered list untouched, per the existing global period bar.
@@ -4746,8 +4981,26 @@ function logH(en){
     const leftAlign=h.key==="rules"?" style=\"text-align:left\"":"";
     return`<th class="sortable${active?" sorted":""}"${leftAlign} onclick="setLogSort('${h.key}')" title="sort by ${h.label}">${h.label}${arrow}</th>`;
   }).join("");
-  return`<div>
-<div class="logfilterbar${logSearchOpen?" sticky-search":""}">
+  const mob=isMobile();
+  const mBar=mob?`<div class="logfilterbar mfilterbar${logSearchOpen?" sticky-search":""}">
+  ${trades.length>0?`<button class="mpill${filtersOn?" on":""}" onclick="openFilterSheet(event)">Filters${activeFilterCount()?` (${activeFilterCount()})`:""}</button>
+  <select class="mpill" aria-label="sort trades" onchange="setMobileSort(this.value)">${mobileSortOptionsH()}</select>
+  <span class="mcount">${logList.length} of ${trades.length}</span>`:""}
+  <div class="logbaricons">
+    <span class="searchwrap">
+      ${logSearchOpen&&currentLogSearchMatches().length>0?`
+      <button class="topicon" onclick="logSearchNav(-1,event)" aria-label="previous match">${ICON_TRILEFT}</button>
+      <button class="topicon" onclick="logSearchNav(1,event)" aria-label="next match">${ICON_TRIRIGHT}</button>
+      `:""}
+      ${logSearchOpen?`<span class="searchpill" onclick="event.stopPropagation()">${ICON_SEARCH}<input id="logsearch-input" placeholder="" value="${escAttr(logSearchQuery)}" oninput="onLogSearchInput(this)" onkeydown="onLogSearchKeydown(event)"/></span>`
+      :`<button class="topicon" onclick="toggleLogSearch(event)" aria-label="search trades">${ICON_SEARCH}</button>`}
+    </span>
+    <span class="iconsep">|</span>
+    <button class="topicon" onclick="tog()" aria-label="${showForm?"cancel":"add trade"}">${showForm?ICON_X:ICON_PLUS}</button>
+  </div>
+</div>`:"";
+  const mCards=mob?`<div class="mcards">${logList.map(t=>{const isCurrent=logSearchOpen&&t.id===logSearchCurrentId;return mobileCardH(t,isCurrent,expandedIds.has(t.id)||isCurrent);}).join("")}</div>`:"";
+  const dBar=mob?"":`<div class="logfilterbar${logSearchOpen?" sticky-search":""}">
   ${trades.length>0?`
   <button class="topicon" onclick="toggleExpandAll()" aria-label="${anyExpanded?"collapse all":"expand all"}" data-tt="${anyExpanded?"collapse all":"expand all"}">${anyExpanded?ICON_TRIDOWN:ICON_TRIRIGHT}</button>
   <span class="topicon" style="cursor:default;margin-right:-4px" aria-label="filters">${ICON_FILTER}</span>
@@ -4774,7 +5027,9 @@ function logH(en){
     <span class="iconsep">|</span>
     <button class="topicon" onclick="tog()" aria-label="${showForm?"cancel":"add trade"}" data-tt="${showForm?"cancel":"add trade"}">${showForm?ICON_X:ICON_PLUS}</button>
   </div>
-</div>
+</div>`;
+  return`<div>
+${mob?mBar:dBar}
 
 ${showForm?`
 <div class="fcard">
@@ -4855,7 +5110,7 @@ ${showForm?`
   <div id="ss-section" style="margin-top:1.1rem;padding-top:1rem;border-top:.5px solid var(--bd)"></div>
   <div class="fsec">comments <span style="font-weight:400;color:var(--t3)"> — anything else worth remembering about this trade</span></div>
   <textarea id="fi-comments" rows="3" placeholder="e.g. news catalyst, how it felt, what you'd do differently...">${form.comments}</textarea>
-  <div style="margin-top:2px">
+  <div class="formsave" style="margin-top:2px">
     <button class="btn btng" onclick="addTrade()">${editingId!==null?"save changes":"log trade"}</button>
   </div>
 </div>`:""}
@@ -4864,7 +5119,7 @@ ${trades.length===0
   ?`<div class="empty"><div style="font-size:28px;margin-bottom:8px">📋</div><p>no trades logged yet — add your first trade above</p></div>`
   :filteredOut
   ?`<div class="empty"><div style="font-size:28px;margin-bottom:8px">🗓️</div><p>no trades match${periodMode!=="all"?" this period /":""} these filters — try clearing filters or switching period</p></div>`
-  :`<div class="twrap"><table>
+  :mob?mCards:`<div class="twrap"><table>
 <thead><tr>${theadHtml}</tr></thead>
 <tbody>
 ${logList.map(t=>{
@@ -4896,6 +5151,7 @@ ${logList.map(t=>{
 }).join("")}
 </tbody></table></div>`}
 ${trades.length>0?`<div class="lcountbottom">${logList.length} of ${trades.length} trades shown</div>`:""}
+${mob&&filterSheetOpen?filterSheetH(en):""}
 </div>`;
 }
 
