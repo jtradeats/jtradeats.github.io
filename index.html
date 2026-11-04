@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta id="vp" name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <title>trading journal</title>
 <link rel="icon" id="favicon" type="image/svg+xml" href=""/>
 <script>(function(){
@@ -396,8 +396,10 @@ details.statsdetails[open]>summary:before{content:"▾ "}
 html.mobile{-webkit-text-size-adjust:100%}
 html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left));overflow-x:clip}
 html.mobile h1{font-size:22px}
-html.mobile input,html.mobile select,html.mobile textarea{font-size:16px!important}
-html.mobile .platformdd{height:30px;padding:0 6px}
+html.mobile .fgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+html.mobile .field{min-width:0}
+html.mobile .field label{white-space:normal}
+html.mobile .field input[type=date],html.mobile .field input[type=time]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;text-align:left}
 html.mobile [data-tt]::after{display:none}
 html.mobile .topicon:not(.ok):not(.spin){height:32px;min-width:32px}
 html.mobile .topicons{gap:6px}
@@ -417,7 +419,7 @@ html.mobile .calmobile .calcell{min-height:46px;padding:4px 3px;align-items:cent
 html.mobile .calmobile .calpnl{font-size:11px}
 html.mobile .calmobile .caldate{font-size:10px}
 html.mobile .fcard{padding:1rem}
-html.mobile .formsave{position:sticky;bottom:0;z-index:20;background:var(--bg);padding:10px 0;margin-top:8px;border-top:.5px solid var(--bd)}
+html.mobile .formsave{position:sticky;bottom:0;z-index:20;background:linear-gradient(var(--s2),var(--s2)),var(--bg);padding:10px 0;margin-top:8px}
 html.mobile .formsave .btn{width:100%;padding:12px}
 /* mobile trade-log cards, filter bar + bottom sheet */
 .mcards{display:flex;flex-direction:column;gap:8px}
@@ -436,7 +438,6 @@ html.mobile .formsave .btn{width:100%;padding:12px}
 .topicon.on{color:var(--tablr)}
 .mbadge{font-size:10px;font-weight:700;margin-left:1px}
 .micons{white-space:nowrap;font-size:var(--fsm)}
-html.mobile .searchpill input{font-size:16px!important;width:160px;margin-right:-30px;transform:scale(.8125);transform-origin:left center}
 .fsheet-back{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:90}
 .fsheet{position:fixed;left:0;right:0;bottom:0;max-height:80vh;background:var(--surface);border-radius:16px 16px 0 0;z-index:91;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom);border-top:.5px solid var(--bdm)}
 .fsheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 16px;border-bottom:.5px solid var(--bd)}
@@ -3281,6 +3282,8 @@ function indexMoreH(){
 function render(){
   const mob=isMobile();
   document.documentElement.classList.toggle("mobile",mob);
+  // iOS auto-zooms a focused field whose text is under 16px; maximum-scale=1 stops that without enlarging the fonts (mobile layout only)
+  const vp=document.getElementById("vp");if(vp)vp.setAttribute("content","width=device-width, initial-scale=1.0"+(mob?", maximum-scale=1.0":"")+", viewport-fit=cover");
   if(!mob){sortMenuOpen=false;filterSheetOpen=false;if(typeof moreMenuOpen!=="undefined")moreMenuOpen=false;}
   const filtered=getFilteredTrades();
   const en=filtered.map(enrich),s=calcStats(en);
