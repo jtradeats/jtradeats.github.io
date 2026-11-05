@@ -411,6 +411,15 @@ details.statsdetails>summary{cursor:pointer;list-style:none;user-select:none}
 details.statsdetails>summary::-webkit-details-marker{display:none}
 details.statsdetails>summary:before{content:"▸ ";color:var(--t3)}
 details.statsdetails[open]>summary:before{content:"▾ "}
+/* stacked layouts: the absolutely-positioned "equity curve" / "streak" labels sit 24px above their box, so reserve that room
+   (20px above the label + 10px below it, same rhythm as the "good trade vs. bad trade" heading) */
+@media(max-width:760px){#dash-eq-panel{margin-top:34px}.setupcard.streakcard{flex:1 1 100%;margin-top:36px}}
+html.mobile #dash-eq-panel{margin-top:34px}
+html.mobile .setupcard.streakcard{flex:1 1 100%;margin-top:36px}
+html.mobile .calmobile .calcell.total{justify-content:center;align-items:center}
+html.mobile .calmobile .calcell.total .calpnl{font-size:14px}
+.tapx{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.tapx:hover{box-shadow:0 0 0 .5px var(--bdm)}
 /* ── Mobile mode (html.mobile is toggled by JS: width <= 900px, or the manual layout override) ── */
 html.mobile{-webkit-text-size-adjust:100%}
 html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left));overflow-x:clip}
@@ -2264,12 +2273,12 @@ function sessionBreakdown(list){
   });
   return buckets.filter(b=>b.count>0);
 }
-function breakdownRowH(label,count,wins,withWl,rrSum,rrCount,net){
+function breakdownRowH(label,count,wins,withWl,rrSum,rrCount,net,tap){
   const wr=withWl>0?wins/withWl:null;
   const avgR=rrCount>0?rrSum/rrCount:null;
   const col=net>=0?"var(--g)":"var(--r)";
   const meta=[`${count} trade${count!==1?"s":""}`,wr!==null?`${pc(wr)} win`:null,avgR!==null?`${f2(avgR)}:1 avg R`:null].filter(Boolean).join(" · ");
-  return`<div class="rsrow"><span class="rsname">${label}<br/><span style="color:var(--t3);font-size:var(--fxs)">${meta}</span></span><span class="rspct" style="color:${col}">${cuNoSign(net)}</span></div>`;
+  return`<div class="rsrow${tap?" tapx":""}"${tap?` onclick="showTradeList('${tap[0]}','${tap[1]}')"`:""}><span class="rsname">${label}<br/><span style="color:var(--t3);font-size:var(--fxs)">${meta}</span></span><span class="rspct" style="color:${col}">${cuNoSign(net)}</span></div>`;
 }
 
 // ── Axis scale — rounded ("nice") tick values ─────────────────────────────────
@@ -4475,17 +4484,21 @@ function calendarH(en,opts){
   function cellFor(dObj,label){
     if(!dObj)return`<div class="calcell empty"></div>`;
     const info=byDay[ymd(dObj)];
+    const tap=!!info&&!opts.detailsMode;
     const cls=!info?"neutral":info.net>0?"win":info.net<0?"loss":"neutral";
     const lbl=label!==undefined?label:String(dObj.getDate());
-    if(mob)return`<div class="calcell ${cls}"${info?` onclick="showDayDetail('${ymd(dObj)}')" style="cursor:pointer"`:""}><span class="caldate">${dObj.getDate()}</span>${info?`<div class="calpnl">${cuRound(info.net)}</div>`:""}</div>`;
-    return`<div class="calcell ${cls}"><span class="caldate">${lbl}</span>${info?`<div><div class="calpnl">${cu(info.net)}</div><div class="calcnt">${info.count} trade${info.count!==1?"s":""}</div></div>`:""}</div>`;
+    if(mob)return`<div class="calcell ${cls}${tap?" tapx":""}"${tap?` onclick="showDayDetail('${ymd(dObj)}')"`:""}><span class="caldate">${dObj.getDate()}</span>${info?`<div class="calpnl">${cuRound(info.net)}</div>`:""}</div>`;
+    return`<div class="calcell ${cls}${tap?" tapx":""}"${tap?` onclick="showDayDetail('${ymd(dObj)}')"`:""}><span class="caldate">${lbl}</span>${info?`<div><div class="calpnl">${cu(info.net)}</div><div class="calcnt">${info.count} trade${info.count!==1?"s":""}</div></div>`:""}</div>`;
   }
   function totalCell(days){
     let net=0,count=0;
     days.forEach(d=>{if(!d)return;const info=byDay[ymd(d)];if(info){net+=info.net;count+=info.count;}});
     const cls=count===0?"neutral":net>0?"win":net<0?"loss":"neutral";
-    if(mob)return`<div class="calcell total ${cls}"><span class="caldate">&nbsp;</span>${count>0?`<div class="calpnl">${cuRound(net)}</div>`:""}</div>`;
-    return`<div class="calcell total ${cls}"><span class="caldate">Total</span>${count>0?`<div><div class="calpnl">${cu(net)}</div><div class="calcnt">${count} trade${count!==1?"s":""}</div></div>`:""}</div>`;
+    const ttap=count>0&&!opts.detailsMode;
+    const wk=days.filter(Boolean).map(ymd).join(",");
+    const tattr=ttap?` tapx" onclick="showTradeList('week','${wk}')`:"";
+    if(mob)return`<div class="calcell total ${cls}${tattr}">${count>0?`<div class="calpnl">${cuRound(net)}</div>`:""}</div>`;
+    return`<div class="calcell total ${cls}${tattr}"><span class="caldate">Total</span>${count>0?`<div><div class="calpnl">${cu(net)}</div><div class="calcnt">${count} trade${count!==1?"s":""}</div></div>`:""}</div>`;
   }
   const mode=periodMode;
   let rowsHtml="";
@@ -4536,21 +4549,59 @@ function sortMenuH(){
   const cur=logSort.col+":"+logSort.dir;
   return`<div class="filterdd" onclick="event.stopPropagation()">${MOBILE_SORTS.map(o=>`<button class="filterdd-row" onclick="setMobileSort('${o[0]}')">${o[0]===cur?"✓ ":""}${o[1]}</button>`).join("")}</div>`;
 }
-function showDayDetail(d){
-  const list=trades.filter(t=>t.date===d).slice().sort((a,b)=>(a.entryTime||"").localeCompare(b.entryTime||""));
-  const net=list.reduce((a,t)=>{const r=parseFloat(t.result);return a+(isNaN(r)?0:r);},0);
+// ── Tap-to-see-trades (dashboard + calendar) ─────────────────────────────────
+// Any dashboard number that summarises a group of trades opens a list of exactly those trades; tapping a trade
+// in the list jumps to it, expanded, in the trade log.
+function tradeListFor(kind,v){
+  const en=getFilteredTrades().map(enrich);
+  const QUAD={gw:["Good trade + win",t=>t.isGood===true&&t.wl==="Win"],bw:["Bad trade + win",t=>t.isGood===false&&t.wl==="Win"],gl:["Good trade + loss",t=>t.isGood===true&&t.wl==="Loss"],bl:["Bad trade + loss",t=>t.isGood===false&&t.wl==="Loss"]};
+  let list=[],title="",note="";
+  switch(kind){
+    case"day":list=trades.filter(t=>t.date===v).map(enrich);title=dispDate(v);break;
+    case"week":{const ds=v.split(",");list=trades.filter(t=>ds.indexOf(t.date)!==-1).map(enrich);title=ds.length>1?`${dispDate(ds[0])} – ${dispDate(ds[ds.length-1])}`:dispDate(ds[0]);break;}
+    case"setup":list=en.filter(t=>(t.setups||[t.setup]).indexOf(v)!==-1);title=`${v} trades`;note="trades with at least one "+v+" leg";break;
+    case"ticker":list=en.filter(t=>(t.ticker||"").toUpperCase()===v);title=`${v} trades`;break;
+    case"dow":{const idx=DOW.indexOf(v);list=en.filter(t=>parseYMD(t.date).getDay()===idx);title=`${v} trades`;break;}
+    case"session":{const se=SESSIONS.find(x=>x.id===v);list=en.filter(t=>sessionForTrade(t)===v);title=`${se?se.label:v} session`;break;}
+    case"quad":list=en.filter(QUAD[v][1]);title=QUAD[v][0];break;
+    case"losscat":{const c=LOSSCATS.find(x=>x.id===v);list=en.filter(t=>t.wl==="Loss"&&t.lossCat===v);title=c?c.label+"es":v;break;}
+    case"dq":{const d=dq.find(x=>x.id===v);list=en.filter(t=>t.dqa&&t.dqa[v]===true);title="Violated";note=d?d.text:"";break;}
+    case"dqall":list=en.filter(t=>!isNaN(parseFloat(t.result))&&(v==="viol"?t.dqViolCount>0:t.dqViolCount===0));title=v==="viol"?"Trades with a violated disqualifier":"Clean trades (no disqualifiers)";break;
+    case"rule":{const r=RULES.find(x=>x.id===v);list=en.filter(t=>(t.ra||{})[v]==="no");title="Rule missed";note=r?r.text:"";break;}
+  }
+  list.sort((a,b)=>((b.date||"")+(b.entryTime||"")).localeCompare((a.date||"")+(a.entryTime||"")));
+  return{list,title,note};
+}
+function showTradeList(kind,v){
+  const{list,title,note}=tradeListFor(kind,v);
+  const nums=list.map(t=>parseFloat(t.result));
+  const net=nums.reduce((a,r)=>a+(isNaN(r)?0:r),0);
+  const w=list.filter(t=>t.wl==="Win").length,l=list.filter(t=>t.wl==="Loss").length;
   const rows=list.map(t=>{
     const r=parseFloat(t.result);
     const c=r>0?"var(--g)":r<0?"var(--r)":"var(--t)";
-    return`<div class="explistrow"><span><strong style="color:var(--t)">${esc((t.ticker||"").toUpperCase())}</strong> · ${tradeSetups(t).map(setupAbbr).join("/")} · ${esc(t.entryTime||"—")}</span><span style="color:${c};font-weight:700">${!isNaN(r)?cu(r):"—"}</span></div>`;
+    return`<div class="explistrow tapx" style="padding:9px 6px;align-items:center" onclick="openTradeFromList(${t.id})"><span><strong style="color:var(--t)">${esc((t.ticker||"").toUpperCase())}</strong> <span class="pill pneu">${(t.setups||[t.setup]).map(setupAbbr).join("/")}</span> <span style="color:var(--t3)">${dispDate(t.date)}${t.entryTime?" "+esc(t.entryTime):""}</span></span><span style="color:${c};font-weight:700;white-space:nowrap">${!isNaN(r)?cu(r):"—"}</span></div>`;
   }).join("");
-  document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default" onclick="closeLightbox()"><div class="fcard" style="max-width:360px;width:100%;cursor:auto;margin:0;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
-    <div style="font-size:var(--fmd);font-weight:700;margin-bottom:4px">${dispDate(d)}</div>
-    <div style="font-size:var(--fsm);color:var(--t2);margin-bottom:10px">${list.length} trade${list.length!==1?"s":""} · <span style="color:${net>=0?"var(--g)":"var(--r)"}">${cu(net)}</span></div>
-    ${rows}
+  document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default" onclick="closeLightbox()"><div class="fcard" style="max-width:420px;width:100%;max-height:82vh;overflow:auto;cursor:auto;margin:0;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
+    <div style="font-size:var(--fmd);font-weight:700;margin-bottom:4px">${esc(title)}</div>
+    ${note?`<div style="font-size:var(--fsm);color:var(--t3);margin-bottom:4px">${esc(note)}</div>`:""}
+    <div style="font-size:var(--fsm);color:var(--t2);margin-bottom:10px">${list.length} trade${list.length!==1?"s":""} · ${w}W ${l}L · <span style="color:${net>=0?"var(--g)":"var(--r)"}">${cu(net)}</span></div>
+    ${rows||`<div class="dqok">no trades</div>`}
+    ${rows?`<div style="font-size:var(--fxs);color:var(--t3);margin-top:8px">tap a trade to open it in the trade log</div>`:""}
     <div style="margin-top:14px;text-align:right"><button class="btn" onclick="closeLightbox()">close</button></div>
   </div></div>`;
 }
+function showDayDetail(d){showTradeList("day",d);}
+function openTradeFromList(id){
+  closeLightbox();
+  logFilters={ticker:[],setup:[],wl:[],process:[],lossCat:[]};
+  logSearchOpen=false;logSearchQuery="";logSearchLocked=false;logSearchCurrentId=null;
+  if(!getFilteredTrades().some(t=>t.id===id))periodMode="all";
+  tab="log";expandedIds.add(id);
+  render();
+  requestAnimationFrame(()=>{const el=document.getElementById(`traderow-${id}`);if(el)el.scrollIntoView({behavior:"smooth",block:"center"});});
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=document.getElementById("mroot");if(m&&m.innerHTML.trim())closeLightbox();}});
 function mobileCardH(t,isCurrent,isOpen){
   const res=parseFloat(t.result);
   const rc=t.wl==="Win"?"var(--g)":t.wl==="Loss"?"var(--r)":"var(--t)";
@@ -5236,10 +5287,10 @@ ${calendarH(en,{collapsible:true,collapsed:calendarCollapsed,label:"calendar"})}
 <div class="row2colEq">
   <div class="bpanel" style="margin-bottom:0">
     <div class="quad">
-      <div class="qcell qgw"><div class="qn">${s.gw}</div><div class="ql">Good Trade + Win<br/>correct process, positive outcome</div></div>
-      <div class="qcell qbw"><div class="qn">${s.bw}</div><div class="ql">Bad Trade + Win<br/>poor process got rewarded</div></div>
-      <div class="qcell qgl"><div class="qn">${s.gl}</div><div class="ql">Good Trade + Loss<br/>correct process, normal loss</div></div>
-      <div class="qcell qbl"><div class="qn">${s.bl}</div><div class="ql">Bad Trade + Loss<br/>poor process, negative outcome</div></div>
+      <div class="qcell qgw tapx" onclick="showTradeList('quad','gw')"><div class="qn">${s.gw}</div><div class="ql">Good Trade + Win<br/>correct process, positive outcome</div></div>
+      <div class="qcell qbw tapx" onclick="showTradeList('quad','bw')"><div class="qn">${s.bw}</div><div class="ql">Bad Trade + Win<br/>poor process got rewarded</div></div>
+      <div class="qcell qgl tapx" onclick="showTradeList('quad','gl')"><div class="qn">${s.gl}</div><div class="ql">Good Trade + Loss<br/>correct process, normal loss</div></div>
+      <div class="qcell qbl tapx" onclick="showTradeList('quad','bl')"><div class="qn">${s.bl}</div><div class="ql">Bad Trade + Loss<br/>poor process, negative outcome</div></div>
     </div>
     ${s.bw>0?`<div class="qwarn">⚠ ${s.bw} trade${s.bw!==1?"s":""} won despite poor process — the most dangerous quadrant, since it reinforces bad habits.</div>`:""}
   </div>
@@ -5251,7 +5302,7 @@ ${calendarH(en,{collapsible:true,collapsed:calendarCollapsed,label:"calendar"})}
       :s.lcStats.map(c=>{
         const col=c.id==="good"?"var(--g)":c.id==="exec"?"var(--a)":c.id==="dec"?"var(--p)":"var(--r)";
         const dolCol=c.dollars>0?"var(--r)":"var(--t3)";
-        return`<div class="losscat-item" title="${c.hint}">
+        return`<div class="losscat-item tapx" title="${c.hint}" onclick="showTradeList('losscat','${c.id}')">
           <div class="lcrow"><div class="lcname">${c.label}</div><div class="lcmeta" style="color:${dolCol}">${c.count} · ${c.pct!==null?pc(c.pct):"—"} · ${cuNoSign(c.dollars)}</div></div>
           <div class="lcbarwrap"><div class="lcbar" style="width:${c.pct!==null?(c.pct*100).toFixed(0)+"%":"0%"};background:${col}"></div></div>
         </div>`;
@@ -5265,19 +5316,19 @@ ${calendarH(en,{collapsible:true,collapsed:calendarCollapsed,label:"calendar"})}
   <div class="bpanel" style="margin-bottom:0">
     <div class="plbl" style="margin-bottom:14px">disqualifiers <span style="text-transform:none;color:var(--t3);letter-spacing:0"> — what would your P&L look like without these?</span></div>
     <div class="dgrid" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
-      <div style="padding:14px 14px 4px"><div class="slabel" style="font-size:var(--fxs)">clean (${s.cleanTrades})</div><div class="sval" style="color:${s.cleanPnl>=0?"var(--g)":"var(--r)"}">${cu(s.cleanPnl)}</div><div style="font-size:var(--fxs);color:var(--t3);margin-top:6px;text-align:center">${s.cleanW}W ${cu(s.cleanGrossWin)} · ${s.cleanL}L ${cu(s.cleanGrossLoss)}</div></div>
-      <div style="padding:14px 14px 4px"><div class="slabel" style="font-size:var(--fxs)">violated (${s.violTrades})</div><div class="sval" style="color:${s.violPnl>=0?"var(--g)":"var(--r)"}">${cu(s.violPnl)}</div><div style="font-size:var(--fxs);color:var(--t3);margin-top:6px;text-align:center">${s.violW}W ${cu(s.violGrossWin)} · ${s.violL}L ${cu(s.violGrossLoss)}</div></div>
+      <div class="tapx" onclick="showTradeList('dqall','clean')" style="padding:14px 14px 4px;border-radius:var(--rad)"><div class="slabel" style="font-size:var(--fxs)">clean (${s.cleanTrades})</div><div class="sval" style="color:${s.cleanPnl>=0?"var(--g)":"var(--r)"}">${cu(s.cleanPnl)}</div><div style="font-size:var(--fxs);color:var(--t3);margin-top:6px;text-align:center">${s.cleanW}W ${cu(s.cleanGrossWin)} · ${s.cleanL}L ${cu(s.cleanGrossLoss)}</div></div>
+      <div class="tapx" onclick="showTradeList('dqall','viol')" style="padding:14px 14px 4px;border-radius:var(--rad)"><div class="slabel" style="font-size:var(--fxs)">violated (${s.violTrades})</div><div class="sval" style="color:${s.violPnl>=0?"var(--g)":"var(--r)"}">${cu(s.violPnl)}</div><div style="font-size:var(--fxs);color:var(--t3);margin-top:6px;text-align:center">${s.violW}W ${cu(s.violGrossWin)} · ${s.violL}L ${cu(s.violGrossLoss)}</div></div>
     </div>
     ${s.violTrades>0?`<div class="qwarn" style="margin-bottom:16px">Removing violated trades would change P&L by ${cu(-s.violPnl)}.</div>`:`<div class="dqok" style="margin-bottom:16px">no disqualifier violations logged yet</div>`}
     ${s.dqStats.some(d=>d.total>0)?`<div>
-${s.dqStats.filter(d=>d.total>0).map(d=>`<div class="rsrow"><span class="rsname">${d.text}</span><span class="rspct" style="color:${d.violCount>0?"var(--r)":"var(--g)"}">${d.violCount}/${d.total}</span></div>`).join("")}
+${s.dqStats.filter(d=>d.total>0).map(d=>`<div class="rsrow tapx" onclick="showTradeList('dq','${d.id}')"><span class="rsname">${d.text}</span><span class="rspct" style="color:${d.violCount>0?"var(--r)":"var(--g)"}">${d.violCount}/${d.total}</span></div>`).join("")}
     </div>`:""}
   </div>
   <div class="bpanel" style="margin-bottom:0">
     <div class="plbl" style="margin-bottom:10px">rules breakdown <span style="text-transform:none;color:var(--t3);letter-spacing:0"> — where are you slipping?</span></div>
     ${s.ruleStats.map(r=>{
       const c=sc(r.pct);
-      return`<div class="brow">
+      return`<div class="brow tapx" onclick="showTradeList('rule','${r.id}')">
         <span class="browlabel">${r.text}</span>
         <div class="browbar"><div class="browfill" style="width:${r.pct!==null?(r.pct*100).toFixed(0)+"%":"0%"};background:${c}"></div></div>
         <span class="browpct" style="color:${c}">${r.pct!==null?pc(r.pct):"—"}</span>
@@ -5292,7 +5343,7 @@ ${en.length>0?`
 ${(()=>{const segRecs=segmentRecords(en);return SETUPS.map(setup=>{
   const ts=segRecs.filter(r=>r.setup===setup),ws=ts.filter(r=>r.wl==="Win"),ls=ts.filter(r=>r.wl==="Loss"),wr=(ws.length+ls.length)>0?ws.length/(ws.length+ls.length):null;
   const c=wr===null?"var(--t3)":wr>=.5?"var(--g)":"var(--r)";
-  return`<div class="setupcard"><div class="slabel">${setup}</div><div class="pbody"><div class="sval" style="color:${c}">${wr!==null?pc(wr):"—"}</div><div class="svalsub" style="font-weight:300;font-style:italic">(${ts.length} leg${ts.length!==1?"s":""})</div></div></div>`;
+  return`<div class="setupcard tapx" onclick="showTradeList('setup','${setup}')"><div class="slabel">${setup}</div><div class="pbody"><div class="sval" style="color:${c}">${wr!==null?pc(wr):"—"}</div><div class="svalsub" style="font-weight:300;font-style:italic">(${ts.length} leg${ts.length!==1?"s":""})</div></div></div>`;
 }).join("");})()}
 <div class="setupcard"><div class="slabel">Avg Hold Time</div><div class="pbody"><div class="sval">${s.adur!==null?fdur(s.adur):"—"}</div></div></div>
 <div class="setupcard streakcard">
@@ -5307,16 +5358,16 @@ ${(()=>{const segRecs=segmentRecords(en);return SETUPS.map(setup=>{
 <div class="dgrid">
   <div class="panel">
     <div class="plbl" style="margin-bottom:8px">P&L by ticker</div>
-    ${tickerBreakdown(en).map(tk=>breakdownRowH(tk.ticker,tk.count,tk.wins,tk.withWl,tk.rrSum,tk.rrCount,tk.net)).join("")}
+    ${tickerBreakdown(en).map(tk=>breakdownRowH(tk.ticker,tk.count,tk.wins,tk.withWl,tk.rrSum,tk.rrCount,tk.net,["ticker",tk.ticker])).join("")}
   </div>
   <div class="panel">
     <div class="plbl" style="margin-bottom:8px">by day of week</div>
-    ${dowBreakdown(en).map(d=>breakdownRowH(d.label,d.count,d.wins,d.withWl,d.rrSum,d.rrCount,d.net)).join("")}
+    ${dowBreakdown(en).map(d=>breakdownRowH(d.label,d.count,d.wins,d.withWl,d.rrSum,d.rrCount,d.net,["dow",d.label])).join("")}
   </div>
   <div class="panel">
     <div class="plbl" style="margin-bottom:8px">by session <span style="text-transform:none;color:var(--t3)">(entry–exit, multi-day excluded)</span></div>
     ${sessionBreakdown(en).length>0
-      ?sessionBreakdown(en).map(d=>breakdownRowH(d.label,d.count,d.wins,d.withWl,d.rrSum,d.rrCount,d.net)).join("")
+      ?sessionBreakdown(en).map(d=>breakdownRowH(d.label,d.count,d.wins,d.withWl,d.rrSum,d.rrCount,d.net,["session",d.id])).join("")
       :`<div class="dqok">log entry (and ideally exit) times to see this breakdown</div>`}
   </div>
 </div>`:""}
