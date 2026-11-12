@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta id="vp" name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>market dashboard</title>
+<script>(function(){var t;try{t=localStorage.getItem("wss_theme")||"dark";}catch(e){t="dark";}document.documentElement.setAttribute("data-theme",t);})();</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  color-scheme:light;
+  --bg:#f7f6f3;--surface:#ffffff;--s2:rgba(120,120,110,0.06);
+  --bd:rgba(100,100,92,0.16);--bdm:rgba(100,100,92,0.30);
+  --t:#1c1c1a;--t2:#615f5a;--t3:#8b8a83;
+  --g:#4E9269;--r:#C97878;
+  --pbsel:#A47DAB;--pbselbg:rgba(164,125,171,0.14);--pbselbd:rgba(164,125,171,0.34);
+  --tabdash:#A15B78;--tabdashbg:rgba(161,91,120,0.12);--tabdashbd:rgba(161,91,120,0.32);
+  --tablr:#4F7691;--tablrbg:rgba(79,118,145,0.12);--tablrbd:rgba(79,118,145,0.32);
+  --rad:8px;--radl:12px;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --fxs:11px;--fsm:12px;--fbase:13px;--fh1:26px;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121214;--surface:#1b1b1e;--s2:rgba(255,255,255,0.045);
+  --bd:rgba(255,255,255,0.09);--bdm:rgba(255,255,255,0.16);
+  --t:#f0efe9;--t2:#b7b5ad;--t3:#8b8a83;
+  --g:#7FCBA0;--r:#E69A9A;
+  --pbsel:#EDC8FF;--pbselbg:rgba(237,200,255,0.15);--pbselbd:rgba(237,200,255,0.35);
+  --tabdash:#A9C6DE;--tabdashbg:rgba(169,198,222,0.15);--tabdashbd:rgba(169,198,222,0.35);
+  --tablr:#E0AFC2;--tablrbg:rgba(224,175,194,0.15);--tablrbd:rgba(224,175,194,0.35);
+}
+body{font-family:var(--sans);background:var(--bg);color:var(--t);min-height:100vh;font-size:var(--fbase)}
+a{color:inherit}
+#app{max-width:1152px;margin:0 auto;padding:2rem 1.25rem 4rem}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:1.5rem}
+.brand{font-size:var(--fxs);color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
+.topbaracts{display:flex;align-items:center;gap:10px}
+.topicon{height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;background:none;border:none;padding:0;color:var(--t2);flex-shrink:0;text-decoration:none}
+.topicon:hover{color:var(--t)}
+.topicon svg{width:16px;height:16px;display:block}
+.themetoggle{color:#ffbf00}
+.themetoggle:hover{opacity:.75;color:#ffbf00}
+:focus-visible{outline:2px solid var(--pbsel);outline-offset:2px;border-radius:4px}
+[data-tt]{position:relative}
+[data-tt]::after{content:attr(data-tt);position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);background:var(--tabdashbg);color:var(--tabdash);border:.5px solid var(--tabdashbd);font-size:11px;font-weight:500;line-height:1.3;padding:5px 9px;border-radius:6px;width:max-content;max-width:240px;text-align:center;opacity:0;pointer-events:none;transition:opacity .1s;z-index:80;background-color:var(--surface);background-image:linear-gradient(var(--tabdashbg),var(--tabdashbg))}
+[data-tt]:hover::after{opacity:1;transition-delay:.15s}
+.tabs{display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:1.25rem}
+.tab{padding:6px 14px;border-radius:calc(var(--rad) - 1px);font-size:var(--fbase);font-family:var(--sans);cursor:pointer;border:.5px solid transparent;color:var(--t2);background:transparent;transition:all .15s}
+.tab.on{font-weight:600}
+.tab.on.t-news{background:var(--tablrbg);color:var(--tablr);border-color:var(--tablrbd)}
+.tab.on.t-tech{background:var(--tabdashbg);color:var(--tabdash);border-color:var(--tabdashbd)}
+.tab:hover:not(.on){color:var(--t)}
+.tabsep{color:var(--t3);user-select:none}
+.tape{height:46px;margin-bottom:1rem;background:var(--s2);border:.5px solid var(--bd);border-radius:var(--radl);overflow:hidden}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
+.card{grid-column:span var(--sp,6);height:var(--h,460px);display:flex;flex-direction:column;background:var(--s2);border:.5px solid var(--bd);border-radius:var(--radl);overflow:hidden}
+.ch{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:.5px solid var(--bd);min-height:38px}
+.plbl{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-right:auto;white-space:nowrap}
+.seg{display:flex;gap:4px;overflow-x:auto}
+.pbtn{padding:3px 9px;border-radius:calc(var(--rad) - 1px);font-size:var(--fsm);font-weight:300;font-family:var(--sans);cursor:pointer;border:.5px solid transparent;color:var(--t2);background:transparent;transition:all .15s;white-space:nowrap}
+.pbtn.on{background:var(--pbselbg);color:var(--pbsel);border-color:var(--pbselbd);font-weight:600}
+.pbtn:hover:not(.on){color:var(--t)}
+.acts{display:flex;align-items:center;gap:10px}
+.tb{display:flex;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
+.tb input{width:110px;height:28px;padding:4px 9px;font-family:var(--sans);font-size:var(--fbase);border:.5px solid var(--bdm);border-radius:var(--rad);background:var(--surface);color:var(--t);outline:none;text-transform:uppercase}
+.tb input:focus{border-color:var(--pbsel)}
+.btn{font-family:var(--sans);font-size:var(--fsm);padding:4px 12px;border-radius:var(--rad);border:.5px solid var(--bdm);background:var(--s2);color:var(--t);cursor:pointer}
+.btn:hover{background:var(--surface)}
+.body{flex:1;min-height:0;position:relative;overflow:auto}
+.body iframe{width:100%;height:100%;border:0;display:block}
+.body .tradingview-widget-container,.body .tradingview-widget-container__widget,.tape .tradingview-widget-container,.tape .tradingview-widget-container__widget{height:100%;width:100%}
+.center{display:flex;justify-content:center;padding:14px}
+.center iframe{width:380px;height:380px}
+.fin{background:#fff;min-height:100%}
+html[data-theme="dark"] .fin{filter:invert(.9) hue-rotate(180deg)}
+.note{padding:16px;color:var(--t3);font-size:var(--fsm)}
+.card.closed{height:auto}.card.closed .body,.card.closed .tb{display:none}.card.closed .ch{border-bottom:none}
+.card.focus{position:fixed;z-index:90;inset:12px;height:auto;background:var(--surface)}
+body.fx::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:85}
+[hidden]{display:none!important}
+html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left))}
+html.mobile h1{font-size:22px}
+html.mobile .topicon{height:32px;min-width:32px}
+html.mobile .tab{padding:8px 12px}
+html.mobile .tabs{gap:4px}
+html.mobile .grid{display:flex;flex-direction:column}
+html.mobile .card{height:var(--hm,440px)}
+html.mobile .card.closed{height:auto}
+html.mobile .card.focus{height:auto}
+html.mobile .tb input{font-size:16px}
+html.mobile .center iframe{height:360px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div><p class="brand">J.</p><h1>market dashboard</h1></div>
+    <div class="topbaracts">
+      <a class="topicon" href="./" id="back" aria-label="back to journal" data-tt="back to journal"></a>
+      <button class="topicon" id="layout" onclick="toggleLayout()"></button>
+      <button class="topicon themetoggle" id="theme" onclick="toggleTheme()"></button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab t-news" data-p="news">news</button><span class="tabsep">|</span>
+    <button class="tab t-tech" data-p="tech">technicals</button>
+  </div>
+  <div class="tape" id="tape"></div>
+  <div class="grid" id="p-news"></div>
+  <div class="grid" id="p-tech" hidden></div>
+</div>
+<script>
+const LS={g(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const $=(s,r=document)=>r.querySelector(s);
+const root=document.documentElement;
+const ico=d=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>';
+const I={
+  sun:ico('<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'),
+  moon:ico('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+  monitor:ico('<rect x="3" y="4" width="18" height="13" rx="2.5"/><line x1="3" y1="13.5" x2="21" y2="13.5"/><path d="M10 17v3h4v-3"/><line x1="8" y1="20" x2="16" y2="20"/>'),
+  phone:ico('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><line x1="6.5" y1="6" x2="17.5" y2="6"/><line x1="6.5" y1="17" x2="17.5" y2="17"/><circle cx="12" cy="19.3" r=".5" fill="currentColor"/>'),
+  back:ico('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>'),
+  refresh:ico('<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
+  open:ico('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
+  expand:ico('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
+  fold:ico('<polyline points="6 9 12 15 18 9"/>')
+};
+$('#back').innerHTML=I.back;
+
+/* ---- theme + layout (same storage keys as the journal, so both pages stay in sync) ---- */
+const dark=()=>root.getAttribute('data-theme')==='dark';
+function paintTheme(){const b=$('#theme'),t=dark()?'switch to light mode':'switch to dark mode';b.innerHTML=dark()?I.sun:I.moon;b.setAttribute('aria-label',t);b.setAttribute('data-tt',t)}
+function toggleTheme(){const n=dark()?'light':'dark';root.setAttribute('data-theme',n);LS.s('wss_theme',n);paintTheme();for(const k in C)C[k].th=null;drawTape();showPage(tab)}
+let viewMode=LS.g('wss_viewmode','auto');
+const mq=matchMedia('(max-width:900px)');
+const isMob=()=>viewMode==='mobile'?true:viewMode==='desktop'?false:mq.matches;
+function applyLayout(){
+  const m=isMob();root.classList.toggle('mobile',m);
+  $('#vp').setAttribute('content','width=device-width, initial-scale=1.0'+(m?', maximum-scale=1.0':'')+', viewport-fit=cover');
+  const b=$('#layout'),t=m?'switch to desktop layout':'switch to mobile layout';
+  b.innerHTML=m?I.monitor:I.phone;b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
+}
+function toggleLayout(){const target=isMob()?'desktop':'mobile',det=mq.matches?'mobile':'desktop';viewMode=target===det?'auto':target;LS.s('wss_viewmode',viewMode);applyLayout()}
+mq.addEventListener&&mq.addEventListener('change',applyLayout);
+
+/* ---- widget loaders ---- */
+let sym=LS.g('wss_dash_sym','AAPL');
+const once={};
+const load=(src,id,sid)=>once[id]||(once[id]=new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;if(sid)s.id=sid;s.onload=ok;s.onerror=no;document.head.appendChild(s)}));
+const note=(el,h)=>{el.innerHTML='<p class="note">'+h+'</p>'};
+const frame=(el,src,title)=>{el.innerHTML='';const f=document.createElement('iframe');f.src=src;f.title=title;f.loading='lazy';el.appendChild(f)};
+const tv=(name,cfg)=>el=>{
+  el.innerHTML='<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>';
+  const s=document.createElement('script');
+  s.src='https://s3.tradingview.com/external-embedding/embed-widget-'+name+'.js';s.async=true;
+  s.text=JSON.stringify({width:'100%',height:'100%',locale:'en',isTransparent:true,colorTheme:dark()?'dark':'light',...(typeof cfg=='function'?cfg():cfg)});
+  el.firstChild.appendChild(s);
+};
+const fin=el=>{
+  el.innerHTML='<div class="fin"><div class="finlogix-container"></div></div>';
+  load('https://widget.finlogix.com/Widget.js','fin').then(()=>Widget.init({widgetId:'7010460f-918f-40ff-8aac-d0cc62d89e4a',type:'EconomicCalendar',language:'en',isAdaptive:true}))
+    .catch(()=>note(el,'Finlogix did not load. Try another source.'));
+};
+const fj=el=>{
+  el.innerHTML='<div id="financialjuice-news-widget-container"></div>';
+  load('https://feed.financialjuice.com/widgets/widgets.js?r='+Math.floor(Math.random()*9999),'fj','FJ-Widgets').then(()=>{
+    const d=dark();
+    new window.FJWidgets.createWidget({container:'financialjuice-news-widget-container',mode:d?'Dark':'Light',width:'100%',height:el.clientHeight+'px',backColor:d?'1c1c1f':'f3f2ef',fontColor:d?'b7b5ad':'615f5a',widgetType:'NEWS'});
+  }).catch(()=>note(el,'FinancialJuice did not load. Try another source.'));
+};
+const consensus=el=>{
+  const f=document.createElement('iframe');
+  f.title='Estimize consensus for '+sym;f.width=380;f.height=380;f.loading='lazy';f.scrolling='no';f.frameBorder=0;
+  f.style.cssText='border:0;border-radius:14px;overflow:hidden;max-width:100%';
+  f.src='https://www.estimize.com/widgets/embed/consensus/'+encodeURIComponent(sym.toLowerCase())+'?transparent=1&theme='+(dark()?'dark':'light');
+  el.innerHTML='<div class="center"></div>';el.firstChild.appendChild(f);
+};
+const TAPE=[['CBOE:VIX','VIX'],['CBOE:VIXEQ','VIXEQ'],['TVC:DXY','DXY'],['TVC:US02Y','US 2Y'],['TVC:US10Y','US 10Y'],['TVC:US30Y','US 30Y'],['FOREXCOM:SPXUSD','S&P 500'],['FOREXCOM:NSXUSD','Nasdaq 100']];
+const FNG='https://liberatedstocktrader.com/fear-and-greed-index/embed';
+const tabsCfg=[['Volatility',[['CBOE:VIX','VIX'],['CBOE:VIXEQ','VIXEQ']]],['Rates',[['TVC:US02Y','US 2Y'],['TVC:US10Y','US 10Y'],['TVC:US30Y','US 30Y']]],['Dollar',[['TVC:DXY','DXY'],['FX:EURUSD','EUR/USD'],['FX:USDJPY','USD/JPY']]]];
+
+/* ---- cards ---- */
+const C={
+  econ:{page:'news',t:'economic calendar',sp:7,h:500,hm:460,def:'tv',src:{
+    tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'0,1',countryFilter:'us,eu,gb,jp,cn,ca,au'})},
+    fin:{l:'Finlogix',u:'https://www.finlogix.com/widgets',r:fin}}},
+  news:{page:'news',t:'news',sp:5,h:500,hm:460,def:'fj',src:{
+    fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
+    tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
+  earn:{page:'tech',t:'earnings calendar',sp:7,h:440,hm:440,def:'eh',src:{
+    eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
+  look:{page:'tech',t:'ticker lookup',sp:5,h:440,hm:480,def:'cs',tb:true,src:{
+    cs:{l:'Consensus',u:'https://www.estimize.com/',r:consensus},
+    ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:tv('technical-analysis',()=>({symbol:sym,interval:'1D',showIntervalTabs:true}))},
+    q:{l:'Quote',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:tv('symbol-info',()=>({symbol:sym}))}}},
+  mkts:{page:'tech',t:'volatility, rates, dollar',sp:7,h:340,hm:400,def:'m',src:{
+    m:{l:'TradingView',u:'https://www.tradingview.com/markets/',r:tv('market-overview',()=>({dateRange:'1D',showChart:true,showSymbolLogo:false,showFloatingTooltip:false,plotLineColorGrowing:dark()?'#7FCBA0':'#4E9269',plotLineColorFalling:dark()?'#E69A9A':'#C97878',belowLineFillColorGrowing:'rgba(0,0,0,0)',belowLineFillColorFalling:'rgba(0,0,0,0)',belowLineFillColorGrowingBottom:'rgba(0,0,0,0)',belowLineFillColorFallingBottom:'rgba(0,0,0,0)',tabs:tabsCfg.map(([title,s])=>({title,originalTitle:title,symbols:s.map(([x,d])=>({s:x,d}))}))}))}}},
+  fng:{page:'tech',t:'fear & greed',sp:5,h:340,hm:400,def:'f',src:{
+    f:{l:'Index',u:'https://www.cnn.com/markets/fear-and-greed',r:el=>frame(el,FNG,'Fear and greed index')}}}
+};
+const PAGES={news:$('#p-news'),tech:$('#p-tech')};
+for(const k in C){
+  const c=C[k],s=document.createElement('section');
+  s.className='card';s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');
+  const keys=Object.keys(c.src);
+  s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
+    +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
+    +'<div class="acts"><button class="topicon" data-a="r" aria-label="refresh" data-tt="refresh">'+I.refresh+'</button><button class="topicon" data-a="o" aria-label="open source" data-tt="open source">'+I.open+'</button>'
+    +'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand">'+I.expand+'</button><button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse">'+I.fold+'</button></div></div>'
+    +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button></form>':'')
+    +'<div class="body"></div>';
+  PAGES[c.page].appendChild(s);c.el=s;c.th=null;
+  const sv=LS.g('wss_dash_src_'+k,c.def);c.cur=c.src[sv]?sv:c.def;
+  if(LS.g('wss_dash_closed_'+k)==='1')s.classList.add('closed');
+}
+function draw(k){
+  const c=C[k],body=$('.body',c.el);
+  c.el.querySelectorAll('.pbtn').forEach(b=>b.classList.toggle('on',b.dataset.s===c.cur));
+  if(c.el.classList.contains('closed'))return;
+  try{c.src[c.cur].r(body);c.th=dark()}catch(e){note(body,'This widget failed to load.')}
+}
+function drawTape(){tv('ticker-tape',{symbols:TAPE.map(([proName,title])=>({proName,title})),showSymbolLogo:false,displayMode:'adaptive'})($('#tape'))}
+let tab=LS.g('wss_dash_tab','news');if(!PAGES[tab])tab='news';
+function showPage(p){
+  tab=p;LS.s('wss_dash_tab',p);
+  for(const i in PAGES)PAGES[i].hidden=i!==p;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  for(const k in C)if(C[k].page===p&&C[k].th!==dark()&&!C[k].el.classList.contains('closed'))draw(k);
+}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(b)showPage(b.dataset.p)});
+document.addEventListener('click',e=>{
+  const card=e.target.closest('.card');if(!card)return;
+  const k=card.id,c=C[k],sb=e.target.closest('[data-s]'),ab=e.target.closest('[data-a]');
+  if(sb){c.cur=sb.dataset.s;LS.s('wss_dash_src_'+k,c.cur);draw(k)}
+  if(!ab)return;
+  const a=ab.dataset.a;
+  if(a==='r')draw(k);
+  if(a==='o'){const u=c.src[c.cur].u;window.open(typeof u=='function'?u():u,'_blank','noopener')}
+  if(a==='f'){card.classList.toggle('focus');document.body.classList.toggle('fx',card.classList.contains('focus'));draw(k)}
+  if(a==='c'){const x=card.classList.toggle('closed');LS.s('wss_dash_closed_'+k,x?'1':'0');if(!x)draw(k)}
+});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const f=$('.card.focus');if(f){f.classList.remove('focus');document.body.classList.remove('fx');draw(f.id)}});
+$('.tb').addEventListener('submit',e=>{
+  e.preventDefault();
+  const i=$('.tb input'),v=i.value.toUpperCase().replace(/[^A-Z0-9.:\-]/g,'');
+  if(!v)return;sym=v;i.value=v;LS.s('wss_dash_sym',v);draw('look');
+});
+
+paintTheme();applyLayout();drawTape();showPage(tab);
+</script>
+</body>
+</html>
