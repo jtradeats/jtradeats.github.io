@@ -1924,16 +1924,16 @@ function closeMoreMenu(){if(moreMenuOpen){moreMenuOpen=false;render();}}
 function mobileTopIcons(isDark){
   return`<span id="drive-status">${driveStatusHtml()}</span>
       <span class="iconsep">|</span>
-      <span class="drivemenu-wrap"><button class="topicon" onclick="toggleMoreMenu(event)" aria-label="more options">${ICON_MORE}</button>${moreMenuOpen?`<div class="drivemenu" onclick="event.stopPropagation()">
+      <span class="drivemenu-wrap"><button class="topicon" onclick="toggleMoreMenu(event)" aria-label="more options" data-tt="import / export">${ICON_MORE}</button>${moreMenuOpen?`<div class="drivemenu" onclick="event.stopPropagation()">
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();impData()">${ICON_UP} import backup (.json)</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();expData()">${ICON_DOWN} export backup (.json)</button>
-        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openTvImport()">${ICON_TVIMPORT} import trades (TradingView CSV)</button>
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openTvImport()">${ICON_TVIMPORT} import trade log (.csv)</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openExportOptions()">${ICON_DOC} share summary (.html)</button>
       </div>`:""}</span>
       <span class="iconsep">|</span>
       ${layoutToggleH()}
       <span class="iconsep">|</span>
-      <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>`;
+      <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}" data-tt="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>`;
 }
 // ── TradingView Activity Log import ───────────────────────────────────────────
 // Manual CSV import (free, browser-only). Reads TradingView's paper/prop "Activity Log" export, converts its
@@ -1959,8 +1959,10 @@ function tvParseCSV(t){
 }
 // ── time zones: wall-clock time in any IANA zone -> UTC -> New York (daylight saving handled by the browser's tz database)
 function tvValidZone(z){try{new Intl.DateTimeFormat("en-US",{timeZone:z});return true;}catch(e){return false;}}
+const _tvFmt={};
+function tvFmtFor(zone){return _tvFmt[zone]||(_tvFmt[zone]=new Intl.DateTimeFormat("en-US",{timeZone:zone,hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}));}
 function tvZoneOffsetMs(utcMs,zone){
-  const p={};new Intl.DateTimeFormat("en-US",{timeZone:zone,hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date(utcMs)).forEach(x=>p[x.type]=x.value);
+  const p={};tvFmtFor(zone).formatToParts(new Date(utcMs)).forEach(x=>p[x.type]=x.value);
   return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-Math.floor(utcMs/1000)*1000;
 }
 function tvWallToUtc(wall,zone){
@@ -1994,6 +1996,37 @@ function tvZoneList(){
   if(!z.length)z=["Asia/Kuala_Lumpur","Asia/Singapore","Asia/Tokyo","Asia/Dubai","Europe/London","Europe/Paris","America/New_York","America/Chicago","America/Los_Angeles","Australia/Sydney","UTC"];
   return z;
 }
+// ── time-zone safeguards ──────────────────────────────────────────────────────
+// The CSV has NO time zone: TradingView re-stamps every row in the zone the computer is set to AT EXPORT TIME (fly
+// Kuala Lumpur -> Melbourne and the same trade reads 3 hours later). So the zone must be the exporting computer's zone,
+// not where the trade happened. Daylight saving is applied per row date from the IANA zone rules — never a fixed offset.
+// Independent evidence is checked before anything is written: (1) the UTC export time in the file name, (2) CME market
+// hours, (3) executions already in the journal (their stored UTC time must agree to the second).
+const TV_ZONE_CANDIDATES=["Pacific/Honolulu","America/Anchorage","America/Los_Angeles","America/Vancouver","America/Denver","America/Chicago","America/Mexico_City","America/New_York","America/Toronto","America/Bogota","America/Halifax","America/Sao_Paulo","Atlantic/Azores","UTC","Europe/London","Europe/Paris","Europe/Athens","Africa/Lagos","Africa/Johannesburg","Europe/Istanbul","Europe/Moscow","Asia/Jerusalem","Asia/Dubai","Asia/Tehran","Asia/Karachi","Asia/Kolkata","Asia/Kathmandu","Asia/Dhaka","Asia/Bangkok","Asia/Jakarta","Asia/Kuala_Lumpur","Asia/Singapore","Asia/Hong_Kong","Asia/Shanghai","Asia/Manila","Australia/Perth","Asia/Tokyo","Asia/Seoul","Australia/Adelaide","Australia/Brisbane","Australia/Sydney","Australia/Melbourne","Pacific/Auckland","Pacific/Fiji"];
+function tvExportStamp(fn){const m=/(\d{4})-(\d{2})-(\d{2})T(\d{2})[_:](\d{2})[_:](\d{2})(?:[._]\d{1,3})?Z/.exec(fn||"");return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]):null;}
+function tvDurText(min){const a=Math.abs(Math.round(min));const h=Math.floor(a/60),m=a%60;return h?`${h}h ${String(m).padStart(2,"0")}m`:`${m}m`;}
+// how well does `zone` explain the file? ctx = {execs:[{wall,key}], newestWall, exportUtc, known:Map(key->utc)}
+function tvFitZone(zone,ctx){
+  const r={future:false,futureMin:0,closed:0,mismatch:0,mismatchDeltas:[],knownSeen:0};
+  if(ctx.exportUtc!=null&&ctx.newestWall){const c=tvWallToUtc(ctx.newestWall,zone);if(c){const ahead=(c.utc-ctx.exportUtc)/6e4;if(ahead>2){r.future=true;r.futureMin=ahead;}}}
+  ctx.execs.forEach(e=>{
+    const c=tvWallToUtc(e.wall,zone);if(!c)return;
+    const et=tvEt(c.utc);if(tvGlobexClosed(et.date,et.hm))r.closed++;
+    const k=ctx.known.get(e.key);if(k!=null){r.knownSeen++;const d=(c.utc-k)/6e4;if(Math.abs(d)>1.5){r.mismatch++;r.mismatchDeltas.push(Math.round(d));}}
+  });
+  return r;
+}
+// daylight-saving changes of `zone` between two instants (scanned day by day)
+function tvDstChanges(zone,fromMs,toMs){
+  const out=[];if(!(fromMs<=toMs)||(toMs-fromMs)>800*864e5)return out;
+  let prev=tvZoneOffsetMs(fromMs,zone);
+  for(let t=fromMs+864e5;t<=toMs+864e5;t+=864e5){
+    const o=tvZoneOffsetMs(t,zone);
+    if(o!==prev){const p={};tvFmtFor(zone).formatToParts(new Date(t)).forEach(x=>p[x.type]=x.value);
+      out.push({date:`${p.year}-${p.month}-${p.day}`,from:tvZoneLabel(zone,t-864e5),to:tvZoneLabel(zone,t)});prev=o;}
+  }
+  return out;
+}
 // ── activity log parser ───────────────────────────────────────────────────────
 const TV_RE={
   call:/^Call to place (limit|market|stop|stop limit) order to (buy|sell) ([\d.]+) units of symbol (\S+?)(?: at price ([\d.]+))?(?: with SL ([\d.]+))?(?: and TP ([\d.]+))?\s*$/,
@@ -2006,7 +2039,15 @@ const TV_RE={
   modp:/^Modify position for symbol (\S+?)(?: with SL ([\d.,\s]+?))?(?: and TP ([\d.,\s]+?))?\s*$/,
   fail:/^Failed to execute order (\d+); reason: (.*)$/
 };
-function tvRoot(sym){const m=/:([A-Z]+)/.exec(sym||"");return m?m[1]:"";}
+// Futures symbols arrive as continuous (CME_MINI:MNQ1!) or dated contracts (COMEX_MINI:MGCZ2026, CBOT_MINI:MYMZ26):
+// root + month code (F G H J K M N Q U V X Z) + year. Every contract of one product files under the same root ticker.
+function tvRoot(sym){
+  let s=String(sym||"");const i=s.lastIndexOf(":");if(i>=0)s=s.slice(i+1);s=s.trim().toUpperCase();
+  if(tickerInfo(s))return s;
+  const c=[];let m=/^([A-Z0-9]+?)\d{0,2}!$/.exec(s);if(m)c.push(m[1]);
+  m=/^([A-Z0-9]+?)[FGHJKMNQUVXZ](\d{4}|\d{1,2})$/.exec(s);if(m)c.push(m[1]);
+  return c.find(x=>tickerInfo(x))||c[0]||s;
+}
 function tvRound(n){return Math.round(n*1e6)/1e6;}
 function tvSecs(wall){const m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(wall);return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])/1000:NaN;}
 function tvOpenQty(t){const d=(t.direction||"long")==="short"?-1:1;let p=0;(t.fills||[]).forEach(f=>{const q=parseFloat(f.contracts)||0;p+=(f.type==="exit"?-1:1)*d*q;});return tvRound(p);}
@@ -2078,8 +2119,8 @@ function tvTradeFields(execs,direction,setup,root){
 }
 function tvExecRecord(e,zone){return{key:e.key,orderId:e.orderId,sym:e.sym,side:e.side,type:e.type,px:e.px,q:e.q,wall:e.wall,zone,utc:e.utc,et:`${e.et.date} ${e.et.hms}`};}
 // ── build the preview (pure: reads the journal, changes nothing) ──────────────
-function tvBuild(text,zone,account){
-  const out={ok:false,error:"",zone,account,newTrades:[],links:[],appends:[],review:[],dupExecs:0,deletedSkipped:0,newExecs:0,warnings:[],failed:[],ignored:0,unrecognised:[],lines:0,period:null,calib:null,unsupported:0};
+function tvBuild(text,zone,account,fileName){
+  const out={ok:false,error:"",zone,account,newTrades:[],links:[],appends:[],review:[],dupExecs:0,deletedSkipped:0,newExecs:0,warnings:[],failed:[],ignored:0,unrecognised:[],lines:0,period:null,calib:null,unsupported:0,blockers:[],zoneChecks:[],suggest:[],suggestMany:false,dst:null,exportUtc:null};
   const rows=tvParseCSV(text);
   if(!rows.length){out.error="That file is empty.";return out;}
   const hdr=rows[0].map(x=>x.trim());
@@ -2091,6 +2132,40 @@ function tvBuild(text,zone,account){
   const deletedKeys=new Set();tombstones.forEach(tb=>(tb.execKeys||[]).forEach(k=>deletedKeys.add(k)));
   const parsed=tvParseActivity(rows);
   out.lines=parsed.lines;out.failed=parsed.failed;out.ignored=parsed.ignored;out.unrecognised=parsed.unrecognised.concat(parsed.badTime);
+  // ── zone evidence (before any conversion is trusted) ──
+  const allWalls=rows.slice(1).map(r=>(r[0]||"").trim()).filter(w=>/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(w)).sort();
+  const known=new Map();keyToRec.forEach((rec,k)=>{if(rec&&rec.utc!=null)known.set(k,rec.utc);});
+  const zctx={execs:parsed.execs.map(e=>({wall:e.wall,key:e.key})),newestWall:allWalls.length?allWalls[allWalls.length-1]:"",exportUtc:tvExportStamp(fileName),known};
+  out.exportUtc=zctx.exportUtc;
+  const fit=tvFitZone(zone,zctx);
+  const refMs=zctx.exportUtc!=null?zctx.exportUtc:Date.now();
+  if(zctx.exportUtc!=null&&zctx.newestWall){
+    if(fit.future)out.blockers.push(`The newest line in the file (${zctx.newestWall}) would be ${tvDurText(fit.futureMin)} AFTER the moment the file was exported (${new Date(zctx.exportUtc).toISOString().slice(0,19).replace("T"," ")} UTC, from the file name) if it were in ${zone}. So the file can't have been exported in ${zone} — pick the zone your computer was set to at export.`);
+    else{const nu=tvWallToUtc(zctx.newestWall,zone);if(nu)out.zoneChecks.push({ok:true,text:`export time: newest log line is ${tvDurText((zctx.exportUtc-nu.utc)/6e4)} before the export time in the file name`});}
+  }else out.zoneChecks.push({ok:null,text:"export time: the file name has no UTC export stamp, so this cross-check was skipped"});
+  if(parsed.execs.length){
+    if(fit.closed)out.warnings.push(`${fit.closed} fill${fit.closed!==1?"s":""} land outside CME trading hours after conversion — double-check the time zone.`);
+    else out.zoneChecks.push({ok:true,text:`market hours: all ${parsed.execs.length} fills fall inside CME trading hours`});
+  }
+  if(fit.knownSeen){
+    if(fit.mismatch){const ds=Array.from(new Set(fit.mismatchDeltas));const same=ds.length===1;
+      out.blockers.push(`${fit.mismatch} of ${fit.knownSeen} orders already in your journal come out at a different time with this zone${same?` — all exactly ${ds[0]>0?"+":"−"}${tvDurText(ds[0])}`:""}. The same order must give the same moment, so either this zone is wrong, or those trades were imported earlier under a wrong zone.`);}
+    else out.zoneChecks.push({ok:true,text:`already imported: all ${fit.knownSeen} orders in your journal that are in this file land on exactly the same moment`});
+  }
+  // other zones that explain the file better (only searched when something is off)
+  if(out.blockers.length||fit.closed){
+    const dz=tvDeviceZone();const pool=[dz].concat(TV_ZONE_CANDIDATES);trades.forEach(t=>(t.execs||[]).forEach(e=>{if(e.zone)pool.push(e.zone);}));
+    const seenZ=new Set([zone]),groups=new Map();
+    pool.forEach(z=>{if(seenZ.has(z)||!tvValidZone(z))return;seenZ.add(z);const f=tvFitZone(z,zctx);
+      if(f.future||f.mismatch||f.closed)return;const lab=tvZoneLabel(z,refMs);if(!groups.has(lab))groups.set(lab,[]);groups.get(lab).push(z);});
+    const arr=Array.from(groups.entries());out.suggestMany=arr.length>5;
+    out.suggest=arr.slice(0,5).map(([label,zs])=>({label,zones:zs.slice(0,4),pick:zs[0]}));
+    if(!out.blockers.length&&fit.closed&&out.suggest.length)out.blockers.push(`${fit.closed} fill${fit.closed!==1?"s":""} would be outside CME trading hours in ${zone}, while another zone fits every check (see below). That usually means the file was exported from a computer set to a different zone.`);
+  }
+  // daylight saving inside this file's dates
+  if(allWalls.length){const a=tvWallToUtc(allWalls[0],zone),b=tvWallToUtc(allWalls[allWalls.length-1],zone);
+    if(a&&b){const zc=tvDstChanges(zone,a.utc,b.utc),nc=tvDstChanges("America/New_York",a.utc,b.utc);
+      out.dst={zone,start:tvZoneLabel(zone,a.utc),zoneChanges:zc,etStart:tvZoneLabel("America/New_York",a.utc),etChanges:nc};}}
   // time conversion
   const execs=[];let globexBad=0;
   parsed.execs.forEach(e=>{
@@ -2101,18 +2176,18 @@ function tvBuild(text,zone,account){
     execs.push(e);
   });
   if(execs.length){out.period={from:execs[0].et.date,to:execs[execs.length-1].et.date};}
-  // walk executions in time order, per symbol
+  // walk executions in time order, per underlying (all contract months of one product are one position)
   const cursor={},groups=[],appendMap=new Map();
   // an open imported trade only takes part when a new fill comes AFTER its last fill (a file that starts mid-position)
   const touched=new Set(); // trades whose chain this file already walked (their open quantity is then known from the file itself)
-  const seedFor=e=>trades.find(t=>!touched.has(t.id)&&t.source==="tradingview"&&t.execs&&t.execs.length&&t.execs[t.execs.length-1].sym===e.sym&&tvOpenQty(t)!==0&&(t.execs[t.execs.length-1].utc||0)<=e.utc);
+  const seedFor=e=>trades.find(t=>!touched.has(t.id)&&t.source==="tradingview"&&t.execs&&t.execs.length&&tvRoot(t.execs[t.execs.length-1].sym)===e.root&&tvOpenQty(t)!==0&&(t.execs[t.execs.length-1].utc||0)<=e.utc);
   const canAppend=t=>t.source==="tradingview"&&!((t.updatedAt||0)>(t.importedAt||0)+2000);
   execs.forEach(e=>{
-    let c=cursor[e.sym];
+    let c=cursor[e.root];
     const known=keyToRec.get(e.key);
     if(known){e.side=known.side;e.type=known.type;}
     const isDup=!!known,isDel=deletedKeys.has(e.key);
-    if(!c&&!isDup&&!isDel){const ot=seedFor(e);if(ot){touched.add(ot.id);c=cursor[e.sym]={kind:"existing",trade:ot,pos:tvOpenQty(ot)};}}
+    if(!c&&!isDup&&!isDel){const ot=seedFor(e);if(ot){touched.add(ot.id);c=cursor[e.root]={kind:"existing",trade:ot,pos:tvOpenQty(ot)};}}
     if(!e.side){ // bracket stop/target fill: it closes whatever is open
       const p=c?c.pos:0;
       if(p===0){if(isDel){out.deletedSkipped++;return;}out.review.push({reason:"fill with no matching order and no open position — can't tell buy from sell",detail:`${e.wall} · order ${e.orderId} · ${e.root}`});return;}
@@ -2120,16 +2195,16 @@ function tvBuild(text,zone,account){
     const sg=e.side==="buy"?1:-1;
     const p0=c?c.pos:0;
     if(!e.type)e.type=(p0===0||Math.sign(p0)===sg)?"add":"exit";
-    const step=()=>{const p=tvRound(((c&&c.pos)||0)+sg*e.q);if(c){c.pos=p;if(p===0)cursor[e.sym]=null;}};
-    if(isDup){out.dupExecs++;const t=keyToTrade.get(e.key);touched.add(t.id);if(!c||c.kind!=="existing"||c.trade!==t){c={kind:"existing",trade:t,pos:c?c.pos:0};cursor[e.sym]=c;}step();return;}
-    if(isDel){out.deletedSkipped++;if(!c||c.kind!=="deleted"){c={kind:"deleted",pos:c?c.pos:0};cursor[e.sym]=c;}step();return;}
+    const step=()=>{const p=tvRound(((c&&c.pos)||0)+sg*e.q);if(c){c.pos=p;if(p===0)cursor[e.root]=null;}};
+    if(isDup){out.dupExecs++;const t=keyToTrade.get(e.key);touched.add(t.id);if(!c||c.kind!=="existing"||c.trade!==t){c={kind:"existing",trade:t,pos:c?c.pos:0};cursor[e.root]=c;}step();return;}
+    if(isDel){out.deletedSkipped++;if(!c||c.kind!=="deleted"){c={kind:"deleted",pos:c?c.pos:0};cursor[e.root]=c;}step();return;}
     if(c&&c.kind==="deleted"){out.deletedSkipped++;step();return;}
     if(c&&c.kind==="existing"){
       if(canAppend(c.trade)){if(!appendMap.has(c.trade.id))appendMap.set(c.trade.id,{trade:c.trade,execs:[]});appendMap.get(c.trade.id).execs.push(e);}
       else out.review.push({reason:"new fills for a trade you've linked or edited by hand — not changed",detail:`${e.wall} · order ${e.orderId} · ${c.trade.ticker} ${c.trade.date}`});
       step();return;}
     if(c&&c.kind==="new"){c.group.execs.push(e);step();return;}
-    const g={sym:e.sym,root:e.root,execs:[e]};groups.push(g);cursor[e.sym]={kind:"new",group:g,pos:tvRound(sg*e.q)};
+    const g={sym:e.sym,root:e.root,execs:[e]};groups.push(g);cursor[e.root]={kind:"new",group:g,pos:tvRound(sg*e.q)};
   });
   appendMap.forEach(a=>out.appends.push(a));
   // groups -> new trades / links
@@ -2170,7 +2245,6 @@ function tvBuild(text,zone,account){
   out.calib={matched:dm.length,medianMin:dm.length?dm[Math.floor(dm.length/2)]:null,within5:dm.filter(x=>Math.abs(x)<=5).length,shifted:out.links.filter(l=>l.quality==="shifted").length};
   const oldest=rows.length>1?rows[rows.length-1][1]:"";
   if(rows.length>1&&!/^Call to place/.test((oldest||"").trim()))out.warnings.push("This file doesn't begin at the start of your activity log (its first line is mid-order). Trades that were already open when it starts can't be rebuilt, so any such fills are skipped or flagged — export again after scrolling further back if you expect older trades.");
-  if(globexBad)out.warnings.push(`${globexBad} fill${globexBad!==1?"s":""} land outside CME trading hours after conversion — double-check the time zone.`);
   if(out.calib.matched&&Math.abs(out.calib.medianMin)>45)out.warnings.push(`Your logged trades differ from the converted times by about ${(out.calib.medianMin/60).toFixed(1)}h — the time zone is probably not what the file was exported in.`);
   out.ok=true;return out;
 }
@@ -2194,7 +2268,7 @@ function tvApply(p,fileName){
   });
   const fresh=p.newTrades.map(x=>x.rec);added=fresh.length;
   if(fresh.length)trades=fresh.concat(trades);
-  importLog.unshift({id:now,at:new Date(now).toISOString(),file:fileName||"",account:p.account,zone:p.zone,added,linked,appended,skippedExecs:p.dupExecs,deletedSkipped:p.deletedSkipped,review:p.review.length});
+  importLog.unshift({id:now,at:new Date(now).toISOString(),file:fileName||"",account:p.account,zone:p.zone,exportUtc:p.exportUtc||null,zoneOverride:!!p.overridden,added,linked,appended,skippedExecs:p.dupExecs,deletedSkipped:p.deletedSkipped,review:p.review.length});
   importLog=importLog.slice(0,100);
   try{localStorage.setItem("wss_tv_account",p.account);}catch(e){}
   save();render();
@@ -2203,21 +2277,26 @@ function tvApply(p,fileName){
 // ── modal UI ─────────────────────────────────────────────────────────────────
 function openTvImport(){
   const dz=tvDeviceZone();let acct="TV Paper";try{acct=localStorage.getItem("wss_tv_account")||acct;}catch(e){}
-  tvImp={text:null,fileName:"",zone:dz,deviceZone:dz,account:acct,preview:null,done:null};renderTvImport();
+  tvImp={text:null,fileName:"",zone:dz,deviceZone:dz,account:acct,preview:null,done:null,override:false};renderTvImport();
 }
 function closeTvImport(){tvImp=null;document.getElementById("mroot").innerHTML="";}
 function tvOnFile(ev){
   const f=ev.target.files&&ev.target.files[0];if(!f)return;
-  const r=new FileReader();r.onload=e=>{tvImp.text=String(e.target.result);tvImp.fileName=f.name;tvRecompute();};r.readAsText(f);
+  const r=new FileReader();r.onload=e=>{tvImp.text=String(e.target.result);tvImp.fileName=f.name;tvImp.override=false;tvRecompute();};r.readAsText(f);
 }
-function tvRecompute(){
+function tvSetZone(z){if(!tvImp)return;tvImp.zone=z;tvImp.override=false;tvRecompute(true);}
+function tvToggleOverride(on){if(tvImp){tvImp.override=!!on;renderTvImport();}}
+function tvRecompute(skipRead){
   if(!tvImp)return;
   const z=document.getElementById("tv-zone"),a=document.getElementById("tv-acct");
-  if(z)tvImp.zone=z.value.trim()||tvImp.deviceZone;if(a)tvImp.account=a.value.trim()||"TV Paper";
-  tvImp.preview=tvImp.text?tvBuild(tvImp.text,tvImp.zone,tvImp.account):null;renderTvImport();
+  if(z&&!skipRead){const nz=z.value.trim()||tvImp.deviceZone;if(nz!==tvImp.zone)tvImp.override=false;tvImp.zone=nz;}
+  if(a)tvImp.account=a.value.trim()||"TV Paper";
+  tvImp.preview=tvImp.text?tvBuild(tvImp.text,tvImp.zone,tvImp.account,tvImp.fileName):null;renderTvImport();
 }
 function tvConfirmImport(){
   if(!tvImp||!tvImp.preview||!tvImp.preview.ok)return;
+  if(tvImp.preview.blockers.length&&!tvImp.override)return; // time-zone evidence disagrees — needs the explicit override
+  tvImp.preview.overridden=!!(tvImp.preview.blockers.length&&tvImp.override);
   const res=tvApply(tvImp.preview,tvImp.fileName);tvImp.done=res;renderTvImport();
 }
 function tvFmt(n,d){return(n===null||n===undefined||isNaN(n))?"—":Number(n).toLocaleString("en-US",{minimumFractionDigits:d===undefined?2:d,maximumFractionDigits:d===undefined?2:d});}
@@ -2231,12 +2310,12 @@ function renderTvImport(){
     body=`<div style="font-size:var(--fbase);color:var(--t2);line-height:1.6">Imported <strong style="color:var(--g)">${s.done.added}</strong> new trade${s.done.added!==1?"s":""}${s.done.linked?`, linked <strong>${s.done.linked}</strong> of your existing trades`:""}${s.done.appended?`, updated <strong>${s.done.appended}</strong> open trade${s.done.appended!==1?"s":""}`:""}. Nothing you'd already logged was removed or changed.<br/>Imported trades start with Bounce (long) / Reject (short), Tradovate fees, and blank rules — review and adjust as needed.</div>
       <div style="margin-top:16px;text-align:right"><button class="btn btng" onclick="closeTvImport()">done</button></div>`;
   }else{
-    const tzNote=`${escAttr(s.zone)} (${tvZoneLabel(s.zone)} now)`;
+    const tzNote=`${esc(s.zone)} (${tvZoneLabel(s.zone,p&&p.exportUtc!=null?p.exportUtc:Date.now())}${p&&p.exportUtc!=null?" on the export date":" now"})`;
     body=`<div class="fgrid" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
-      <div class="field"><label>CSV time zone <span style="text-transform:none;color:var(--t3)">— where you exported</span></label><input id="tv-zone" list="tv-zones" value="${escAttr(s.zone)}" onchange="tvRecompute()"/><datalist id="tv-zones">${zones}</datalist></div>
-      <div class="field"><label>account label</label><input id="tv-acct" list="tv-accts" value="${escAttr(s.account)}" onchange="tvRecompute()"/><datalist id="tv-accts">${accts}</datalist></div>
+      <div class="field"><label>CSV time zone <span style="text-transform:none;color:var(--t3)">— your computer's zone when you exported</span></label><input id="tv-zone" list="tv-zones" value="${escAttr(s.zone)}" onchange="setTimeout(tvRecompute,0)"/><datalist id="tv-zones">${zones}</datalist></div>
+      <div class="field"><label>account label</label><input id="tv-acct" list="tv-accts" value="${escAttr(s.account)}" onchange="setTimeout(tvRecompute,0)"/><datalist id="tv-accts">${accts}</datalist></div>
     </div>
-    <div style="font-size:var(--fxs);color:var(--t3);margin:-4px 0 12px">times in the file are read as ${tzNote}${s.zone===s.deviceZone?" — this device's zone":` — this device is ${escAttr(s.deviceZone)}`} and converted to New York time (daylight saving included).</div>
+    <div style="font-size:var(--fxs);color:var(--t3);margin:-4px 0 12px">times in the file are read as ${tzNote}${s.zone===s.deviceZone?" — detected from this device":` — this device is set to ${esc(s.deviceZone)}`} and converted to New York time. Daylight saving is applied by each trade's own date. TradingView stamps every row in the zone your computer was set to <em>when you exported</em> (not where you traded), so if you exported while travelling, pick that zone.</div>
     <div class="field" style="margin-bottom:12px"><label>TradingView activity log (.csv)</label><input type="file" accept=".csv,text/csv" onchange="tvOnFile(event)" style="height:auto;padding:7px"/></div>`;
     if(p&&!p.ok){body+=`<div class="qwarn">${esc(p.error)}</div>`;}
     if(p&&p.ok){
@@ -2244,6 +2323,12 @@ function renderTvImport(){
       body+=`<div style="font-size:var(--fsm);color:var(--t2);margin-bottom:8px">${esc(s.fileName)} · ${p.lines} log lines${p.period?` · ${p.period.from} → ${p.period.to} (ET)`:""}</div>
       <div class="sgrid" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-bottom:10px">
         ${pill(p.newTrades.length,"new trades","var(--g)")}${pill(p.links.length,"linked to yours","var(--tabdash)")}${pill(p.appends.length,"open trades updated","var(--t)")}${pill(p.dupExecs,"already imported","var(--t3)")}${pill(p.review.length,"needs review",p.review.length?"var(--a)":"var(--t3)")}</div>`;
+      if(p.dst){const d=p.dst;const fmtCh=c=>c.length?c.map(x=>`${dispDate(x.date)}: ${x.from} → ${x.to}`).join(", "):null;
+        body+=`<div style="font-size:var(--fxs);color:var(--t3);margin-bottom:8px;line-height:1.55">Daylight saving across this file's dates — ${esc(d.zone)}: ${fmtCh(d.zoneChanges)||`no change (${d.start} throughout)`} · New York: ${fmtCh(d.etChanges)||`no change (${d.etStart} throughout)`}</div>`;}
+      p.zoneChecks.forEach(c=>{body+=`<div style="font-size:var(--fxs);color:${c.ok?"var(--g)":"var(--t3)"};margin-bottom:4px">${c.ok?"✓":"•"} ${esc(c.text)}</div>`;});
+      p.blockers.forEach(b=>{body+=`<div class="qwarn" style="margin:6px 0 8px;border-color:var(--r)">⛔ ${esc(b)}</div>`;});
+      if(p.suggest.length){body+=`<div style="font-size:var(--fxs);color:var(--t2);margin:6px 0 8px;line-height:1.7">${p.suggestMany?"Many zones fit the evidence — a few of them: ":"Zones that fit every check: "}${p.suggest.map(g=>`<button class="btn" style="margin:0 4px 4px 0;padding:2px 8px" onclick="tvSetZone('${escAttr(g.pick)}')">${esc(g.label)} · ${esc(g.zones.join(", "))}</button>`).join("")}</div>`;}
+      if(p.blockers.length)body+=`<label style="display:flex;gap:8px;align-items:flex-start;font-size:var(--fxs);color:var(--t2);margin:4px 0 10px;cursor:pointer"><input type="checkbox" ${s.override?"checked":""} onchange="tvToggleOverride(this.checked)" style="margin-top:2px"/> I've checked the time zone and still want to import with ${esc(p.zone)}</label>`;
       p.warnings.forEach(w=>{body+=`<div class="qwarn" style="margin-bottom:8px">⚠ ${esc(w)}</div>`;});
       if(p.calib&&p.calib.matched)body+=`<div style="font-size:var(--fxs);color:var(--t3);margin-bottom:8px">Time-zone check: ${p.calib.within5} of ${p.calib.matched} linked trades land within 5 minutes of the times you logged${p.calib.shifted?`; ${p.calib.shifted} differ by hours (see below)`:""}.</div>`;
       if(p.deletedSkipped)body+=`<div style="font-size:var(--fxs);color:var(--t3);margin-bottom:8px">${p.deletedSkipped} execution${p.deletedSkipped!==1?"s":""} belong to trades you deleted earlier — skipped.</div>`;
@@ -2259,12 +2344,12 @@ function renderTvImport(){
       body+=`<div style="margin-top:14px;padding-top:12px;border-top:.5px solid var(--bd);display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap">
         <span style="flex:1;font-size:var(--fxs);color:var(--t3);min-width:200px">${n||l||a?`Adds ${n} new trade${n!==1?"s":""}${l?`, links ${l}`:""}${a?`, updates ${a} open`:""}; skips ${p.dupExecs+p.deletedSkipped} already-known execution${p.dupExecs+p.deletedSkipped!==1?"s":""}. Existing entries are never removed or overwritten.`:"Nothing new to import — everything in this file is already in the journal."}</span>
         <button class="btn" onclick="closeTvImport()">cancel</button>
-        <button class="btn btng" ${n||l||a?"":"disabled"} onclick="tvConfirmImport()">import</button></div>`;
+        <button class="btn btng" ${(n||l||a)&&!(p.blockers.length&&!s.override)?"":"disabled"} onclick="tvConfirmImport()">import</button></div>`;
     }
     if(!p||!p.ok){body+=`<div style="margin-top:14px;text-align:right"><button class="btn" onclick="closeTvImport()">cancel</button></div>`;}
   }
   document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default;align-items:flex-start;overflow:auto" onclick="closeTvImport()"><div class="fcard" style="max-width:640px;width:100%;cursor:auto;margin:1rem auto;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
-    <div style="font-size:var(--fmd);font-weight:700;margin-bottom:12px">Import trades from TradingView</div>${body}</div></div>`;
+    <div style="font-size:var(--fmd);font-weight:700;margin-bottom:12px">Import trade log (.csv)</div>${body}</div></div>`;
 }
 
 // ── Date / period helpers ─────────────────────────────────────────────────────
@@ -4973,7 +5058,7 @@ function render(){
   document.documentElement.classList.toggle("mobile",mob);
   // iOS auto-zooms a focused field whose text is under 16px; maximum-scale=1 stops that without enlarging the fonts (mobile layout only)
   const vp=document.getElementById("vp");if(vp)vp.setAttribute("content","width=device-width, initial-scale=1.0"+(mob?", maximum-scale=1.0":"")+", viewport-fit=cover");
-  if(!mob){sortMenuOpen=false;filterSheetOpen=false;if(typeof moreMenuOpen!=="undefined")moreMenuOpen=false;}
+  if(!mob){sortMenuOpen=false;filterSheetOpen=false;}
   const filtered=getFilteredTrades();
   const en=filtered.map(enrich),s=calcStats(en);
   const ec=s.edge===null?"var(--t3)":s.edge>0?"var(--g)":"var(--r)";
@@ -4988,20 +5073,7 @@ function render(){
     <h1 class="h1row">trading journal${storageQuotaLevel!=="ok"?`<span class="quotadot quotadot-${storageQuotaLevel}" title="${storageQuotaLevel==="red"?"Local storage nearly full — oldest cached screenshots are being freed up automatically (still on Drive)":"Local storage getting full"}"></span>`:""}</h1>
   </div>
   <div class="topbaracts">
-    <div class="topicons">${mob?mobileTopIcons(isDark):`
-      <span id="drive-status">${driveStatusHtml()}</span>
-      <span class="iconsep">|</span>
-      <button class="topicon" onclick="impData()" aria-label="import backup (.json)" data-tt="import backup (.json)">${ICON_UP}</button>
-      <span class="iconsep">|</span>
-      <button class="topicon" onclick="expData()" aria-label="export backup (.json)" data-tt=".json export">${ICON_DOWN}</button>
-      <span class="iconsep">|</span>
-      <button class="topicon" onclick="openExportOptions()" aria-label="share summary (.html)" data-tt=".html summary export">${ICON_DOWN}${ICON_DOC}</button>
-      <span class="iconsep">|</span>
-      <button class="topicon" onclick="openTvImport()" aria-label="import trades (TradingView CSV)" data-tt="import trades (TradingView CSV)">${ICON_TVIMPORT}</button>
-      <span class="iconsep">|</span>
-      ${layoutToggleH()}
-      <span class="iconsep">|</span>
-      <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}" data-tt="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>`}
+    <div class="topicons">${mobileTopIcons(isDark)}
     </div>
   </div>
 </div>
