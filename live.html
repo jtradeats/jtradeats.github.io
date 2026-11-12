@@ -582,7 +582,7 @@ function stripScreenshotsForLocal(arr){
 // they're intentionally not cached locally; Drive still has the originals.
 function persistLocal(){
   try{
-    localStorage.setItem(KEY,JSON.stringify({trades:stripScreenshotsForLocal(trades),reflections,dq,deleted:tombstones,dqUpdatedAt}));
+    localStorage.setItem(KEY,JSON.stringify({trades:stripScreenshotsForLocal(trades),reflections,dq,deleted:tombstones,dqUpdatedAt,importLog}));
   }catch(e){
     alert("Storage is full — the browser's local storage limit has been hit. Export a backup (.json) and let me know if you're still seeing this after the screenshot storage change.");
   }
@@ -794,7 +794,7 @@ function layoutToggleH(){
 if(mobileMQ.addEventListener)mobileMQ.addEventListener("change",()=>render());
 else if(mobileMQ.addListener)mobileMQ.addListener(()=>render());
 let filterSheetOpen=false,fsheetScroll=0,sortMenuOpen=false;
-let tombstones=[],dqUpdatedAt=0;
+let tombstones=[],dqUpdatedAt=0,importLog=[];
 let trades=[],reflections=[],dq=DQ_DEFAULT.map(d=>({...d})),tab="dashboard",showForm=false,editingDq=false,editingId=null,showRefForm=false,expandedIds=new Set(),refCollapsedIds=new Set();
 let periodMode="week",periodAnchor=new Date(),customFrom="",customTo="";
 let logSort={col:"date",dir:"desc"};
@@ -887,6 +887,7 @@ function load(){
     if(d.trades)trades=d.trades.map(migrateTrade);
     if(Array.isArray(d.deleted))tombstones=d.deleted;
     if(d.dqUpdatedAt)dqUpdatedAt=d.dqUpdatedAt;
+    if(Array.isArray(d.importLog))importLog=d.importLog;
     if(d.dq&&d.dq.length)dq=d.dq;
     if(Array.isArray(d.reflections)){
       reflections=d.reflections.map(migrateReflection);
@@ -1475,7 +1476,7 @@ function driveSyncPayload(){
   // localCacheExcluded is a local-only caching flag (see auto-scrub above) —
   // strip it so it doesn't leak into the Drive backup / viewer.html's data.
   const cleanTrades=trades.map(t=>{const{localCacheExcluded,...rest}=t;return rest;});
-  return JSON.stringify({trades:cleanTrades,reflections,dq,deleted:tombstones,dqUpdatedAt,lastModified:new Date().toISOString()});
+  return JSON.stringify({trades:cleanTrades,reflections,dq,deleted:tombstones,dqUpdatedAt,importLog,lastModified:new Date().toISOString()});
 }
 async function driveConnectFlow(){
   driveBreakerTripped=getDriveBreakerFlag(); // pull in whatever a previous session left behind before deciding anything below
@@ -1887,7 +1888,9 @@ function mergeWithRemote(d){
   tombstones.concat(remoteTombs).forEach(tb=>{
     if(!tb||tb.id===undefined)return;
     const k=tb.type+":"+tb.id,cur=tombMap.get(k);
-    if(!cur||(tb.deletedAt||0)>(cur.deletedAt||0))tombMap.set(k,{type:tb.type,id:tb.id,deletedAt:tb.deletedAt||0});
+    const keys=Array.from(new Set((cur&&cur.execKeys||[]).concat(tb.execKeys||[])));
+    if(!cur||(tb.deletedAt||0)>(cur.deletedAt||0))tombMap.set(k,{type:tb.type,id:tb.id,deletedAt:tb.deletedAt||0,execKeys:keys});
+    else cur.execKeys=keys;
   });
   const info={contributed:false};
   const mt=mergeList("trade",trades,remoteTrades,tombMap,lastSync,info);
@@ -1899,9 +1902,12 @@ function mergeWithRemote(d){
   let mdq=dq,mdqAt=dqUpdatedAt;
   if(d.dq&&d.dq.length&&remoteDqAt>=dqUpdatedAt){mdq=d.dq;mdqAt=remoteDqAt;}
   else if(dqUpdatedAt>remoteDqAt)info.contributed=true;
-  return{trades:mt,reflections:mr,dq:mdq,dqUpdatedAt:mdqAt,tombstones:keptTombs,contributed:info.contributed};
+  const rlog=Array.isArray(d.importLog)?d.importLog.slice():[];const rlIds=new Set(rlog.map(x=>x.id));
+  importLog.forEach(x=>{if(!rlIds.has(x.id)){rlog.push(x);info.contributed=true;}});
+  rlog.sort((a,b)=>(b.id||0)-(a.id||0));
+  return{trades:mt,reflections:mr,dq:mdq,dqUpdatedAt:mdqAt,tombstones:keptTombs,importLog:rlog.slice(0,100),contributed:info.contributed};
 }
-function applyMerge(res){trades=res.trades;reflections=res.reflections;dq=res.dq;dqUpdatedAt=res.dqUpdatedAt;tombstones=res.tombstones;}
+function applyMerge(res){trades=res.trades;reflections=res.reflections;dq=res.dq;dqUpdatedAt=res.dqUpdatedAt;tombstones=res.tombstones;importLog=res.importLog||importLog;}
 // Snapshot of Drive's copy taken right before a merge overwrites it — private, regular Drive space,
 // pruned with the other auto-backups after 60 days.
 async function driveBackupBeforeMerge(raw){
@@ -1921,6 +1927,7 @@ function mobileTopIcons(isDark){
       <span class="drivemenu-wrap"><button class="topicon" onclick="toggleMoreMenu(event)" aria-label="more options">${ICON_MORE}</button>${moreMenuOpen?`<div class="drivemenu" onclick="event.stopPropagation()">
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();impData()">${ICON_UP} import backup (.json)</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();expData()">${ICON_DOWN} export backup (.json)</button>
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openTvImport()">${ICON_TVIMPORT} import trades (TradingView CSV)</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openExportOptions()">${ICON_DOC} share summary (.html)</button>
       </div>`:""}</span>
       <span class="iconsep">|</span>
@@ -1928,6 +1935,338 @@ function mobileTopIcons(isDark){
       <span class="iconsep">|</span>
       <button class="themetoggle" onclick="toggleTheme()" aria-label="${isDark?"switch to light mode":"switch to dark mode"}">${isDark?ICON_SUN:ICON_MOON}</button>`;
 }
+// ── TradingView Activity Log import ───────────────────────────────────────────
+// Manual CSV import (free, browser-only). Reads TradingView's paper/prop "Activity Log" export, converts its
+// local-time stamps to New York time, groups fills into trades (flat -> flat), and adds ONLY executions the
+// journal hasn't seen. Never deletes or rewrites existing entries: new trades are added, matching manual trades
+// are linked (execution ids attached, nothing else touched), and a trade you've edited is never overwritten.
+// Execution identity = "tv:<orderId>|<price>|<qty>#<n>" stored on each trade's `execs`, so duplicate checks ride
+// the normal Drive save/merge. Imported trade ids come from the entry-fill time, so the same CSV imported on two
+// devices produces the same ids and merges into one trade.
+const TV_PLATFORM="tradovate";
+let tvImp=null;
+const ICON_TVIMPORT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>`;
+function tvParseCSV(t){
+  const rows=[];let row=[],f="",q=false;t=String(t).replace(/^\uFEFF/,"");
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"')q=true;
+    else if(c===","){row.push(f);f="";}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;row.push(f);f="";if(row.length>1||row[0]!=="")rows.push(row);row=[];}
+    else f+=c;}
+  if(f!==""||row.length){row.push(f);rows.push(row);}
+  return rows;
+}
+// ── time zones: wall-clock time in any IANA zone -> UTC -> New York (daylight saving handled by the browser's tz database)
+function tvValidZone(z){try{new Intl.DateTimeFormat("en-US",{timeZone:z});return true;}catch(e){return false;}}
+function tvZoneOffsetMs(utcMs,zone){
+  const p={};new Intl.DateTimeFormat("en-US",{timeZone:zone,hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date(utcMs)).forEach(x=>p[x.type]=x.value);
+  return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-Math.floor(utcMs/1000)*1000;
+}
+function tvWallToUtc(wall,zone){
+  const m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(String(wall).trim());
+  if(!m)return null;
+  const guess=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]);
+  const offs=new Set([tvZoneOffsetMs(guess-864e5,zone),tvZoneOffsetMs(guess+864e5,zone)]);
+  const c=[];offs.forEach(o=>{const u=guess-o;if(tvZoneOffsetMs(u,zone)===o)c.push(u);});
+  const u=Array.from(new Set(c)).sort((a,b)=>a-b);
+  if(u.length===1)return{utc:u[0],flag:null};
+  if(u.length>1)return{utc:u[0],flag:"ambiguous"};          // repeated hour (clocks go back)
+  return{utc:guess-tvZoneOffsetMs(guess,zone),flag:"gap"};   // skipped hour (clocks go forward)
+}
+function tvEt(utcMs){
+  const p={};new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",timeZoneName:"short"}).formatToParts(new Date(utcMs)).forEach(x=>p[x.type]=x.value);
+  return{date:`${p.year}-${p.month}-${p.day}`,hm:`${p.hour}:${p.minute}`,hms:`${p.hour}:${p.minute}:${p.second}`,abbr:p.timeZoneName||"ET"};
+}
+function tvNaiveMs(date,time){const d=/^(\d{4})-(\d{2})-(\d{2})$/.exec(date||"");if(!d)return NaN;const t=/^(\d{1,2}):(\d{2})/.exec(time||"00:00")||[0,0,0];return Date.UTC(+d[1],+d[2]-1,+d[3],+t[1],+t[2]);}
+// CME Globex is closed Fri 17:00 ET -> Sun 18:00 ET and 17:00-18:00 ET daily — a fill there means the chosen zone is probably wrong
+function tvGlobexClosed(etDate,hm){
+  const d=/^(\d{4})-(\d{2})-(\d{2})$/.exec(etDate);if(!d)return false;
+  const dow=new Date(Date.UTC(+d[1],+d[2]-1,+d[3])).getUTCDay();const mm=hm.split(":");const m=(+mm[0])*60+(+mm[1]);
+  return dow===6||(dow===5&&m>=1020)||(dow===0&&m<1080)||(m>=1020&&m<1080);
+}
+function tvDeviceZone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";}catch(e){return"UTC";}}
+function tvZoneLabel(zone,atMs){
+  try{const off=tvZoneOffsetMs(atMs||Date.now(),zone)/36e5;const sign=off<0?"-":"+";const a=Math.abs(off);const h=Math.floor(a),mi=Math.round((a-h)*60);return`UTC${sign}${h}${mi?":"+String(mi).padStart(2,"0"):""}`;}catch(e){return"";}
+}
+function tvZoneList(){
+  let z=[];try{if(Intl.supportedValuesOf)z=Intl.supportedValuesOf("timeZone");}catch(e){}
+  if(!z.length)z=["Asia/Kuala_Lumpur","Asia/Singapore","Asia/Tokyo","Asia/Dubai","Europe/London","Europe/Paris","America/New_York","America/Chicago","America/Los_Angeles","Australia/Sydney","UTC"];
+  return z;
+}
+// ── activity log parser ───────────────────────────────────────────────────────
+const TV_RE={
+  call:/^Call to place (limit|market|stop|stop limit) order to (buy|sell) ([\d.]+) units of symbol (\S+?)(?: at price ([\d.]+))?(?: with SL ([\d.]+))?(?: and TP ([\d.]+))?\s*$/,
+  placed:/^Order (\d+) successfully placed$/,
+  canc:/^Order (\d+) successfully cancelled$/,
+  modc:/^Order (\d+) modification confirmed$/,
+  act:/^Order (\d+) activated at price ([\d.]+)$/,
+  exec:/^Order (\d+) for symbol (\S+) has been executed at price ([\d.]+) for ([\d.]+) units$/,
+  modo:/^Modified order (\d+) for symbol (\S+) with price ([\d.]+) for ([\d.]+) units(?: with SL ([\d.]+))?(?: and TP ([\d.]+))?\s*$/,
+  modp:/^Modify position for symbol (\S+?)(?: with SL ([\d.,\s]+?))?(?: and TP ([\d.,\s]+?))?\s*$/,
+  fail:/^Failed to execute order (\d+); reason: (.*)$/
+};
+function tvRoot(sym){const m=/:([A-Z]+)/.exec(sym||"");return m?m[1]:"";}
+function tvRound(n){return Math.round(n*1e6)/1e6;}
+function tvSecs(wall){const m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(wall);return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])/1000:NaN;}
+function tvOpenQty(t){const d=(t.direction||"long")==="short"?-1:1;let p=0;(t.fills||[]).forEach(f=>{const q=parseFloat(f.contracts)||0;p+=(f.type==="exit"?-1:1)*d*q;});return tvRound(p);}
+function tvParseActivity(rows){
+  const recs=rows.slice(1).map(r=>({time:(r[0]||"").trim(),text:(r[1]||"").trim()})).reverse(); // file is newest-first
+  const out={execs:[],unrecognised:[],failed:[],ignored:0,badTime:[],unresolved:[],lines:recs.length};
+  const callSide={},prot={},pend=[],seen={};let lastCall=null;
+  const nums=s=>s?s.split(",").map(x=>parseFloat(x.trim())).filter(x=>!isNaN(x)):null;
+  recs.forEach(r=>{
+    if(!r.text)return;const t=r.text;let m;
+    if(!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(r.time)){out.badTime.push(r);return;}
+    if((m=t.match(TV_RE.call))){
+      lastCall={type:m[1],side:m[2],qty:+m[3],sym:m[4],sl:m[6]?+m[6]:null,tp:m[7]?+m[7]:null,id:null};
+      prot[lastCall.sym]=(lastCall.sl!=null||lastCall.tp!=null)?Object.assign({},prot[lastCall.sym],{sl:lastCall.sl,tp:lastCall.tp}):{sl:null,tp:null};
+      return;}
+    if((m=t.match(TV_RE.placed))){if(lastCall&&!lastCall.id){lastCall.id=m[1];callSide[m[1]]={side:lastCall.side,type:lastCall.type,sym:lastCall.sym,sl:lastCall.sl,tp:lastCall.tp};}out.ignored++;return;}
+    if((m=t.match(TV_RE.modo))){
+      const p=prot[m[2]]||(prot[m[2]]={sl:null,tp:null});if(m[5]!=null)p.sl=+m[5];if(m[6]!=null)p.tp=+m[6];
+      if(callSide[m[1]]){callSide[m[1]].sl=p.sl;callSide[m[1]].tp=p.tp;}out.ignored++;return;}
+    if((m=t.match(TV_RE.modp))){
+      const p=prot[m[1]]||(prot[m[1]]={sl:null,tp:null});const sl=nums(m[2]),tp=nums(m[3]);
+      if(sl&&sl.length)p.sl=sl[0];if(tp&&tp.length)p.tp=tp[0];
+      pend.forEach(x=>{if(x.sym===m[1]&&tvSecs(r.time)-x.t0<=60){if(x.e.slFirst==null&&sl&&sl.length)x.e.slFirst=sl[0];if(x.e.tpFirst==null&&tp&&tp.length)x.e.tpFirst=tp[0];}});
+      out.ignored++;return;}
+    if((m=t.match(TV_RE.exec))){
+      const id=m[1],sym=m[2],px=parseFloat(m[3]),q=parseFloat(m[4]);const cs=callSide[id];
+      const base=`tv:${id}|${px}|${q}`;seen[base]=(seen[base]||0)+1;
+      const ps=prot[sym]||{sl:null,tp:null};
+      // side is known for orders the user placed (a "Call to place" line); bracket stop/target fills carry no call -> side resolved later (they close the open position)
+      const e={key:`${base}#${seen[base]}`,orderId:id,sym,root:tvRoot(sym),side:cs?cs.side:null,type:null,px,q,wall:r.time,
+        sl:cs&&cs.sl!=null?cs.sl:ps.sl,tp:cs&&cs.tp!=null?cs.tp:ps.tp,slFirst:null,tpFirst:null,slNow:ps.sl,tpNow:ps.tp,orderType:cs?cs.type:null};
+      pend.push({sym,t0:tvSecs(r.time),e});
+      out.execs.push(e);
+      return;}
+    if((m=t.match(TV_RE.fail))){out.failed.push({orderId:m[1],reason:m[2],time:r.time});return;}
+    if(TV_RE.canc.test(t)||TV_RE.modc.test(t)||TV_RE.act.test(t)){out.ignored++;return;}
+    out.unrecognised.push(r);
+  });
+  return out;
+}
+// ── fills -> journal trade fields (same maths as the entry form) ──────────────
+function tvFillsFromExecs(execs){
+  return execs.map((e,i)=>({id:i+1,type:e.type,price:String(e.px),contracts:String(e.q),
+    stop:e.type==="add"?(e.sl!=null?String(e.sl):(e.slFirst!=null?String(e.slFirst):"")):"",
+    target:e.type==="add"?(e.tp!=null?String(e.tp):(e.tpFirst!=null?String(e.tpFirst):"")):""}));
+}
+function tvSummarize(fills,direction,setup,root){
+  const ti=tickerInfo(root);const segs=computeSegments(fills,direction,setup);
+  const totalContracts=segs.reduce((s,x)=>s+x.totalEntryQty,0),closedContracts=segs.reduce((s,x)=>s+x.closedQty,0);
+  const first=segs[0],lastClosed=[...segs].reverse().find(s=>s.closedQty>0);
+  const lastAdd=[...fills].reverse().find(f=>f.type!=="exit");
+  let gross=null;if(ti){const r=segs.map(s=>segmentDollarResult(s,ti)).filter(v=>v!==null);if(r.length)gross=r.reduce((a,b)=>a+b,0);}
+  const units=fills.reduce((s,f)=>{const q=parseFloat(f.contracts),p=parseFloat(f.price);return s+((q>0&&!isNaN(p))?q:0);},0);
+  const rate=(FEE_RATES[TV_PLATFORM]||{})[root];const fee=(rate!==undefined&&units>0)?rate*units:null;
+  const open=segs.length?segs[segs.length-1].openQty>0:false;
+  return{ti,segs,totalContracts,closedContracts,open,weightedEntry:first?first.weightedEntry:NaN,weightedExit:lastClosed?lastClosed.weightedExit:NaN,
+    stop:lastAdd?lastAdd.stop||"":"",target:lastAdd?lastAdd.target||"":"",gross,fee,
+    result:(gross!==null&&closedContracts>0)?(gross-(fee||0)):null};
+}
+function tvTradeFields(execs,direction,setup,root){
+  const fills=tvFillsFromExecs(execs);const s=tvSummarize(fills,direction,setup,root);
+  const first=execs[0],last=execs[execs.length-1];
+  const etA=first.et,etB=last.et;const closed=!s.open&&s.closedContracts>0;
+  return{fills,s,fields:{
+    date:etA.date,entryTime:etA.hm,exitTime:closed?etB.hm:"",multiDay:closed&&etB.date!==etA.date,exitDate:(closed&&etB.date!==etA.date)?etB.date:"",
+    contracts:s.totalContracts?String(s.totalContracts):"",entry:!isNaN(s.weightedEntry)?String(s.weightedEntry):"",
+    stop:s.stop,target:s.target,exit:s.closedContracts>0&&!isNaN(s.weightedExit)?String(s.weightedExit):"",
+    result:s.result!==null?s.result.toFixed(2):"",fees:s.fee!==null?s.fee.toFixed(2):"",fills}};
+}
+function tvExecRecord(e,zone){return{key:e.key,orderId:e.orderId,sym:e.sym,side:e.side,type:e.type,px:e.px,q:e.q,wall:e.wall,zone,utc:e.utc,et:`${e.et.date} ${e.et.hms}`};}
+// ── build the preview (pure: reads the journal, changes nothing) ──────────────
+function tvBuild(text,zone,account){
+  const out={ok:false,error:"",zone,account,newTrades:[],links:[],appends:[],review:[],dupExecs:0,deletedSkipped:0,newExecs:0,warnings:[],failed:[],ignored:0,unrecognised:[],lines:0,period:null,calib:null,unsupported:0};
+  const rows=tvParseCSV(text);
+  if(!rows.length){out.error="That file is empty.";return out;}
+  const hdr=rows[0].map(x=>x.trim());
+  if(!(hdr[0]==="Time"&&hdr[1]==="Text")){
+    out.error=hdr.indexOf("Order ID")>=0?"This looks like TradingView's Order History or Trade History export. This importer reads the Activity Log — it's the only export that records the original stop-loss/take-profit. Export the Activity Log from the paper-trading panel and try again.":"This doesn't look like a TradingView Activity Log CSV (expected two columns: Time, Text).";
+    return out;}
+  if(!tvValidZone(zone)){out.error="Unknown time zone \""+zone+"\" — pick one like Asia/Kuala_Lumpur.";return out;}
+  const keyToTrade=new Map(),keyToRec=new Map();trades.forEach(t=>(t.execs||[]).forEach(e=>{keyToTrade.set(e.key,t);keyToRec.set(e.key,e);}));
+  const deletedKeys=new Set();tombstones.forEach(tb=>(tb.execKeys||[]).forEach(k=>deletedKeys.add(k)));
+  const parsed=tvParseActivity(rows);
+  out.lines=parsed.lines;out.failed=parsed.failed;out.ignored=parsed.ignored;out.unrecognised=parsed.unrecognised.concat(parsed.badTime);
+  // time conversion
+  const execs=[];let globexBad=0;
+  parsed.execs.forEach(e=>{
+    const c=tvWallToUtc(e.wall,zone);
+    if(!c){out.review.push({reason:"unreadable timestamp",detail:`${e.wall} · order ${e.orderId}`});return;}
+    e.utc=c.utc;e.flag=c.flag;e.et=tvEt(c.utc);e.globexClosed=tvGlobexClosed(e.et.date,e.et.hm);if(e.globexClosed)globexBad++;
+    if(c.flag){out.review.push({reason:`time falls in a daylight-saving ${c.flag==="gap"?"gap":"repeated hour"} in ${zone}`,detail:`${e.wall} · order ${e.orderId}`});return;}
+    execs.push(e);
+  });
+  if(execs.length){out.period={from:execs[0].et.date,to:execs[execs.length-1].et.date};}
+  // walk executions in time order, per symbol
+  const cursor={},groups=[],appendMap=new Map();
+  // an open imported trade only takes part when a new fill comes AFTER its last fill (a file that starts mid-position)
+  const touched=new Set(); // trades whose chain this file already walked (their open quantity is then known from the file itself)
+  const seedFor=e=>trades.find(t=>!touched.has(t.id)&&t.source==="tradingview"&&t.execs&&t.execs.length&&t.execs[t.execs.length-1].sym===e.sym&&tvOpenQty(t)!==0&&(t.execs[t.execs.length-1].utc||0)<=e.utc);
+  const canAppend=t=>t.source==="tradingview"&&!((t.updatedAt||0)>(t.importedAt||0)+2000);
+  execs.forEach(e=>{
+    let c=cursor[e.sym];
+    const known=keyToRec.get(e.key);
+    if(known){e.side=known.side;e.type=known.type;}
+    const isDup=!!known,isDel=deletedKeys.has(e.key);
+    if(!c&&!isDup&&!isDel){const ot=seedFor(e);if(ot){touched.add(ot.id);c=cursor[e.sym]={kind:"existing",trade:ot,pos:tvOpenQty(ot)};}}
+    if(!e.side){ // bracket stop/target fill: it closes whatever is open
+      const p=c?c.pos:0;
+      if(p===0){if(isDel){out.deletedSkipped++;return;}out.review.push({reason:"fill with no matching order and no open position — can't tell buy from sell",detail:`${e.wall} · order ${e.orderId} · ${e.root}`});return;}
+      e.side=p>0?"sell":"buy";}
+    const sg=e.side==="buy"?1:-1;
+    const p0=c?c.pos:0;
+    if(!e.type)e.type=(p0===0||Math.sign(p0)===sg)?"add":"exit";
+    const step=()=>{const p=tvRound(((c&&c.pos)||0)+sg*e.q);if(c){c.pos=p;if(p===0)cursor[e.sym]=null;}};
+    if(isDup){out.dupExecs++;const t=keyToTrade.get(e.key);touched.add(t.id);if(!c||c.kind!=="existing"||c.trade!==t){c={kind:"existing",trade:t,pos:c?c.pos:0};cursor[e.sym]=c;}step();return;}
+    if(isDel){out.deletedSkipped++;if(!c||c.kind!=="deleted"){c={kind:"deleted",pos:c?c.pos:0};cursor[e.sym]=c;}step();return;}
+    if(c&&c.kind==="deleted"){out.deletedSkipped++;step();return;}
+    if(c&&c.kind==="existing"){
+      if(canAppend(c.trade)){if(!appendMap.has(c.trade.id))appendMap.set(c.trade.id,{trade:c.trade,execs:[]});appendMap.get(c.trade.id).execs.push(e);}
+      else out.review.push({reason:"new fills for a trade you've linked or edited by hand — not changed",detail:`${e.wall} · order ${e.orderId} · ${c.trade.ticker} ${c.trade.date}`});
+      step();return;}
+    if(c&&c.kind==="new"){c.group.execs.push(e);step();return;}
+    const g={sym:e.sym,root:e.root,execs:[e]};groups.push(g);cursor[e.sym]={kind:"new",group:g,pos:tvRound(sg*e.q)};
+  });
+  appendMap.forEach(a=>out.appends.push(a));
+  // groups -> new trades / links
+  const used=new Set(),now=Date.now();const idsTaken=new Set(trades.map(t=>String(t.id)));
+  const manual=trades.filter(t=>!(t.execs&&t.execs.length));
+  groups.forEach(g=>{
+    const ti=tickerInfo(g.root);
+    if(!ti){out.unsupported++;out.review.push({reason:`instrument ${g.root||g.sym} isn't in the journal's ticker list`,detail:g.execs.map(e=>e.wall+" · order "+e.orderId).join(" | ")});return;}
+    const direction=g.execs[0].side==="buy"?"long":"short";
+    const setup=direction==="long"?"Bounce":"Reject";
+    const built=tvTradeFields(g.execs,direction,setup,g.root);
+    const gap=g.execs.some(e=>e.globexClosed);
+    // try to link to a trade you already logged by hand
+    let best=null,second=null;
+    manual.forEach(t=>{
+      if(used.has(t.id)||(t.ticker||"").toUpperCase()!==g.root||(t.direction||"long")!==direction)return;
+      const ev=parseFloat(t.entry);if(isNaN(ev)||isNaN(built.s.weightedEntry)||Math.abs(ev-built.s.weightedEntry)>ti.tick+1e-9)return;
+      if(parseFloat(t.contracts)!==built.s.totalContracts)return;
+      const d=(tvNaiveMs(built.fields.date,built.fields.entryTime)-tvNaiveMs(t.date,t.entryTime||"00:00"))/6e4;const ad=Math.abs(d);if(!(ad<=2160))return;
+      const cand={t,d,ad};if(!best||ad<best.ad){second=best;best=cand;}else if(!second||ad<second.ad)second=cand;});
+    if(best){
+      if(second&&Math.abs(second.ad-best.ad)<=15&&best.ad<=180){out.review.push({reason:"matches more than one of your logged trades — link it by hand",detail:`${g.root} ${built.fields.date} ${built.fields.entryTime} ET @ ${built.fields.entry}`});return;}
+      used.add(best.t.id);
+      const notes=[];const xv=parseFloat(best.t.exit);
+      if(!isNaN(xv)&&!isNaN(built.s.weightedExit)&&Math.abs(xv-built.s.weightedExit)>ti.tick+1e-9)notes.push(`exit differs (journal ${xv}, import ${built.s.weightedExit.toFixed(2)})`);
+      if(best.ad>180)notes.push(`date/time differs by ${(best.ad/60).toFixed(1)}h (journal ${best.t.date} ${best.t.entryTime||""}, import ${built.fields.date} ${built.fields.entryTime} ET)`);
+      out.links.push({trade:best.t,group:g,deltaMin:best.d,quality:best.ad<=180?"match":"shifted",notes,built});return;}
+    let id=g.execs[0].utc;while(idsTaken.has(String(id)))id+=1;idsTaken.add(String(id));
+    const ra={};RULES.forEach(r=>ra[r.id]=null);const dqa={};dq.forEach(d=>dqa[d.id]=false);
+    const rec=Object.assign({id,ticker:g.root,setup,direction,platform:TV_PLATFORM,lossCat:"",comments:"",screenshots:[],ra,dqa},built.fields,{
+      source:"tradingview",account,importedAt:now,updatedAt:now,setupSource:"default",tvZone:zone,
+      execs:g.execs.map(e=>tvExecRecord(e,zone)),tv:{slAtFill:g.execs[0].sl,tpAtFill:g.execs[0].tp,slLast:g.execs[g.execs.length-1].slNow,tpLast:g.execs[g.execs.length-1].tpNow}});
+    out.newTrades.push({rec,built,gap});
+  });
+  out.newExecs=out.newTrades.reduce((a,x)=>a+x.rec.execs.length,0)+out.links.reduce((a,x)=>a+x.group.execs.length,0)+out.appends.reduce((a,x)=>a+x.execs.length,0);
+  // time-zone sanity
+  const dm=out.links.filter(l=>l.quality==="match").map(l=>l.deltaMin).sort((a,b)=>a-b);
+  out.calib={matched:dm.length,medianMin:dm.length?dm[Math.floor(dm.length/2)]:null,within5:dm.filter(x=>Math.abs(x)<=5).length,shifted:out.links.filter(l=>l.quality==="shifted").length};
+  const oldest=rows.length>1?rows[rows.length-1][1]:"";
+  if(rows.length>1&&!/^Call to place/.test((oldest||"").trim()))out.warnings.push("This file doesn't begin at the start of your activity log (its first line is mid-order). Trades that were already open when it starts can't be rebuilt, so any such fills are skipped or flagged — export again after scrolling further back if you expect older trades.");
+  if(globexBad)out.warnings.push(`${globexBad} fill${globexBad!==1?"s":""} land outside CME trading hours after conversion — double-check the time zone.`);
+  if(out.calib.matched&&Math.abs(out.calib.medianMin)>45)out.warnings.push(`Your logged trades differ from the converted times by about ${(out.calib.medianMin/60).toFixed(1)}h — the time zone is probably not what the file was exported in.`);
+  out.ok=true;return out;
+}
+// ── apply (the only function that writes; one save) ───────────────────────────
+function tvApply(p,fileName){
+  const now=Date.now();let added=0,linked=0,appended=0;
+  p.links.forEach(l=>{
+    const t=trades.find(x=>x.id===l.trade.id);if(!t)return;
+    t.execs=l.group.execs.map(e=>tvExecRecord(e,p.zone));t.account=p.account;t.linkedAt=now;t.updatedAt=now;linked++;
+  });
+  p.appends.forEach(a=>{
+    const t=trades.find(x=>x.id===a.trade.id);if(!t)return;
+    t.execs=(t.execs||[]).concat(a.execs.map(e=>tvExecRecord(e,p.zone)));
+    t.fills=(t.fills||[]).concat(tvFillsFromExecs(a.execs).map((f,i)=>({...f,id:(t.fills||[]).length+i+1})));
+    const sm=tvSummarize(t.fills,t.direction||"long",t.setup,t.ticker);
+    const f0=t.execs[0].et,f1=t.execs[t.execs.length-1].et;const closed=!sm.open&&sm.closedContracts>0;
+    Object.assign(t,{contracts:sm.totalContracts?String(sm.totalContracts):"",entry:!isNaN(sm.weightedEntry)?String(sm.weightedEntry):"",stop:sm.stop,target:sm.target,
+      exit:sm.closedContracts>0&&!isNaN(sm.weightedExit)?String(sm.weightedExit):"",exitTime:closed?f1.slice(11,16):"",multiDay:closed&&f1.slice(0,10)!==f0.slice(0,10),exitDate:(closed&&f1.slice(0,10)!==f0.slice(0,10))?f1.slice(0,10):"",
+      result:sm.result!==null?sm.result.toFixed(2):"",fees:sm.fee!==null?sm.fee.toFixed(2):""});
+    t.updatedAt=now;t.importedAt=now;appended++;
+  });
+  const fresh=p.newTrades.map(x=>x.rec);added=fresh.length;
+  if(fresh.length)trades=fresh.concat(trades);
+  importLog.unshift({id:now,at:new Date(now).toISOString(),file:fileName||"",account:p.account,zone:p.zone,added,linked,appended,skippedExecs:p.dupExecs,deletedSkipped:p.deletedSkipped,review:p.review.length});
+  importLog=importLog.slice(0,100);
+  try{localStorage.setItem("wss_tv_account",p.account);}catch(e){}
+  save();render();
+  return{added,linked,appended};
+}
+// ── modal UI ─────────────────────────────────────────────────────────────────
+function openTvImport(){
+  const dz=tvDeviceZone();let acct="TV Paper";try{acct=localStorage.getItem("wss_tv_account")||acct;}catch(e){}
+  tvImp={text:null,fileName:"",zone:dz,deviceZone:dz,account:acct,preview:null,done:null};renderTvImport();
+}
+function closeTvImport(){tvImp=null;document.getElementById("mroot").innerHTML="";}
+function tvOnFile(ev){
+  const f=ev.target.files&&ev.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=e=>{tvImp.text=String(e.target.result);tvImp.fileName=f.name;tvRecompute();};r.readAsText(f);
+}
+function tvRecompute(){
+  if(!tvImp)return;
+  const z=document.getElementById("tv-zone"),a=document.getElementById("tv-acct");
+  if(z)tvImp.zone=z.value.trim()||tvImp.deviceZone;if(a)tvImp.account=a.value.trim()||"TV Paper";
+  tvImp.preview=tvImp.text?tvBuild(tvImp.text,tvImp.zone,tvImp.account):null;renderTvImport();
+}
+function tvConfirmImport(){
+  if(!tvImp||!tvImp.preview||!tvImp.preview.ok)return;
+  const res=tvApply(tvImp.preview,tvImp.fileName);tvImp.done=res;renderTvImport();
+}
+function tvFmt(n,d){return(n===null||n===undefined||isNaN(n))?"—":Number(n).toLocaleString("en-US",{minimumFractionDigits:d===undefined?2:d,maximumFractionDigits:d===undefined?2:d});}
+function renderTvImport(){
+  if(!tvImp){return;}
+  const s=tvImp,p=s.preview;
+  const zones=tvZoneList().map(z=>`<option value="${escAttr(z)}"></option>`).join("");
+  const accts=Array.from(new Set(trades.map(t=>t.account).filter(Boolean))).map(a=>`<option value="${escAttr(a)}"></option>`).join("");
+  let body="";
+  if(s.done){
+    body=`<div style="font-size:var(--fbase);color:var(--t2);line-height:1.6">Imported <strong style="color:var(--g)">${s.done.added}</strong> new trade${s.done.added!==1?"s":""}${s.done.linked?`, linked <strong>${s.done.linked}</strong> of your existing trades`:""}${s.done.appended?`, updated <strong>${s.done.appended}</strong> open trade${s.done.appended!==1?"s":""}`:""}. Nothing you'd already logged was removed or changed.<br/>Imported trades start with Bounce (long) / Reject (short), Tradovate fees, and blank rules — review and adjust as needed.</div>
+      <div style="margin-top:16px;text-align:right"><button class="btn btng" onclick="closeTvImport()">done</button></div>`;
+  }else{
+    const tzNote=`${escAttr(s.zone)} (${tvZoneLabel(s.zone)} now)`;
+    body=`<div class="fgrid" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
+      <div class="field"><label>CSV time zone <span style="text-transform:none;color:var(--t3)">— where you exported</span></label><input id="tv-zone" list="tv-zones" value="${escAttr(s.zone)}" onchange="tvRecompute()"/><datalist id="tv-zones">${zones}</datalist></div>
+      <div class="field"><label>account label</label><input id="tv-acct" list="tv-accts" value="${escAttr(s.account)}" onchange="tvRecompute()"/><datalist id="tv-accts">${accts}</datalist></div>
+    </div>
+    <div style="font-size:var(--fxs);color:var(--t3);margin:-4px 0 12px">times in the file are read as ${tzNote}${s.zone===s.deviceZone?" — this device's zone":` — this device is ${escAttr(s.deviceZone)}`} and converted to New York time (daylight saving included).</div>
+    <div class="field" style="margin-bottom:12px"><label>TradingView activity log (.csv)</label><input type="file" accept=".csv,text/csv" onchange="tvOnFile(event)" style="height:auto;padding:7px"/></div>`;
+    if(p&&!p.ok){body+=`<div class="qwarn">${esc(p.error)}</div>`;}
+    if(p&&p.ok){
+      const pill=(n,l,c)=>`<div class="scard" style="min-height:0;padding:8px 10px"><div class="slabel">${l}</div><div class="sval" style="color:${c};flex:0 1 auto;font-size:var(--flg)">${n}</div></div>`;
+      body+=`<div style="font-size:var(--fsm);color:var(--t2);margin-bottom:8px">${esc(s.fileName)} · ${p.lines} log lines${p.period?` · ${p.period.from} → ${p.period.to} (ET)`:""}</div>
+      <div class="sgrid" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-bottom:10px">
+        ${pill(p.newTrades.length,"new trades","var(--g)")}${pill(p.links.length,"linked to yours","var(--tabdash)")}${pill(p.appends.length,"open trades updated","var(--t)")}${pill(p.dupExecs,"already imported","var(--t3)")}${pill(p.review.length,"needs review",p.review.length?"var(--a)":"var(--t3)")}</div>`;
+      p.warnings.forEach(w=>{body+=`<div class="qwarn" style="margin-bottom:8px">⚠ ${esc(w)}</div>`;});
+      if(p.calib&&p.calib.matched)body+=`<div style="font-size:var(--fxs);color:var(--t3);margin-bottom:8px">Time-zone check: ${p.calib.within5} of ${p.calib.matched} linked trades land within 5 minutes of the times you logged${p.calib.shifted?`; ${p.calib.shifted} differ by hours (see below)`:""}.</div>`;
+      if(p.deletedSkipped)body+=`<div style="font-size:var(--fxs);color:var(--t3);margin-bottom:8px">${p.deletedSkipped} execution${p.deletedSkipped!==1?"s":""} belong to trades you deleted earlier — skipped.</div>`;
+      if(p.failed.length||p.unrecognised.length)body+=`<div style="font-size:var(--fxs);color:var(--t3);margin-bottom:8px">${p.failed.length?`${p.failed.length} rejected order${p.failed.length!==1?"s":""} ignored (e.g. ${esc(p.failed[0].reason)}). `:""}${p.unrecognised.length?`<span style="color:var(--a)">${p.unrecognised.length} line${p.unrecognised.length!==1?"s":""} not recognised: ${esc(p.unrecognised[0].text||"")}</span>`:""}</div>`;
+      const row=(a,b,c)=>`<div class="explistrow" style="align-items:center"><span>${a}</span><span style="color:${c||"var(--t2)"};white-space:nowrap">${b}</span></div>`;
+      if(p.newTrades.length){
+        const shown=p.newTrades.slice().sort((x,y)=>y.rec.id-x.rec.id);
+        body+=`<details style="margin-bottom:8px" ${p.newTrades.length<=8?"open":""}><summary class="seclab" style="cursor:pointer;margin:0 0 6px">new trades (${p.newTrades.length})</summary>${shown.slice(0,60).map(x=>{const r=x.rec,res=parseFloat(r.result);
+          return row(`<strong style="color:var(--t)">${r.ticker}</strong> ${r.direction==="short"?"short":"long"} ${r.contracts}ct · ${dispDate(r.date)} ${r.entryTime}${r.exitTime?"–"+r.exitTime:" (open)"} ET · ${tvFmt(r.entry)} → ${r.exit?tvFmt(r.exit):"—"}${x.gap?" ⚠":""}<br/><span style="font-size:var(--fxs);color:var(--t3)">stop ${r.stop||"—"} · target ${r.target||"—"}</span>`,isNaN(res)?"open":cu(res),res>0?"var(--g)":res<0?"var(--r)":"var(--t2)");}).join("")}${shown.length>60?`<div class="dqok">+ ${shown.length-60} more</div>`:""}</details>`;}
+      if(p.links.length)body+=`<details style="margin-bottom:8px"><summary class="seclab" style="cursor:pointer;margin:0 0 6px">linked to trades you already logged (${p.links.length})</summary>${p.links.slice(0,60).map(l=>row(`<strong style="color:var(--t)">${l.trade.ticker}</strong> ${dispDate(l.trade.date)} ${l.trade.entryTime||""} ↔ ${l.built.fields.date} ${l.built.fields.entryTime} ET${l.notes.length?`<br/><span style="font-size:var(--fxs);color:var(--a)">${esc(l.notes.join("; "))}</span>`:""}`,l.quality==="match"?"matched":"check",l.quality==="match"?"var(--g)":"var(--a)")).join("")}<div class="dqok">linking only attaches the TradingView order ids — your date, prices, setup, rules and notes are not changed.</div></details>`;
+      if(p.review.length)body+=`<details style="margin-bottom:8px"><summary class="seclab" style="cursor:pointer;margin:0 0 6px;color:var(--a)">needs review — not imported (${p.review.length})</summary>${p.review.slice(0,30).map(r=>row(esc(r.reason)+`<br/><span style="font-size:var(--fxs);color:var(--t3)">${esc(r.detail||"")}</span>`,"")).join("")}</details>`;
+      const n=p.newTrades.length,l=p.links.length,a=p.appends.length;
+      body+=`<div style="margin-top:14px;padding-top:12px;border-top:.5px solid var(--bd);display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap">
+        <span style="flex:1;font-size:var(--fxs);color:var(--t3);min-width:200px">${n||l||a?`Adds ${n} new trade${n!==1?"s":""}${l?`, links ${l}`:""}${a?`, updates ${a} open`:""}; skips ${p.dupExecs+p.deletedSkipped} already-known execution${p.dupExecs+p.deletedSkipped!==1?"s":""}. Existing entries are never removed or overwritten.`:"Nothing new to import — everything in this file is already in the journal."}</span>
+        <button class="btn" onclick="closeTvImport()">cancel</button>
+        <button class="btn btng" ${n||l||a?"":"disabled"} onclick="tvConfirmImport()">import</button></div>`;
+    }
+    if(!p||!p.ok){body+=`<div style="margin-top:14px;text-align:right"><button class="btn" onclick="closeTvImport()">cancel</button></div>`;}
+  }
+  document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default;align-items:flex-start;overflow:auto" onclick="closeTvImport()"><div class="fcard" style="max-width:640px;width:100%;cursor:auto;margin:1rem auto;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
+    <div style="font-size:var(--fmd);font-weight:700;margin-bottom:12px">Import trades from TradingView</div>${body}</div></div>`;
+}
+
 // ── Date / period helpers ─────────────────────────────────────────────────────
 function parseYMD(s){const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2]);}
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
@@ -2779,7 +3118,7 @@ function addTrade(){
   form=blank();showForm=false;save();render();
 }
 
-function del(id){if(!confirm("Delete this trade? This can't be undone."))return;trades=trades.filter(t=>t.id!==id);tombstones.push({type:"trade",id,deletedAt:Date.now()});expandedIds.delete(id);idbDeleteScreenshots(id);save();render();}
+function del(id){if(!confirm("Delete this trade? This can't be undone."))return;const _dt=trades.find(t=>t.id===id);trades=trades.filter(t=>t.id!==id);tombstones.push({type:"trade",id,deletedAt:Date.now(),execKeys:(_dt&&_dt.execs)?_dt.execs.map(e=>e.key):[]});expandedIds.delete(id);idbDeleteScreenshots(id);save();render();}
 function setTab(t){tab=t;render();}
 function tog(){
   if(showForm)editingId=null;
@@ -4657,6 +4996,8 @@ function render(){
       <button class="topicon" onclick="expData()" aria-label="export backup (.json)" data-tt=".json export">${ICON_DOWN}</button>
       <span class="iconsep">|</span>
       <button class="topicon" onclick="openExportOptions()" aria-label="share summary (.html)" data-tt=".html summary export">${ICON_DOWN}${ICON_DOC}</button>
+      <span class="iconsep">|</span>
+      <button class="topicon" onclick="openTvImport()" aria-label="import trades (TradingView CSV)" data-tt="import trades (TradingView CSV)">${ICON_TVIMPORT}</button>
       <span class="iconsep">|</span>
       ${layoutToggleH()}
       <span class="iconsep">|</span>
