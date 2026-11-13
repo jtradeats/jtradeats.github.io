@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Fetch market data
-        run: python3 .github/scripts/dashboard_data.py
+        run: python3 dashboard_data.py
 
       # market.json lives on its own single-commit "data" branch, so the main branch
       # (and your GitHub Pages deploys) never see the 10-minute updates.
