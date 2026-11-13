@@ -160,7 +160,8 @@ html.mobile .stk .s2{flex:1;min-height:200px}
 </div>
 <script>
 /* Written by .github/workflows/dashboard-data.yml to the "data" branch every 10 minutes. */
-const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/data/market.json';
+const WORKER_URL='https://market-dashboard.jtradeats.workers.dev/market';
+const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/data/market.json'; /* fallback */
 
 /* Each card has h (normal height) and full (height of the expand button), in px; fullm is the same on mobile.
    Third-party embeds cannot be measured from here, so adjust full to taste. */
@@ -263,9 +264,15 @@ function marketEmpty(){
   $('#fbody').innerHTML='<p class="note">\u2014</p>';
 }
 async function fetchMarket(){
-  const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'});
-  if(!r.ok)throw new Error(r.status);
-  return r.json();
+  try{
+    const r=await fetch(WORKER_URL,{cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    return await r.json();
+  }catch(e){
+    const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    return r.json();
+  }
 }
 async function loadMarket(){
   try{const d=await fetchMarket();$('#qgrid').style.display='';renderMarket(d);return d}
