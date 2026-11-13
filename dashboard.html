@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta id="vp" name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-<title>market dashboard</title>
+<title>dashboard</title>
 <script>(function(){var t;try{t=localStorage.getItem("wss_theme")||"dark";}catch(e){t="dark";}document.documentElement.setAttribute("data-theme",t);})();</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -31,21 +31,24 @@
   --tablr:#E0AFC2;--tablrbg:rgba(224,175,194,0.15);--tablrbd:rgba(224,175,194,0.35);
 }
 body{font-family:var(--sans);background:var(--bg);color:var(--t);min-height:100vh;font-size:var(--fbase)}
-a{color:inherit}
 #app{max-width:1152px;margin:0 auto;padding:2rem 1.25rem 4rem}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:1.5rem}
 .brand{font-size:var(--fxs);color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
 h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .topbaracts{display:flex;align-items:center;gap:10px}
-.topicon{height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;background:none;border:none;padding:0;color:var(--t2);flex-shrink:0;text-decoration:none}
+.topicon{height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;background:none;border:none;padding:0;color:var(--t2);flex-shrink:0}
 .topicon:hover{color:var(--t)}
 .topicon svg{width:16px;height:16px;display:block}
+.topbaracts .topicon{height:32px;min-width:32px}
 .themetoggle{color:#ffbf00}
 .themetoggle:hover{opacity:.75;color:#ffbf00}
+.themetoggle svg{width:18px;height:18px}
 :focus-visible{outline:2px solid var(--pbsel);outline-offset:2px;border-radius:4px}
 [data-tt]{position:relative}
-[data-tt]::after{content:attr(data-tt);position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);background:var(--tabdashbg);color:var(--tabdash);border:.5px solid var(--tabdashbd);font-size:11px;font-weight:500;line-height:1.3;padding:5px 9px;border-radius:6px;width:max-content;max-width:240px;text-align:center;opacity:0;pointer-events:none;transition:opacity .1s;z-index:80;background-color:var(--surface);background-image:linear-gradient(var(--tabdashbg),var(--tabdashbg))}
+[data-tt]::after{content:attr(data-tt);position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);color:var(--tabdash);border:.5px solid var(--tabdashbd);font-size:11px;font-weight:500;line-height:1.3;padding:5px 9px;border-radius:6px;width:max-content;max-width:240px;text-align:center;opacity:0;pointer-events:none;transition:opacity .1s;z-index:80;background-color:var(--surface);background-image:linear-gradient(var(--tabdashbg),var(--tabdashbg))}
 [data-tt]:hover::after{opacity:1;transition-delay:.15s}
+html.mobile [data-tt]::after{display:none}
+@media (hover:none){[data-tt]::after{display:none}}
 .tabs{display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:1.25rem}
 .tab{padding:6px 14px;border-radius:calc(var(--rad) - 1px);font-size:var(--fbase);font-family:var(--sans);cursor:pointer;border:.5px solid transparent;color:var(--t2);background:transparent;transition:all .15s}
 .tab.on{font-weight:600}
@@ -53,52 +56,77 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .tab.on.t-tech{background:var(--tabdashbg);color:var(--tabdash);border-color:var(--tabdashbd)}
 .tab:hover:not(.on){color:var(--t)}
 .tabsep{color:var(--t3);user-select:none}
-.tape{height:46px;margin-bottom:1rem;background:var(--s2);border:.5px solid var(--bd);border-radius:var(--radl);overflow:hidden}
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
+.mk{display:grid;grid-template-columns:minmax(0,9fr) minmax(0,3fr);gap:10px;margin-bottom:10px}
 .card{grid-column:span var(--sp,6);height:var(--h,460px);display:flex;flex-direction:column;background:var(--s2);border:.5px solid var(--bd);border-radius:var(--radl);overflow:hidden}
+.mk .card{height:auto}
 .ch{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:.5px solid var(--bd);min-height:38px}
 .plbl{font-size:var(--fxs);color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-right:auto;white-space:nowrap}
+.stamp{font-size:var(--fxs);color:var(--t3);white-space:nowrap}
 .seg{display:flex;gap:4px;overflow-x:auto}
 .pbtn{padding:3px 9px;border-radius:calc(var(--rad) - 1px);font-size:var(--fsm);font-weight:300;font-family:var(--sans);cursor:pointer;border:.5px solid transparent;color:var(--t2);background:transparent;transition:all .15s;white-space:nowrap}
 .pbtn.on{background:var(--pbselbg);color:var(--pbsel);border-color:var(--pbselbd);font-weight:600}
 .pbtn:hover:not(.on){color:var(--t)}
 .acts{display:flex;align-items:center;gap:10px}
-.tb{display:flex;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
-.tb input{width:110px;height:28px;padding:4px 9px;font-family:var(--sans);font-size:var(--fbase);border:.5px solid var(--bdm);border-radius:var(--rad);background:var(--surface);color:var(--t);outline:none;text-transform:uppercase}
+.tb{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
+.tb input{width:100px;height:28px;padding:4px 9px;font-family:var(--sans);font-size:var(--fbase);border:.5px solid var(--bdm);border-radius:var(--rad);background:var(--surface);color:var(--t);outline:none;text-transform:uppercase}
 .tb input:focus{border-color:var(--pbsel)}
-.btn{font-family:var(--sans);font-size:var(--fsm);padding:4px 12px;border-radius:var(--rad);border:.5px solid var(--bdm);background:var(--s2);color:var(--t);cursor:pointer}
+.btn{display:inline-flex;align-items:center;gap:5px;font-family:var(--sans);font-size:var(--fsm);height:28px;padding:0 12px;border-radius:var(--rad);border:.5px solid var(--bdm);background:var(--s2);color:var(--t);cursor:pointer;text-decoration:none;white-space:nowrap}
 .btn:hover{background:var(--surface)}
+.btn svg{width:12px;height:12px}
+.tb .btn:last-child{margin-left:auto;color:var(--t2)}
 .body{flex:1;min-height:0;position:relative;overflow:auto}
-.body iframe{width:100%;height:100%;border:0;display:block}
-.body .tradingview-widget-container,.body .tradingview-widget-container__widget,.tape .tradingview-widget-container,.tape .tradingview-widget-container__widget{height:100%;width:100%}
-.center{display:flex;justify-content:center;padding:14px}
-.center iframe{width:380px;height:380px}
-.fin{background:#fff;min-height:100%}
+.body iframe,.card iframe{width:100%;height:100%;border:0;display:block;color-scheme:normal}
+.body .tradingview-widget-container,.body .tradingview-widget-container__widget{height:100%;width:100%}
+.stk{display:flex;flex-direction:column;height:100%}
+.stk .s1{flex:none;height:250px}
+.stk .s2{flex:1;min-height:0}
+.fin{height:100%;background:#fff;overflow:auto}
+.fin .finlogix-container,.fin .finlogix-container>*{min-height:100%}
 html[data-theme="dark"] .fin{filter:invert(.9) hue-rotate(180deg)}
-.note{padding:16px;color:var(--t3);font-size:var(--fsm)}
+#financialjuice-news-widget-container{height:100%;width:100%}
+#financialjuice-news-widget-container>*,#financialjuice-news-widget-container iframe{height:100%!important;width:100%!important}
+.note{padding:16px;color:var(--t3);font-size:var(--fsm);line-height:1.5}
 .card.closed{height:auto}.card.closed .body,.card.closed .tb{display:none}.card.closed .ch{border-bottom:none}
 .card.focus{position:fixed;z-index:90;inset:12px;height:auto;background:var(--surface)}
 body.fx::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:85}
 [hidden]{display:none!important}
+/* market gauges */
+.qgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:6px 4px;flex:1;align-content:center}
+.q{padding:8px 10px;min-width:0}
+.q .l{font-size:var(--fxs);color:var(--t3);letter-spacing:.06em}
+.q .p{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;margin:1px 0}
+.q .c{font-size:var(--fsm);font-variant-numeric:tabular-nums;color:var(--t3);white-space:nowrap}
+.q .c.up{color:var(--g)}.q .c.dn{color:var(--r)}
+.q.stale .p{opacity:.55}
+.fbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px 12px;gap:4px}
+.fbody svg{width:100%;max-width:210px;height:auto;display:block}
+.fnum{font-size:22px;font-weight:600;line-height:1}
+.frate{color:var(--t2);font-size:var(--fsm);margin-left:6px}
+.fprev{font-size:var(--fxs);color:var(--t3);text-align:center}
 html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left))}
 html.mobile h1{font-size:22px}
 html.mobile .topicon{height:32px;min-width:32px}
 html.mobile .tab{padding:8px 12px}
 html.mobile .tabs{gap:4px}
+html.mobile .mk{grid-template-columns:minmax(0,1fr)}
+html.mobile .qgrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+html.mobile .q{padding:7px 6px}
+html.mobile .q .c{white-space:normal}
 html.mobile .grid{display:flex;flex-direction:column}
 html.mobile .card{height:var(--hm,440px)}
+html.mobile .mk .card{height:auto}
 html.mobile .card.closed{height:auto}
 html.mobile .card.focus{height:auto}
 html.mobile .tb input{font-size:16px}
-html.mobile .center iframe{height:360px}
+html.mobile .stk .s1{height:290px}
 </style>
 </head>
 <body>
 <div id="app">
   <div class="topbar">
-    <div><p class="brand">J.</p><h1>market dashboard</h1></div>
+    <div><p class="brand">J.</p><h1>dashboard</h1></div>
     <div class="topbaracts">
-      <a class="topicon" href="./" id="back" aria-label="back to journal" data-tt="back to journal"></a>
       <button class="topicon" id="layout" onclick="toggleLayout()"></button>
       <button class="topicon themetoggle" id="theme" onclick="toggleTheme()"></button>
     </div>
@@ -107,11 +135,24 @@ html.mobile .center iframe{height:360px}
     <button class="tab t-news" data-p="news">news</button><span class="tabsep">|</span>
     <button class="tab t-tech" data-p="tech">technicals</button>
   </div>
-  <div class="tape" id="tape"></div>
+  <div class="mk">
+    <section class="card" id="strip">
+      <div class="ch"><span class="plbl">market gauges</span><span class="stamp" id="stamp"></span>
+        <button class="topicon" id="mrefresh" aria-label="refresh market data" data-tt="refresh"></button></div>
+      <div class="qgrid" id="qgrid"></div>
+    </section>
+    <section class="card" id="fng">
+      <div class="ch"><span class="plbl">fear &amp; greed</span></div>
+      <div class="fbody" id="fbody"></div>
+    </section>
+  </div>
   <div class="grid" id="p-news"></div>
   <div class="grid" id="p-tech" hidden></div>
 </div>
 <script>
+/* Written by .github/workflows/dashboard-data.yml to the "data" branch every 10 minutes. */
+const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/data/market.json';
+
 const LS={g(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const $=(s,r=document)=>r.querySelector(s);
 const root=document.documentElement;
@@ -121,18 +162,17 @@ const I={
   moon:ico('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
   monitor:ico('<rect x="3" y="4" width="18" height="13" rx="2.5"/><line x1="3" y1="13.5" x2="21" y2="13.5"/><path d="M10 17v3h4v-3"/><line x1="8" y1="20" x2="16" y2="20"/>'),
   phone:ico('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><line x1="6.5" y1="6" x2="17.5" y2="6"/><line x1="6.5" y1="17" x2="17.5" y2="17"/><circle cx="12" cy="19.3" r=".5" fill="currentColor"/>'),
-  back:ico('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>'),
   refresh:ico('<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
   open:ico('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
   expand:ico('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
   fold:ico('<polyline points="6 9 12 15 18 9"/>')
 };
-$('#back').innerHTML=I.back;
+$('#mrefresh').innerHTML=I.refresh;
 
 /* ---- theme + layout (same storage keys as the journal, so both pages stay in sync) ---- */
 const dark=()=>root.getAttribute('data-theme')==='dark';
 function paintTheme(){const b=$('#theme'),t=dark()?'switch to light mode':'switch to dark mode';b.innerHTML=dark()?I.sun:I.moon;b.setAttribute('aria-label',t);b.setAttribute('data-tt',t)}
-function toggleTheme(){const n=dark()?'light':'dark';root.setAttribute('data-theme',n);LS.s('wss_theme',n);paintTheme();for(const k in C)C[k].th=null;drawTape();showPage(tab)}
+function toggleTheme(){const n=dark()?'light':'dark';root.setAttribute('data-theme',n);LS.s('wss_theme',n);paintTheme();for(const k in C)C[k].th=null;showPage(tab)}
 let viewMode=LS.g('wss_viewmode','auto');
 const mq=matchMedia('(max-width:900px)');
 const isMob=()=>viewMode==='mobile'?true:viewMode==='desktop'?false:mq.matches;
@@ -144,6 +184,59 @@ function applyLayout(){
 }
 function toggleLayout(){const target=isMob()?'desktop':'mobile',det=mq.matches?'mobile':'desktop';viewMode=target===det?'auto':target;LS.s('wss_viewmode',viewMode);applyLayout()}
 mq.addEventListener&&mq.addEventListener('change',applyLayout);
+
+/* ---- market gauges + fear & greed (native, fed by market.json) ---- */
+const fmt=(v,dp)=>Number(v).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const sg=v=>v>0?'+':v<0?'\u2212':'';
+function cell(it){
+  const yl=it.kind==='yield',has=it.p!=null;
+  const price=!has?'\u2014':yl?fmt(it.p,3)+'%':fmt(it.p,2);
+  let chg='',cls='';
+  if(has&&it.c!=null){
+    cls=it.c>0?'up':it.c<0?'dn':'';
+    chg=sg(it.c)+fmt(Math.abs(it.c),yl?3:2)+(!yl&&it.pc!=null?' ('+sg(it.pc)+fmt(Math.abs(it.pc),2)+'%)':'');
+  }
+  return '<div class="q'+(it.stale?' stale':'')+'"'+(it.stale?' title="last good value, latest fetch failed"':'')+'><div class="l">'+it.label+'</div><div class="p">'+price+'</div><div class="c '+cls+'">'+(chg||'&nbsp;')+'</div></div>';
+}
+const band=s=>s<25?'extreme fear':s<45?'fear':s<56?'neutral':s<76?'greed':'extreme greed';
+const pol=(a,r)=>[100+r*Math.cos(a),100-r*Math.sin(a)];
+function arc(s0,s1,r){
+  const [x0,y0]=pol(Math.PI*(1-s0/100),r),[x1,y1]=pol(Math.PI*(1-s1/100),r);
+  return 'M'+x0.toFixed(1)+' '+y0.toFixed(1)+'A'+r+' '+r+' 0 0 1 '+x1.toFixed(1)+' '+y1.toFixed(1);
+}
+function gauge(f){
+  const segs=[[0,25,'--r',1],[25,45,'--r',.5],[45,56,'--t3',.6],[56,76,'--g',.5],[76,100,'--g',1]];
+  let svg='<svg viewBox="0 0 200 112" role="img" aria-label="fear and greed index '+Math.round(f.score)+', '+band(f.score)+'">';
+  segs.forEach(([a,b,c,o])=>{svg+='<path d="'+arc(a+.6,b-.6,80)+'" fill="none" stroke="var('+c+')" stroke-opacity="'+o+'" stroke-width="10"/>'});
+  const [nx,ny]=pol(Math.PI*(1-f.score/100),64);
+  svg+='<line x1="100" y1="100" x2="'+nx.toFixed(1)+'" y2="'+ny.toFixed(1)+'" stroke="var(--t)" stroke-width="2" stroke-linecap="round"/><circle cx="100" cy="100" r="4" fill="var(--t)"/></svg>';
+  const p=[['prev',f.prev],['1w',f.week],['1m',f.month],['1y',f.year]].filter(x=>x[1]!=null).map(x=>x[0]+' '+Math.round(x[1])).join(' \u00b7 ');
+  return svg+'<div><span class="fnum">'+Math.round(f.score)+'</span><span class="frate">'+band(f.score)+'</span></div><div class="fprev">'+p+'</div>';
+}
+let haveData=false;
+function renderMarket(d){
+  haveData=true;
+  $('#qgrid').innerHTML=(d.items||[]).map(cell).join('');
+  const t=new Date(d.updated),mins=(Date.now()-t)/60000;
+  $('#stamp').textContent='updated '+t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(mins>60?' \u00b7 delayed':'');
+  $('#fbody').innerHTML=d.fng&&d.fng.score!=null?gauge(d.fng):'<p class="note">no reading yet</p>';
+}
+function marketEmpty(){
+  if(haveData)return;
+  $('#qgrid').style.display='block';
+  $('#qgrid').innerHTML='<p class="note">No market data yet. In the repo, open Actions, choose "dashboard data" and run the workflow once, then reload.</p>';
+  $('#fbody').innerHTML='<p class="note">\u2014</p>';
+}
+async function loadMarket(){
+  try{
+    const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    $('#qgrid').style.display='';renderMarket(await r.json());
+  }catch(e){marketEmpty()}
+}
+$('#mrefresh').onclick=loadMarket;
+setInterval(()=>{if(!document.hidden)loadMarket()},300000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMarket()});
 
 /* ---- widget loaders ---- */
 let sym=LS.g('wss_dash_sym','AAPL');
@@ -170,37 +263,28 @@ const fj=el=>{
     new window.FJWidgets.createWidget({container:'financialjuice-news-widget-container',mode:d?'Dark':'Light',width:'100%',height:el.clientHeight+'px',backColor:d?'1c1c1f':'f3f2ef',fontColor:d?'b7b5ad':'615f5a',widgetType:'NEWS'});
   }).catch(()=>note(el,'FinancialJuice did not load. Try another source.'));
 };
-const consensus=el=>{
-  const f=document.createElement('iframe');
-  f.title='Estimize consensus for '+sym;f.width=380;f.height=380;f.loading='lazy';f.scrolling='no';f.frameBorder=0;
-  f.style.cssText='border:0;border-radius:14px;overflow:hidden;max-width:100%';
-  f.src='https://www.estimize.com/widgets/embed/consensus/'+encodeURIComponent(sym.toLowerCase())+'?transparent=1&theme='+(dark()?'dark':'light');
-  el.innerHTML='<div class="center"></div>';el.firstChild.appendChild(f);
+const overview=el=>{
+  el.innerHTML='<div class="stk"><div class="s1"></div><div class="s2"></div></div>';
+  tv('symbol-info',()=>({symbol:sym}))($('.s1',el));
+  tv('mini-symbol-overview',()=>({symbol:sym,dateRange:'3M',autosize:true,largeChartUrl:''}))($('.s2',el));
 };
-const TAPE=[['CBOE:VIX','VIX'],['CBOE:VIXEQ','VIXEQ'],['TVC:DXY','DXY'],['TVC:US02Y','US 2Y'],['TVC:US10Y','US 10Y'],['TVC:US30Y','US 30Y'],['FOREXCOM:SPXUSD','S&P 500'],['FOREXCOM:NSXUSD','Nasdaq 100']];
-const FNG='https://liberatedstocktrader.com/fear-and-greed-index/embed';
-const tabsCfg=[['Volatility',[['CBOE:VIX','VIX'],['CBOE:VIXEQ','VIXEQ']]],['Rates',[['TVC:US02Y','US 2Y'],['TVC:US10Y','US 10Y'],['TVC:US30Y','US 30Y']]],['Dollar',[['TVC:DXY','DXY'],['FX:EURUSD','EUR/USD'],['FX:USDJPY','USD/JPY']]]];
 
 /* ---- cards ---- */
 const C={
   econ:{page:'news',t:'economic calendar',sp:7,h:500,hm:460,def:'tv',src:{
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'0,1',countryFilter:'us,eu,gb,jp,cn,ca,au'})},
     fin:{l:'Finlogix',u:'https://www.finlogix.com/widgets',r:fin}}},
-  news:{page:'news',t:'news',sp:5,h:500,hm:460,def:'fj',src:{
-    fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
-    tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
-  earn:{page:'tech',t:'earnings calendar',sp:7,h:440,hm:440,def:'eh',src:{
+  news:{page:'news',t:'news',sp:5,h:500,hm:460,def:'tv',src:{
+    tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})},
+    fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj}}},
+  earn:{page:'tech',t:'earnings calendar',sp:7,h:560,hm:480,def:'eh',src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
-  look:{page:'tech',t:'ticker lookup',sp:5,h:440,hm:480,def:'cs',tb:true,src:{
-    cs:{l:'Consensus',u:'https://www.estimize.com/',r:consensus},
-    ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:tv('technical-analysis',()=>({symbol:sym,interval:'1D',showIntervalTabs:true}))},
-    q:{l:'Quote',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:tv('symbol-info',()=>({symbol:sym}))}}},
-  mkts:{page:'tech',t:'volatility, rates, dollar',sp:7,h:340,hm:400,def:'m',src:{
-    m:{l:'TradingView',u:'https://www.tradingview.com/markets/',r:tv('market-overview',()=>({dateRange:'1D',showChart:true,showSymbolLogo:false,showFloatingTooltip:false,plotLineColorGrowing:dark()?'#7FCBA0':'#4E9269',plotLineColorFalling:dark()?'#E69A9A':'#C97878',belowLineFillColorGrowing:'rgba(0,0,0,0)',belowLineFillColorFalling:'rgba(0,0,0,0)',belowLineFillColorGrowingBottom:'rgba(0,0,0,0)',belowLineFillColorFallingBottom:'rgba(0,0,0,0)',tabs:tabsCfg.map(([title,s])=>({title,originalTitle:title,symbols:s.map(([x,d])=>({s:x,d}))}))}))}}},
-  fng:{page:'tech',t:'fear & greed',sp:5,h:340,hm:400,def:'f',src:{
-    f:{l:'Index',u:'https://www.cnn.com/markets/fear-and-greed',r:el=>frame(el,FNG,'Fear and greed index')}}}
+  look:{page:'tech',t:'ticker lookup',sp:5,h:560,hm:640,def:'ov',tb:true,src:{
+    ov:{l:'Overview',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:overview},
+    ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:tv('technical-analysis',()=>({symbol:sym,interval:'1D',showIntervalTabs:true}))}}}
 };
 const PAGES={news:$('#p-news'),tech:$('#p-tech')};
+const estUrl=()=>'https://www.estimize.com/'+encodeURIComponent(sym.toLowerCase());
 for(const k in C){
   const c=C[k],s=document.createElement('section');
   s.className='card';s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');
@@ -209,7 +293,7 @@ for(const k in C){
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
     +'<div class="acts"><button class="topicon" data-a="r" aria-label="refresh" data-tt="refresh">'+I.refresh+'</button><button class="topicon" data-a="o" aria-label="open source" data-tt="open source">'+I.open+'</button>'
     +'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand">'+I.expand+'</button><button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse">'+I.fold+'</button></div></div>'
-    +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button></form>':'')
+    +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button><a class="btn" id="est" target="_blank" rel="noopener" href="'+estUrl()+'">estimize '+I.open+'</a></form>':'')
     +'<div class="body"></div>';
   PAGES[c.page].appendChild(s);c.el=s;c.th=null;
   const sv=LS.g('wss_dash_src_'+k,c.def);c.cur=c.src[sv]?sv:c.def;
@@ -221,7 +305,6 @@ function draw(k){
   if(c.el.classList.contains('closed'))return;
   try{c.src[c.cur].r(body);c.th=dark()}catch(e){note(body,'This widget failed to load.')}
 }
-function drawTape(){tv('ticker-tape',{symbols:TAPE.map(([proName,title])=>({proName,title})),showSymbolLogo:false,displayMode:'adaptive'})($('#tape'))}
 let tab=LS.g('wss_dash_tab','news');if(!PAGES[tab])tab='news';
 function showPage(p){
   tab=p;LS.s('wss_dash_tab',p);
@@ -229,9 +312,9 @@ function showPage(p){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
   for(const k in C)if(C[k].page===p&&C[k].th!==dark()&&!C[k].el.classList.contains('closed'))draw(k);
 }
-document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(b)showPage(b.dataset.p)});
+$('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(b)showPage(b.dataset.p)});
 document.addEventListener('click',e=>{
-  const card=e.target.closest('.card');if(!card)return;
+  const card=e.target.closest('.card');if(!card||!C[card.id])return;
   const k=card.id,c=C[k],sb=e.target.closest('[data-s]'),ab=e.target.closest('[data-a]');
   if(sb){c.cur=sb.dataset.s;LS.s('wss_dash_src_'+k,c.cur);draw(k)}
   if(!ab)return;
@@ -245,10 +328,10 @@ document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const f=$('.c
 $('.tb').addEventListener('submit',e=>{
   e.preventDefault();
   const i=$('.tb input'),v=i.value.toUpperCase().replace(/[^A-Z0-9.:\-]/g,'');
-  if(!v)return;sym=v;i.value=v;LS.s('wss_dash_sym',v);draw('look');
+  if(!v)return;sym=v;i.value=v;LS.s('wss_dash_sym',v);$('#est').href=estUrl();draw('look');
 });
 
-paintTheme();applyLayout();drawTape();showPage(tab);
+paintTheme();applyLayout();showPage(tab);loadMarket();
 </script>
 </body>
 </html>
