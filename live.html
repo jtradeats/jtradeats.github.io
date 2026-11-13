@@ -1902,8 +1902,8 @@ function mergeWithRemote(d){
   let mdq=dq,mdqAt=dqUpdatedAt;
   if(d.dq&&d.dq.length&&remoteDqAt>=dqUpdatedAt){mdq=d.dq;mdqAt=remoteDqAt;}
   else if(dqUpdatedAt>remoteDqAt)info.contributed=true;
-  const rlog=Array.isArray(d.importLog)?d.importLog.slice():[];const rlIds=new Set(rlog.map(x=>x.id));
-  importLog.forEach(x=>{if(!rlIds.has(x.id)){rlog.push(x);info.contributed=true;}});
+  const rlog=Array.isArray(d.importLog)?d.importLog.slice():[];const rlIdx=new Map(rlog.map((x,i)=>[x.id,i]));
+  importLog.forEach(x=>{if(!rlIdx.has(x.id)){rlog.push(x);info.contributed=true;}else{const i=rlIdx.get(x.id);if((x.undoneAt||0)>(rlog[i].undoneAt||0)){rlog[i]=x;info.contributed=true;}}});
   rlog.sort((a,b)=>(b.id||0)-(a.id||0));
   return{trades:mt,reflections:mr,dq:mdq,dqUpdatedAt:mdqAt,tombstones:keptTombs,importLog:rlog.slice(0,100),contributed:info.contributed};
 }
@@ -1928,6 +1928,7 @@ function mobileTopIcons(isDark){
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();impData()">${ICON_UP} import backup (.json)</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();expData()">${ICON_DOWN} export backup (.json)</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openTvImport()">${ICON_TVIMPORT} import trade log (.csv)</button>
+        <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openTvHistory()">${ICON_UNDO} import history / undo</button>
         <button class="drivemenu-row" onclick="moreMenuOpen=false;render();openExportOptions()">${ICON_DOC} share summary (.html)</button>
       </div>`:""}</span>
       <span class="iconsep">|</span>
@@ -1945,6 +1946,7 @@ function mobileTopIcons(isDark){
 // devices produces the same ids and merges into one trade.
 const TV_PLATFORM="tradovate";
 let tvImp=null;
+const ICON_UNDO=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
 const ICON_TVIMPORT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>`;
 function tvParseCSV(t){
   const rows=[];let row=[],f="",q=false;t=String(t).replace(/^\uFEFF/,"");
@@ -2048,12 +2050,28 @@ function tvRoot(sym){
   m=/^([A-Z0-9]+?)[FGHJKMNQUVXZ](\d{4}|\d{1,2})$/.exec(s);if(m)c.push(m[1]);
   return c.find(x=>tickerInfo(x))||c[0]||s;
 }
+// FIRST stop / target of a trade: the SL/TP already attached to the entry order when it filled (including edits made to that
+// order before it filled), otherwise the first value set on the position after the fill — however long after, as long as the
+// trade is still open. Later moves (trailing the stop, re-setting the target) are ignored; they are kept in trade.tv for reference.
+function tvResolveFirstProt(g,prot){
+  const t1=tvSecs(g.execs[g.execs.length-1].wall);
+  g.execs.forEach(e=>{
+    e.slFirst=null;e.tpFirst=null;const t0=tvSecs(e.wall);
+    for(let i=0;i<prot.length;i++){const x=prot[i];
+      if(!(x.t>=t0)||!(x.t<=t1)||tvRoot(x.sym)!==g.root)continue;
+      if(e.slFirst==null&&x.sl!=null)e.slFirst=x.sl;
+      if(e.tpFirst==null&&x.tp!=null)e.tpFirst=x.tp;
+      if(e.slFirst!=null&&e.tpFirst!=null)break;}
+  });
+}
+// trade-level stop/target = the first one set across the add fills (never a later add's re-set value)
+function tvFirstStopTarget(fills){let stop="",target="";(fills||[]).forEach(f=>{if(f.type==="exit")return;if(!stop&&f.stop)stop=f.stop;if(!target&&f.target)target=f.target;});return{stop,target};}
 function tvRound(n){return Math.round(n*1e6)/1e6;}
 function tvSecs(wall){const m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(wall);return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])/1000:NaN;}
 function tvOpenQty(t){const d=(t.direction||"long")==="short"?-1:1;let p=0;(t.fills||[]).forEach(f=>{const q=parseFloat(f.contracts)||0;p+=(f.type==="exit"?-1:1)*d*q;});return tvRound(p);}
 function tvParseActivity(rows){
   const recs=rows.slice(1).map(r=>({time:(r[0]||"").trim(),text:(r[1]||"").trim()})).reverse(); // file is newest-first
-  const out={execs:[],unrecognised:[],failed:[],ignored:0,badTime:[],unresolved:[],lines:recs.length};
+  const out={execs:[],unrecognised:[],failed:[],ignored:0,badTime:[],unresolved:[],prot:[],lines:recs.length};
   const callSide={},prot={},pend=[],seen={};let lastCall=null;
   const nums=s=>s?s.split(",").map(x=>parseFloat(x.trim())).filter(x=>!isNaN(x)):null;
   recs.forEach(r=>{
@@ -2070,6 +2088,7 @@ function tvParseActivity(rows){
     if((m=t.match(TV_RE.modp))){
       const p=prot[m[1]]||(prot[m[1]]={sl:null,tp:null});const sl=nums(m[2]),tp=nums(m[3]);
       if(sl&&sl.length)p.sl=sl[0];if(tp&&tp.length)p.tp=tp[0];
+      out.prot.push({sym:m[1],wall:r.time,t:tvSecs(r.time),sl:sl&&sl.length?sl[0]:null,tp:tp&&tp.length?tp[0]:null}); // timeline of position-level SL/TP edits, resolved per trade in tvBuild
       pend.forEach(x=>{if(x.sym===m[1]&&tvSecs(r.time)-x.t0<=60){if(x.e.slFirst==null&&sl&&sl.length)x.e.slFirst=sl[0];if(x.e.tpFirst==null&&tp&&tp.length)x.e.tpFirst=tp[0];}});
       out.ignored++;return;}
     if((m=t.match(TV_RE.exec))){
@@ -2110,11 +2129,11 @@ function tvSummarize(fills,direction,setup,root){
 function tvTradeFields(execs,direction,setup,root){
   const fills=tvFillsFromExecs(execs);const s=tvSummarize(fills,direction,setup,root);
   const first=execs[0],last=execs[execs.length-1];
-  const etA=first.et,etB=last.et;const closed=!s.open&&s.closedContracts>0;
+  const etA=first.et,etB=last.et;const closed=!s.open&&s.closedContracts>0;const fst=tvFirstStopTarget(fills);
   return{fills,s,fields:{
     date:etA.date,entryTime:etA.hm,exitTime:closed?etB.hm:"",multiDay:closed&&etB.date!==etA.date,exitDate:(closed&&etB.date!==etA.date)?etB.date:"",
     contracts:s.totalContracts?String(s.totalContracts):"",entry:!isNaN(s.weightedEntry)?String(s.weightedEntry):"",
-    stop:s.stop,target:s.target,exit:s.closedContracts>0&&!isNaN(s.weightedExit)?String(s.weightedExit):"",
+    stop:fst.stop,target:fst.target,exit:s.closedContracts>0&&!isNaN(s.weightedExit)?String(s.weightedExit):"",
     result:s.result!==null?s.result.toFixed(2):"",fees:s.fee!==null?s.fee.toFixed(2):"",fills}};
 }
 function tvExecRecord(e,zone){return{key:e.key,orderId:e.orderId,sym:e.sym,side:e.side,type:e.type,px:e.px,q:e.q,wall:e.wall,zone,utc:e.utc,et:`${e.et.date} ${e.et.hms}`};}
@@ -2206,13 +2225,19 @@ function tvBuild(text,zone,account,fileName){
     if(c&&c.kind==="new"){c.group.execs.push(e);step();return;}
     const g={sym:e.sym,root:e.root,execs:[e]};groups.push(g);cursor[e.root]={kind:"new",group:g,pos:tvRound(sg*e.q)};
   });
-  appendMap.forEach(a=>out.appends.push(a));
+  appendMap.forEach(a=>{
+    // the trade's first stop/target may only be set in this later file (e.g. a TP set minutes after the entry fill)
+    const t0=a.trade.execs[0].utc||0,t1=a.execs[a.execs.length-1].utc;let sl=null,tp=null;
+    parsed.prot.forEach(x=>{if(tvRoot(x.sym)!==(a.trade.ticker||""))return;const u=tvWallToUtc(x.wall,zone);if(!u||u.utc<t0||u.utc>t1)return;
+      if(sl==null&&x.sl!=null)sl=x.sl;if(tp==null&&x.tp!=null)tp=x.tp;});
+    a.protFirst={sl,tp};out.appends.push(a);});
   // groups -> new trades / links
   const used=new Set(),now=Date.now();const idsTaken=new Set(trades.map(t=>String(t.id)));
   const manual=trades.filter(t=>!(t.execs&&t.execs.length));
   groups.forEach(g=>{
     const ti=tickerInfo(g.root);
     if(!ti){out.unsupported++;out.review.push({reason:`instrument ${g.root||g.sym} isn't in the journal's ticker list`,detail:g.execs.map(e=>e.wall+" · order "+e.orderId).join(" | ")});return;}
+    tvResolveFirstProt(g,parsed.prot);
     const direction=g.execs[0].side==="buy"?"long":"short";
     const setup=direction==="long"?"Bounce":"Reject";
     const built=tvTradeFields(g.execs,direction,setup,g.root);
@@ -2236,7 +2261,7 @@ function tvBuild(text,zone,account,fileName){
     const ra={};RULES.forEach(r=>ra[r.id]=null);const dqa={};dq.forEach(d=>dqa[d.id]=false);
     const rec=Object.assign({id,ticker:g.root,setup,direction,platform:TV_PLATFORM,lossCat:"",comments:"",screenshots:[],ra,dqa},built.fields,{
       source:"tradingview",account,importedAt:now,updatedAt:now,setupSource:"default",tvZone:zone,
-      execs:g.execs.map(e=>tvExecRecord(e,zone)),tv:{slAtFill:g.execs[0].sl,tpAtFill:g.execs[0].tp,slLast:g.execs[g.execs.length-1].slNow,tpLast:g.execs[g.execs.length-1].tpNow}});
+      execs:g.execs.map(e=>tvExecRecord(e,zone)),tv:{slFirst:g.execs[0].sl!=null?g.execs[0].sl:g.execs[0].slFirst,tpFirst:g.execs[0].tp!=null?g.execs[0].tp:g.execs[0].tpFirst,slAtFill:g.execs[0].sl,tpAtFill:g.execs[0].tp,slLast:g.execs[g.execs.length-1].slNow,tpLast:g.execs[g.execs.length-1].tpNow}});
     out.newTrades.push({rec,built,gap});
   });
   out.newExecs=out.newTrades.reduce((a,x)=>a+x.rec.execs.length,0)+out.links.reduce((a,x)=>a+x.group.execs.length,0)+out.appends.reduce((a,x)=>a+x.execs.length,0);
@@ -2251,24 +2276,35 @@ function tvBuild(text,zone,account,fileName){
 // ── apply (the only function that writes; one save) ───────────────────────────
 function tvApply(p,fileName){
   const now=Date.now();let added=0,linked=0,appended=0;
+  // detail kept with the import-log entry: exactly what this CSV changed, so "undo" can reverse only that
+  const det={added:[],linked:[],appended:[]};
+  const brief=t=>({id:t.id,tk:t.ticker,dir:t.direction,ct:t.contracts,d:t.date,tm:t.entryTime||"",xt:t.exitTime||"",res:t.result});
   p.links.forEach(l=>{
     const t=trades.find(x=>x.id===l.trade.id);if(!t)return;
+    const prev={account:t.account,linkedAt:t.linkedAt};
     t.execs=l.group.execs.map(e=>tvExecRecord(e,p.zone));t.account=p.account;t.linkedAt=now;t.updatedAt=now;linked++;
+    det.linked.push(Object.assign(brief(t),{keys:t.execs.map(e=>e.key),prev}));
   });
   p.appends.forEach(a=>{
     const t=trades.find(x=>x.id===a.trade.id);if(!t)return;
+    const PK=["execs","fills","contracts","entry","stop","target","exit","exitTime","multiDay","exitDate","result","fees","updatedAt","importedAt"];
+    const prev={};PK.forEach(k=>{if(t[k]!==undefined)prev[k]=JSON.parse(JSON.stringify(t[k]));});
+    det.appended.push(Object.assign(brief(t),{keys:a.execs.map(e=>e.key),prev,prevKeys:PK}));
     t.execs=(t.execs||[]).concat(a.execs.map(e=>tvExecRecord(e,p.zone)));
     t.fills=(t.fills||[]).concat(tvFillsFromExecs(a.execs).map((f,i)=>({...f,id:(t.fills||[]).length+i+1})));
-    const sm=tvSummarize(t.fills,t.direction||"long",t.setup,t.ticker);
+    const fa=t.fills.find(f=>f.type!=="exit");
+    if(fa&&a.protFirst){if(!fa.stop&&a.protFirst.sl!=null)fa.stop=String(a.protFirst.sl);if(!fa.target&&a.protFirst.tp!=null)fa.target=String(a.protFirst.tp);}
+    const sm=tvSummarize(t.fills,t.direction||"long",t.setup,t.ticker);const fst=tvFirstStopTarget(t.fills);
     const f0=t.execs[0].et,f1=t.execs[t.execs.length-1].et;const closed=!sm.open&&sm.closedContracts>0;
-    Object.assign(t,{contracts:sm.totalContracts?String(sm.totalContracts):"",entry:!isNaN(sm.weightedEntry)?String(sm.weightedEntry):"",stop:sm.stop,target:sm.target,
+    Object.assign(t,{contracts:sm.totalContracts?String(sm.totalContracts):"",entry:!isNaN(sm.weightedEntry)?String(sm.weightedEntry):"",stop:fst.stop||sm.stop,target:fst.target||sm.target,
       exit:sm.closedContracts>0&&!isNaN(sm.weightedExit)?String(sm.weightedExit):"",exitTime:closed?f1.slice(11,16):"",multiDay:closed&&f1.slice(0,10)!==f0.slice(0,10),exitDate:(closed&&f1.slice(0,10)!==f0.slice(0,10))?f1.slice(0,10):"",
       result:sm.result!==null?sm.result.toFixed(2):"",fees:sm.fee!==null?sm.fee.toFixed(2):""});
     t.updatedAt=now;t.importedAt=now;appended++;
   });
   const fresh=p.newTrades.map(x=>x.rec);added=fresh.length;
+  fresh.forEach(r=>{r.importedAt=now;r.updatedAt=now;det.added.push(Object.assign(brief(r),{keys:r.execs.map(e=>e.key)}));});
   if(fresh.length)trades=fresh.concat(trades);
-  importLog.unshift({id:now,at:new Date(now).toISOString(),file:fileName||"",account:p.account,zone:p.zone,exportUtc:p.exportUtc||null,zoneOverride:!!p.overridden,added,linked,appended,skippedExecs:p.dupExecs,deletedSkipped:p.deletedSkipped,review:p.review.length});
+  importLog.unshift({id:now,at:new Date(now).toISOString(),file:fileName||"",account:p.account,zone:p.zone,exportUtc:p.exportUtc||null,zoneOverride:!!p.overridden,added,linked,appended,skippedExecs:p.dupExecs,deletedSkipped:p.deletedSkipped,review:p.review.length,det});
   importLog=importLog.slice(0,100);
   try{localStorage.setItem("wss_tv_account",p.account);}catch(e){}
   save();render();
@@ -2350,6 +2386,98 @@ function renderTvImport(){
   }
   document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default;align-items:flex-start;overflow:auto" onclick="closeTvImport()"><div class="fcard" style="max-width:640px;width:100%;cursor:auto;margin:1rem auto;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
     <div style="font-size:var(--fmd);font-weight:700;margin-bottom:12px">Import trade log (.csv)</div>${body}</div></div>`;
+}
+
+
+// ── Import history / undo ────────────────────────────────────────────────────
+// Every import records exactly what it changed (importLog[].det). Undo reverses ONLY that: trades the CSV created are removed,
+// trades it merely linked get their execution ids detached (nothing else on them changes), and open trades it extended are
+// put back as they were. Trades from other imports or entered by hand are never touched. Entries from before this feature
+// carry no detail, so it is rebuilt from the import timestamps and only offered when that rebuild is unambiguous.
+let tvHist=null;
+function tvImportDetail(e){
+  if(e.det)return{legacy:false,ok:true,added:e.det.added||[],linked:e.det.linked||[],appended:e.det.appended||[]};
+  const brief=t=>({id:t.id,tk:t.ticker,dir:t.direction,ct:t.contracts,d:t.date,tm:t.entryTime||"",xt:t.exitTime||"",res:t.result,keys:(t.execs||[]).map(x=>x.key)});
+  const ids=importLog.map(x=>x.id).sort((a,b)=>a-b);
+  const entryFor=ts=>ids.find(i=>i>=ts);
+  const added=trades.filter(t=>t.source==="tradingview"&&!t.linkedAt&&t.importedAt&&entryFor(t.importedAt)===e.id).map(brief);
+  const linked=trades.filter(t=>t.linkedAt===e.id).map(brief);
+  const ok=(e.appended||0)===0&&added.length===(e.added||0)&&linked.length===(e.linked||0);
+  return{legacy:true,ok,added,linked,appended:[]};
+}
+function tvEditedSince(t){return(t.updatedAt||0)>(t.importedAt||0)+2000;}
+function openTvHistory(){tvHist={open:new Set()};renderTvHistory();}
+function closeTvHistory(){tvHist=null;document.getElementById("mroot").innerHTML="";}
+function tvHistToggle(id,open){if(!tvHist)return;if(open)tvHist.open.add(id);else tvHist.open.delete(id);}
+function tvUndoPlan(e){
+  const det=tvImportDetail(e);
+  const plan={det,remove:[],edited:0,laterFills:0,gone:0,unlink:[],revert:[],revertSkipped:0};
+  det.added.forEach(a=>{const t=trades.find(x=>x.id===a.id);if(!t){plan.gone++;return;}
+    plan.remove.push(t);if(tvEditedSince(t))plan.edited++;
+    if(!det.legacy&&(t.execs||[]).some(x=>a.keys.indexOf(x.key)===-1))plan.laterFills++;});
+  det.linked.forEach(a=>{const t=trades.find(x=>x.id===a.id);if(!t){plan.gone++;return;}plan.unlink.push({t,a});});
+  det.appended.forEach(a=>{const t=trades.find(x=>x.id===a.id);if(!t){plan.gone++;return;}
+    if((t.updatedAt||0)>e.id+2000||(t.importedAt||0)!==e.id)plan.revertSkipped++;else plan.revert.push({t,a});});
+  return plan;
+}
+function tvUndoImport(id){
+  const e=importLog.find(x=>x.id===id);if(!e||e.undoneAt)return;
+  const pl=tvUndoPlan(e);
+  if(!pl.det.ok){alert("This import is from before import history was recorded and can't be reconstructed safely, so it can't be undone automatically.");return;}
+  if(!pl.remove.length&&!pl.unlink.length&&!pl.revert.length&&!confirm("Nothing from this import is left in the journal (it was already deleted). Mark it as undone anyway?"))return;
+  const msg=[`Undo this import?`,`${e.file||"(file)"}`,``,
+    `• remove ${pl.remove.length} trade${pl.remove.length!==1?"s":""} this file created`,
+    pl.unlink.length?`• unlink ${pl.unlink.length} of your own trade${pl.unlink.length!==1?"s":""} (only the TradingView order ids are detached — your data is untouched)`:null,
+    pl.revert.length?`• put ${pl.revert.length} open trade${pl.revert.length!==1?"s":""} back as they were before this file extended them`:null,
+    pl.revertSkipped?`• leave ${pl.revertSkipped} extended trade${pl.revertSkipped!==1?"s":""} as is (changed since)`:null,
+    pl.edited?`\n⚠ ${pl.edited} of the trades being removed were edited after import (rules, notes, screenshots…). Those edits go with them.`:null,
+    pl.laterFills?`\n⚠ ${pl.laterFills} of them also hold fills added by a later import; those go too.`:null,
+    `\nTrades from other imports or entered by hand are not touched. You can re-import the same file afterwards.`].filter(x=>x!==null).join("\n");
+  if(!confirm(msg))return;
+  const now=Date.now();
+  const rmIds=new Set(pl.remove.map(t=>t.id));
+  trades=trades.filter(t=>!rmIds.has(t.id));
+  // empty execKeys on purpose: unlike a manual delete, an undo must let the same file be imported again
+  pl.remove.forEach(t=>{tombstones.push({type:"trade",id:t.id,deletedAt:now,execKeys:[]});expandedIds.delete(t.id);idbDeleteScreenshots(t.id);});
+  pl.unlink.forEach(({t,a})=>{
+    const keep=(t.execs||[]).filter(x=>a.keys.indexOf(x.key)===-1);
+    if(keep.length)t.execs=keep;else delete t.execs;
+    if(a.prev&&a.prev.account!==undefined)t.account=a.prev.account;else delete t.account;
+    if(a.prev&&a.prev.linkedAt!==undefined)t.linkedAt=a.prev.linkedAt;else delete t.linkedAt;
+    t.updatedAt=now; // newer than the Drive copy so the unlink wins the merge
+  });
+  pl.revert.forEach(({t,a})=>{
+    a.prevKeys.forEach(k=>{if(a.prev[k]!==undefined)t[k]=a.prev[k];else delete t[k];});
+    t.updatedAt=now;
+  });
+  e.undoneAt=now;e.undone={removed:pl.remove.length,unlinked:pl.unlink.length,reverted:pl.revert.length};
+  save();render();renderTvHistory();
+}
+function renderTvHistory(){
+  if(!tvHist)return;
+  const log=importLog.slice().sort((a,b)=>(b.id||0)-(a.id||0));
+  const tr=(r,gone,edited)=>{const n=parseFloat(r.res);const c=n>0?"var(--g)":n<0?"var(--r)":"var(--t2)";
+    return`<div class="explistrow" style="align-items:center${gone?";opacity:.5":""}"><span><strong style="color:var(--t)">${esc(r.tk||"")}</strong> ${r.dir==="short"?"short":"long"} ${esc(String(r.ct||""))}ct · ${dispDate(r.d)} ${esc(r.tm||"")}${r.xt?"–"+esc(r.xt):""} ET${gone?" · already deleted":""}${edited?` <span style="color:var(--a)" title="edited since import">✎ edited</span>`:""}</span><span style="color:${c};white-space:nowrap">${isNaN(n)?"open":cu(n)}</span></div>`;};
+  const items=log.map(e=>{
+    const pl=tvUndoPlan(e),det=pl.det;
+    const undone=!!e.undoneAt;
+    const sum=[`${det.added.length||e.added||0} added`,(det.linked.length||e.linked)?`${det.linked.length||e.linked} linked`:null,(det.appended.length||e.appended)?`${det.appended.length||e.appended} extended`:null].filter(Boolean).join(" · ");
+    const body=
+      `<div style="font-size:var(--fxs);color:var(--t3);margin:4px 0 8px;line-height:1.6">account ${esc(e.account||"—")} · CSV read as ${esc(e.zone||"—")}${e.zoneOverride?" (time-zone warning overridden)":""} · ${e.skippedExecs||0} executions were already in the journal and skipped${e.review?` · ${e.review} needed review and weren't imported`:""}</div>`+
+      (det.added.length?`<div class="expsub">trades this file added (${det.added.length})</div>${det.added.slice().sort((a,b)=>b.id-a.id).map(a=>{const t=trades.find(x=>x.id===a.id);return tr(a,!t&&!undone,t&&tvEditedSince(t));}).join("")}`:"")+
+      (det.linked.length?`<div class="expsub">your own trades it only linked (${det.linked.length})</div>${det.linked.map(a=>tr(a,!trades.find(x=>x.id===a.id)&&!undone,false)).join("")}`:"")+
+      (det.appended.length?`<div class="expsub">open trades it extended (${det.appended.length})</div>${det.appended.map(a=>tr(a,!trades.find(x=>x.id===a.id)&&!undone,false)).join("")}`:"")+
+      (!det.added.length&&!det.linked.length&&!det.appended.length?`<div class="dqok">nothing from this import is in the journal${undone?"":" any more"}</div>`:"")+
+      (det.legacy?`<div class="dqok" style="margin-top:6px">older import — trade list rebuilt from timestamps${det.ok?"":"; can't be reconstructed exactly, so undo is disabled for it"}.</div>`:"")+
+      (undone?`<div class="dqok" style="margin-top:8px">undone ${fmtSyncTime(new Date(e.undoneAt).toISOString())}${e.undone?` — removed ${e.undone.removed}, unlinked ${e.undone.unlinked}${e.undone.reverted?`, reverted ${e.undone.reverted}`:""}`:""}. You can import the file again.</div>`
+        :`<div style="margin-top:10px;text-align:right"><button class="btn" style="color:var(--r)" ${det.ok?"":"disabled"} onclick="tvUndoImport(${e.id})">undo this import</button></div>`+
+          (pl.edited?`<div class="dqok" style="text-align:right">${pl.edited} of these trade${pl.edited!==1?"s":""} edited since import</div>`:""));
+    return`<details style="border:.5px solid var(--bd);border-radius:var(--rad);padding:8px 12px;margin-bottom:8px;${undone?"opacity:.65":""}" ${tvHist.open.has(e.id)?"open":""} ontoggle="tvHistToggle(${e.id},this.open)"><summary style="cursor:pointer;font-size:var(--fbase);color:var(--t)"><strong>${fmtSyncTime(e.at)}</strong> · ${esc(e.file||"(file)")} <span style="color:var(--t3)">— ${sum}</span>${undone?` <span class="pill pneu">undone</span>`:""}</summary>${body}</details>`;
+  }).join("");
+  document.getElementById("mroot").innerHTML=`<div class="mover" style="cursor:default;align-items:flex-start;overflow:auto" onclick="closeTvHistory()"><div class="fcard" style="max-width:680px;width:100%;cursor:auto;margin:1rem auto;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:var(--fmd);font-weight:700">Import history</div><button class="btn" onclick="closeTvHistory()">close</button></div>
+    <div style="font-size:var(--fxs);color:var(--t3);margin-bottom:12px;line-height:1.5">Each import lists exactly what it changed. Undo removes only that — trades from other imports or entered by hand are never touched.</div>
+    ${items||`<div class="dqok">no imports yet</div>`}</div></div>`;
 }
 
 // ── Date / period helpers ─────────────────────────────────────────────────────
@@ -4151,21 +4279,24 @@ function expApplyLogSort(list){
   var col=expLogSort.col,dir=expLogSort.dir,mult=dir==="asc"?1:-1;
   function val(t){
     switch(col){
-      case"date":return t.date||"";
+      case"date":return(t.date||"")+" "+(t.entryTime||"00:00");
       case"ticker":return t.ticker?t.ticker.toUpperCase():"";
       case"setup":return t.setup||"";
       case"result":{var r=parseFloat(t.result);return isNaN(r)?-Infinity:r;}
       case"wl":return t.wl||"";
       case"rules":return(t.rs===null||t.rs===undefined)?-1:t.rs;
       case"process":return(t.isGood===null||t.isGood===undefined)?-1:(t.isGood?1:0);
-      default:return t.date||"";
+      default:return(t.date||"")+" "+(t.entryTime||"00:00");
     }
   }
+  function stamp(t){return(t.date||"")+" "+(t.entryTime||"00:00");}
   return list.slice().sort(function(a,b){
     var av=val(a),bv=val(b);
     if(av<bv)return-1*mult;
     if(av>bv)return 1*mult;
-    return(b.date||"").localeCompare(a.date||"");
+    var sa=stamp(a),sb=stamp(b);
+    if(sa!==sb)return sa<sb?1:-1;
+    return(b.id||0)-(a.id||0);
   });
 }
 function expSetLogSort(col){
@@ -5420,21 +5551,25 @@ function applyLogSort(list){
   const{col,dir}=logSort,mult=dir==="asc"?1:-1;
   const val=t=>{
     switch(col){
-      case"date":return t.date||"";
+      case"date":return(t.date||"")+" "+(t.entryTime||"00:00");
       case"ticker":return t.ticker?t.ticker.toUpperCase():"";
       case"setup":return t.setup||"";
       case"result":{const r=parseFloat(t.result);return isNaN(r)?-Infinity:r;}
       case"wl":return t.wl||"";
       case"rules":return(t.rs===null||t.rs===undefined)?-1:t.rs;
       case"process":return(t.isGood===null||t.isGood===undefined)?-1:(t.isGood?1:0);
-      default:return t.date||"";
+      default:return(t.date||"")+" "+(t.entryTime||"00:00");
     }
   };
+  // date AND entry time (two trades on the same day used to keep import order, i.e. oldest first); ties: newest first, then newest id
+  const stamp=t=>(t.date||"")+" "+(t.entryTime||"00:00");
   return list.slice().sort((a,b)=>{
     const av=val(a),bv=val(b);
     if(av<bv)return-1*mult;
     if(av>bv)return 1*mult;
-    return(b.date||"").localeCompare(a.date||""); // stable secondary: newest first
+    const sa=stamp(a),sb=stamp(b);
+    if(sa!==sb)return sa<sb?1:-1;
+    return(b.id||0)-(a.id||0);
   });
 }
 function logH(en){
