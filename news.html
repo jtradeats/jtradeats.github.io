@@ -317,7 +317,7 @@ async function manualRefresh(e){
   }finally{b.classList.remove('spin');busy=false;paintStamp()}
 }
 $('#mrefresh').onclick=manualRefresh;
-setInterval(()=>{if(!document.hidden)loadMarket()},300000);
+setInterval(()=>{if(!document.hidden)loadMarket()},60000);
 setInterval(()=>{if(!busy)paintStamp()},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMarket()});
 
