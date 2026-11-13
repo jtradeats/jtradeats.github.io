@@ -85,7 +85,7 @@ html[data-theme="dark"] .fin{filter:invert(.9) hue-rotate(180deg)}
 #financialjuice-news-widget-container>*,#financialjuice-news-widget-container iframe{height:100%!important;width:100%!important}
 .note{padding:16px;color:var(--t3);font-size:var(--fsm);line-height:1.5}
 .card.closed{height:auto}.card.closed .body,.card.closed .tb{display:none}.card.closed .ch{border-bottom:none}
-.card.tall{height:max(var(--h),calc(100dvh - 48px))}
+.card.tall{height:var(--full,var(--h))}
 .card.closed.tall{height:auto}
 [data-a="c"] svg{transition:transform .15s}
 .card.closed [data-a="c"] svg{transform:rotate(-90deg)}
@@ -103,6 +103,9 @@ html[data-theme="dark"] .fin{filter:invert(.9) hue-rotate(180deg)}
 .fnum{font-size:22px;font-weight:600;line-height:1}
 .frate{color:var(--t2);font-size:var(--fsm);margin-left:6px}
 .fprev{font-size:var(--fxs);color:var(--t3);text-align:center}
+.spin svg{animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin svg{animation:none}}
 html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left))}
 html.mobile h1{font-size:22px}
 html.mobile .topicon{height:32px;min-width:32px}
@@ -116,7 +119,7 @@ html.mobile .grid{display:flex;flex-direction:column;align-items:stretch}
 html.mobile .card{height:var(--hm,440px)}
 html.mobile .mk .card{height:auto}
 html.mobile .card.closed{height:auto}
-html.mobile .card.tall{height:max(var(--hm),calc(100dvh - 110px))}
+html.mobile .card.tall{height:var(--fullm,var(--hm))}
 html.mobile .card.closed.tall{height:auto}
 html.mobile .tb input{font-size:16px}
 html.mobile .stk{flex-direction:column}
@@ -143,7 +146,7 @@ html.mobile .stk .s2{flex:1;min-height:200px}
   <div class="mk">
     <section class="card" id="strip">
       <div class="ch"><span class="plbl">market gauges</span><span class="stamp" id="stamp"></span>
-        <button class="topicon" id="mrefresh" aria-label="refresh market data" data-tt="refresh"></button></div>
+        <button class="topicon" id="mrefresh" aria-label="reload the latest data" data-tt="reload the latest data"></button></div>
       <div class="qgrid" id="qgrid"></div>
     </section>
     <section class="card" id="fng">
@@ -159,12 +162,16 @@ html.mobile .stk .s2{flex:1;min-height:200px}
 /* Written by .github/workflows/dashboard-data.yml to the "data" branch every 10 minutes. */
 const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/data/market.json';
 
+/* Each card has h (normal height) and full (height of the expand button), in px; fullm is the same on mobile.
+   Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
    (the reset icon in the header clears those and brings these back). */
 const DEFAULTS={econ:'fin',news:'fj',earn:'eh',look:'ov',heat:'sp',tab:'news',ticker:'AAPL'};
 /* Finlogix: generate a widget at finlogix.com/widgets and paste its widgetId here to use its saved filters. */
 const FINLOGIX_ID='7010460f-918f-40ff-8aac-d0cc62d89e4a';
 const KEY='wss_dash2_';
+const GH={repo:'jtradeats/jtradeats.github.io',wf:'dashboard-data.yml',ref:'main'};
+const TOKEN_KEY='wss_gh_token'; /* outside KEY so the reset icon keeps it */
 
 const LS={g(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const $=(s,r=document)=>r.querySelector(s);
@@ -229,13 +236,25 @@ function gauge(f){
   const p=[['prev',f.prev],['1w',f.week],['1m',f.month],['1y',f.year]].filter(x=>x[1]!=null).map(x=>x[0]+' '+Math.round(x[1])).join(' \u00b7 ');
   return svg+'<div><span class="fnum">'+Math.round(f.score)+'</span><span class="frate">'+band(f.score)+'</span></div><div class="fprev">'+p+'</div>';
 }
-let haveData=false;
+let haveData=false,lastData=null,busy=false;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const hhmm=d=>d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+const ago=ms=>{const m=Math.round(ms/60000);return m<1?'just now':m<60?m+' min ago':Math.floor(m/60)+' h ago'};
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function paintStamp(msg){
+  const el=$('#stamp');
+  if(msg){el.textContent=msg;return}
+  if(!lastData)return;
+  const t=new Date(lastData.updated),age=Date.now()-t;
+  const miss=(lastData.items||[]).filter(i=>i.p==null).length;
+  el.textContent='updated '+hhmm(t)+' \u00b7 '+ago(age)+(age>3600000?' \u00b7 delayed':'')+(miss?' \u00b7 '+miss+' missing':'');
+  el.title=(lastData.errors||[]).join('\n');
+}
 function renderMarket(d){
-  haveData=true;
+  haveData=true;lastData=d;
   $('#qgrid').innerHTML=(d.items||[]).map(cell).join('');
-  const t=new Date(d.updated),mins=(Date.now()-t)/60000;
-  $('#stamp').textContent='updated '+t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(mins>60?' \u00b7 delayed':'');
-  $('#fbody').innerHTML=d.fng&&d.fng.score!=null?gauge(d.fng):'<p class="note">no reading yet</p>';
+  paintStamp();
+  $('#fbody').innerHTML=d.fng&&d.fng.score!=null?gauge(d.fng):'<p class="note">no reading yet'+(d.fng_error?'<br>'+esc(d.fng_error):'')+'</p>';
 }
 function marketEmpty(){
   if(haveData)return;
@@ -243,15 +262,56 @@ function marketEmpty(){
   $('#qgrid').innerHTML='<p class="note">No market data yet. In the repo, open Actions, choose "dashboard data" and run the workflow once, then reload.</p>';
   $('#fbody').innerHTML='<p class="note">\u2014</p>';
 }
-async function loadMarket(){
-  try{
-    const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error(r.status);
-    $('#qgrid').style.display='';renderMarket(await r.json());
-  }catch(e){marketEmpty()}
+async function fetchMarket(){
+  const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok)throw new Error(r.status);
+  return r.json();
 }
-$('#mrefresh').onclick=loadMarket;
+async function loadMarket(){
+  try{const d=await fetchMarket();$('#qgrid').style.display='';renderMarket(d);return d}
+  catch(e){marketEmpty();return null}
+}
+async function dispatchWorkflow(tok){
+  try{
+    const r=await fetch('https://api.github.com/repos/'+GH.repo+'/actions/workflows/'+GH.wf+'/dispatches',{method:'POST',
+      headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+tok,'X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},
+      body:JSON.stringify({ref:GH.ref})});
+    return r.status===204;
+  }catch(e){return false}
+}
+function paintRefreshTip(){
+  const b=$('#mrefresh'),t=LS.g(TOKEN_KEY,'')?'run the workflow now (shift-click to change token)':'reload the latest data (shift-click to set up one-click runs)';
+  b.setAttribute('data-tt',t);b.setAttribute('aria-label',t);
+}
+function setupToken(){
+  const v=prompt('One-click refresh: paste a GitHub fine-grained token for this repo only, with Actions: Read and write. It is stored only in this browser. Leave empty to remove it.','');
+  if(v===null)return;
+  LS.s(TOKEN_KEY,v.trim());if(!v.trim()){try{localStorage.removeItem(TOKEN_KEY)}catch(e){}}
+  paintRefreshTip();
+}
+async function manualRefresh(e){
+  if(e&&e.shiftKey){setupToken();return}
+  if(busy)return;busy=true;
+  const b=$('#mrefresh');b.classList.add('spin');
+  try{
+    const before=lastData&&lastData.updated,tok=LS.g(TOKEN_KEY,'');
+    if(tok){
+      paintStamp('starting the workflow\u2026');
+      if(await dispatchWorkflow(tok)){
+        for(let i=0;i<15;i++){
+          paintStamp('workflow running\u2026 '+(i*8)+'s');await sleep(8000);
+          const d=await loadMarket();if(d&&d.updated!==before)break;
+        }
+      }else{paintStamp('could not start the workflow, check the token');await sleep(3500)}
+    }else{
+      const d=await loadMarket();
+      if(d&&d.updated===before){paintStamp('no newer file yet \u00b7 checked '+hhmm(new Date()));await sleep(3500)}
+    }
+  }finally{b.classList.remove('spin');busy=false;paintStamp()}
+}
+$('#mrefresh').onclick=manualRefresh;
 setInterval(()=>{if(!document.hidden)loadMarket()},300000);
+setInterval(()=>{if(!busy)paintStamp()},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMarket()});
 
 /* ---- widget loaders ---- */
@@ -291,18 +351,18 @@ const heat=ds=>tv('stock-heatmap',{dataSource:ds,exchanges:[],grouping:'sector',
 
 /* ---- cards ---- */
 const C={
-  econ:{page:'news',t:'economic calendar',sp:7,h:500,hm:460,src:{
+  econ:{page:'news',t:'economic calendar',sp:7,h:500,hm:460,full:1100,fullm:1000,src:{
     fin:{l:'Finlogix',u:'https://www.finlogix.com/calendar',r:fin},
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
-  news:{page:'news',t:'news',sp:5,h:500,hm:460,src:{
+  news:{page:'news',t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
     tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
-  earn:{page:'tech',t:'earnings calendar',sp:12,h:640,hm:520,src:{
+  earn:{page:'tech',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
-  look:{page:'tech',t:'ticker lookup',sp:12,h:460,hm:780,tb:true,src:{
+  look:{page:'tech',t:'ticker lookup',sp:12,h:460,hm:780,full:600,fullm:900,tb:true,src:{
     ov:{l:'Overview',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:overview},
     ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:technicals}}},
-  heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,src:{
+  heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,full:900,fullm:800,src:{
     sp:{l:'S&P 500',u:'https://www.tradingview.com/heatmap/stock/',r:heat('SPX500')},
     nq:{l:'Nasdaq 100',u:'https://www.tradingview.com/heatmap/stock/',r:heat('NASDAQ100')}}}
 };
@@ -310,7 +370,7 @@ const PAGES={news:$('#p-news'),tech:$('#p-tech'),heat:$('#p-heat')};
 const estUrl=()=>'https://www.estimize.com/'+encodeURIComponent(sym.toLowerCase());
 for(const k in C){
   const c=C[k],s=document.createElement('section');
-  s.className='card';s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');
+  s.className='card';s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
   const keys=Object.keys(c.src);
   s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
@@ -395,7 +455,7 @@ $('.tb').addEventListener('submit',e=>{
   if(!v)return;sym=v;i.value=v;LS.s(KEY+'sym',v);$('#est').href=estUrl();draw('look');
 });
 
-paintTheme();applyLayout();showPage(tab);for(const k in C)paintCard(k);loadMarket();
+paintTheme();applyLayout();showPage(tab);for(const k in C)paintCard(k);paintRefreshTip();loadMarket();
 </script>
 </body>
 </html>
