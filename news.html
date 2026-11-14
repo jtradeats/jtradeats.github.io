@@ -687,7 +687,7 @@ const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark'
    Polls only while the card is on screen: news tab, card open, page visible. Health comes from the poll, never from post age:
    gaps of an hour or more are normal on this wire, so an old newest post is "quiet", while a failed poll is "broken". */
 const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
-const WIRE={d:null,err:null,at:0,busy:false,maxId:0,fresh:new Map(),open:new Set(),el:null};
+const WIRE={d:null,err:null,at:0,busy:false,maxId:0,fresh:new Map(),open:new Set(),el:null,alert:LS.g(KEY+'wire_alert','1')==='1'};
 const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280;
 const wireVisible=()=>!document.hidden&&tab==='news'&&WIRE.el&&WIRE.el.isConnected&&!WIRE.el.closest('.card.closed');
 async function wireLoad(){
@@ -697,9 +697,11 @@ async function wireLoad(){
     if(!r.ok)throw new Error('Worker /feed answered '+r.status);
     const d=await r.json();
     if(!Array.isArray(d.posts))throw new Error(d.error||'bad payload');
-    if(WIRE.d)d.posts.forEach(p=>{if(p.id>WIRE.maxId)WIRE.fresh.set(p.id,Date.now())}); /* highlight only what arrives after the first load */
+    const nw=WIRE.d?d.posts.filter(p=>p.id>WIRE.maxId).sort((a,b)=>a.id-b.id):[]; /* new since the last poll; the first load is silent */
+    nw.forEach(p=>WIRE.fresh.set(p.id,Date.now()));
     if(d.posts.length&&d.posts[0].id>WIRE.maxId)WIRE.maxId=d.posts[0].id;
     WIRE.d=d;WIRE.err=null;
+    try{wireAlert(nw)}catch(e){} /* an alert problem must never count as a feed problem */
   }catch(e){WIRE.err=String(e.message||e)}
   finally{WIRE.busy=false;WIRE.at=Date.now();wirePaint()}
 }
@@ -733,15 +735,45 @@ function wirePaint(){
   const nw=d&&d.posts[0]&&d.posts[0].t?now-d.posts[0].t:null;
   st.appendChild(document.createTextNode('DeItaone wire via Telegram mirror · ultrafast, unconfirmed'+(d?' · poll '+d.status+(d.status!=='broken'&&nw!=null&&nw>36e5?' · quiet, newest post '+fmtAge(nw)+' old':''):'')+' · '));
   const a=mk('a','','open channel');a.href='https://t.me/s/WalterBloomberg';a.target='_blank';a.rel='noopener';st.appendChild(a);
+  const tg=mk('button','wmore',WIRE.alert?'alerts on':'alerts off');
+  tg.title='A toast (and a system notification if allowed) for each new post while this page is open. More than '+WIRE_DIGEST+' at once become one digest.';
+  tg.onclick=()=>{
+    WIRE.alert=!WIRE.alert;LS.s(KEY+'wire_alert',WIRE.alert?'1':'0');
+    if(WIRE.alert){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}wireLoad()}
+    wirePaint();
+  };
+  st.appendChild(document.createTextNode(' \u00b7 '));st.appendChild(tg);
 }
 const wire=el=>{
   WIRE.el=el;
   el.innerHTML='<div class="emb"><div class="xw"></div><div class="pw"></div></div>';
   wirePaint();wireLoad();
 };
-setInterval(()=>{if(wireVisible())wireLoad()},WIRE_POLL);
+const WIRE_DIGEST=3; /* more new posts than this in one poll become one digest alert instead of one each */
+const clip=(t,n)=>{t=String(t||'').replace(/\s+/g,' ').trim();return t.length>n?t.slice(0,n).replace(/\s+$/,'')+'\u2026':t};
+function wireNotify(title,body,tag){ /* system notification: only while the tab is in the background and the user allowed it */
+  try{if(document.hidden&&'Notification' in window&&Notification.permission==='granted')new Notification(title,{body:body,tag:tag})}catch(e){}
+}
+function wireAlert(nw){ /* nw: new posts, oldest first. Plan 4.4 in-page version (D64): works only while this page is open */
+  if(!WIRE.alert||!nw.length)return;
+  const src='DeItaone wire \u00b7 unconfirmed',chan='https://t.me/s/WalterBloomberg';
+  if(nw.length>WIRE_DIGEST){
+    const top=nw[nw.length-1];
+    toast({src:src,tag:'WIRE \u00b7 '+nw.length+' NEW POSTS',h:clip(top.text||'[media post]',140),s:'Latest of '+nw.length+' new posts. The wire card has the rest.',u:chan,ms:20000});
+    wireNotify('DeItaone wire: '+nw.length+' new posts',clip(top.text||'[media post]',140),'wire-digest');
+    return;
+  }
+  nw.forEach(p=>{
+    const body=clip(p.text||'[media post, open on Telegram]',160);
+    toast({src:src,tag:'WIRE \u00b7 NEW POST',h:body,s:(p.t?'Posted '+asOf(p.t)+' \u00b7 ':'')+'Telegram mirror, unconfirmed',u:/^https:\/\/t\.me\//.test(p.url||'')?p.url:chan,ms:20000});
+    wireNotify('DeItaone wire',body,'wire-'+p.id);
+  });
+}
+/* With alerts on, the feed is polled whenever the page is open (any tab; a background tab is throttled by the browser). With alerts off, only while the card is on screen. */
+setInterval(()=>{if(WIRE.alert||wireVisible())wireLoad()},WIRE_POLL);
 setInterval(()=>{if(wireVisible())wirePaint()},15000); /* keeps the ages moving between polls */
-document.addEventListener('visibilitychange',()=>{if(wireVisible())wireLoad()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(WIRE.alert||wireVisible()))wireLoad()});
+if(WIRE.alert)wireLoad(); /* alerts do not wait for the news tab to be opened */
 const fj=el=>{
   el.innerHTML='<div id="financialjuice-news-widget-container"></div>';
   load('https://feed.financialjuice.com/widgets/widgets.js?r='+Math.floor(Math.random()*9999),'fj','FJ-Widgets').then(()=>{
