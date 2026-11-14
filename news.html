@@ -154,6 +154,30 @@ html.mobile .stk{flex-direction:column}
 html.mobile .stk .s1{flex:none;height:290px;border-right:0;border-bottom:.5px solid var(--bd)}
 html.mobile .stk .s1.ta{height:440px}
 html.mobile .stk .s2{flex:1;min-height:200px}
+.stack.nat{grid-column:span 4;height:auto}
+.stack.nat .card{flex:none;height:auto}
+.card.stretch{height:auto;align-self:stretch;min-height:var(--h)}
+.card.stretch .stk{position:absolute;inset:0;height:auto}
+.card.stretch.closed{align-self:start;min-height:0}
+html.mobile .card.stretch{height:var(--hm,440px);align-self:auto;min-height:0}
+html.mobile .card.stretch.closed{height:auto}
+html.mobile .card.stretch .stk{position:static;height:100%}
+.cal{display:flex;flex-direction:column;height:100%}
+.calbar{flex:none;display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
+.calnote{margin-left:auto;font-size:var(--fxs);color:var(--t3);text-align:right}
+.calscroll{flex:1;min-height:0;overflow:auto}
+.ct{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.ct th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;font-size:var(--fxs);font-weight:500;color:var(--t3);padding:6px 10px;border-bottom:.5px solid var(--bd)}
+.ct td{padding:8px 10px;border-bottom:.5px solid var(--bd);font-size:var(--fbase);white-space:nowrap}
+.ct td.ev{white-space:normal;min-width:140px}
+.ct th.n,.ct td.n{text-align:right}
+.ct tr.day td{background:var(--s2);font-size:var(--fsm);font-weight:600;color:var(--t2)}
+.ct tr.past td{opacity:.5}
+.ct tr.next td{background:var(--pbselbg)}
+.imp{display:inline-flex;gap:2px;vertical-align:middle}
+.imp i{width:4px;height:13px;border-radius:1px;background:var(--bdm)}
+.imp.h i{background:var(--r)}
+.imp.m i:nth-child(-n+2){background:#E0A24A}
 #toasts{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 24px));pointer-events:none}
 .toast{pointer-events:auto;position:relative;background:#f9e3d3;color:#2a1d14;border:.5px solid #e9c7ae;border-radius:10px;padding:10px 30px 10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-size:var(--fsm);line-height:1.35}
 .toast .src{display:block;font-size:var(--fbase)}
@@ -215,7 +239,7 @@ const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/
    Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
    (the reset icon in the header clears those and brings these back). */
-const DEFAULTS={econ:'mql',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'AAPL'};
+const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'AAPL'};
 const KEY='wss_dash2_';
 try{localStorage.removeItem('wss_gh_token')}catch(e){} /* one-click workflow token is no longer used */
 
@@ -317,7 +341,7 @@ function fresh(it){
   if(it.contract)tip.push(it.contract);
   if(it.stale){tag='stale';dim=true;tip.push('latest fetch failed, showing the last good value')}
   if(it.cls==='prior'){
-    if(!tag)tag='close';
+    if(!tag)tag='eod';
     tip.push('end-of-day value'+(it.t!=null?' for '+new Date(it.t).toLocaleDateString([],{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}):''));
   }else if(it.t!=null){
     const age=Date.now()-it.t,shut=age>OLD&&futClosed();
@@ -447,13 +471,44 @@ const overview=pair(tv('symbol-info',()=>({symbol:sym})),'ov');
 const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',showIntervalTabs:true})),'ta');
 
 
+/* ---- native economic calendar (Worker /calendar; USD only; High by default, '+ medium' remembered per browser) ---- */
+const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
+let calData=null,calAt=0,calMed=LS.g(KEY+'cal_med','0')==='1',calRng=LS.g(KEY+'cal_rng','week');
+async function calGet(){
+  if(calData&&Date.now()-calAt<300000)return calData;
+  const r=await fetch(CAL_URL,{cache:'no-store'});if(!r.ok)throw new Error(r.status);
+  const d=await r.json();if(!Array.isArray(d.events))throw new Error('bad payload');
+  calData=d;calAt=Date.now();return d;
+}
+const cal=el=>{
+  el.innerHTML='<div class="cal"><div class="calbar"><button class="pbtn" data-ck="today">today</button><button class="pbtn" data-ck="week">upcoming</button><button class="pbtn" data-ck="med">+ medium</button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading\u2026</p></div></div>';
+  const bar=$('.calbar',el),box=$('.calscroll',el);
+  const paint=d=>{
+    const now=Date.now(),s0=new Date();s0.setHours(0,0,0,0);const a=s0.getTime();
+    const ev=d.events.filter(e=>(calMed||e.imp===3)&&e.t>=a&&(calRng==='week'||e.t<a+864e5));
+    const nx=ev.find(e=>e.t>now);let h='',last='';
+    for(const e of ev){
+      const day=new Date(e.t).toDateString();
+      if(day!==last){last=day;h+='<tr class="day"><td colspan="6">'+esc(new Date(e.t).toLocaleDateString([],{weekday:'long',day:'numeric',month:'short'}))+'</td></tr>'}
+      h+='<tr class="'+(e.t<now?'past':e===nx?'next':'')+'"><td>'+esc(new Date(e.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))+'</td><td><span class="imp '+(e.imp===3?'h':'m')+'"><i></i><i></i><i></i></span></td><td class="ev">'+esc(e.title)+'</td><td class="n"><b>'+esc(e.ac||'')+'</b></td><td class="n">'+esc(e.fc||'')+'</td><td class="n">'+esc(e.pv||'')+'</td></tr>';
+    }
+    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th>time</th><th>imp</th><th>event (USD)</th><th class="n">actual</th><th class="n">forecast</th><th class="n">previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
+    bar.querySelectorAll('.pbtn').forEach(b=>{const k=b.dataset.ck;b.classList.toggle('on',k==='med'?calMed:k===calRng)});
+    $('.calnote',el).textContent='forecast and previous only \u00b7 unofficial feed \u00b7 '+hhmm(new Date(d.updated));
+  };
+  bar.onclick=e=>{const b=e.target.closest('[data-ck]');if(!b||!calData)return;const k=b.dataset.ck;
+    if(k==='med'){calMed=!calMed;LS.s(KEY+'cal_med',calMed?'1':'0')}else{calRng=k;LS.s(KEY+'cal_rng',k)}paint(calData)};
+  calGet().then(paint).catch(()=>{box.innerHTML='<p class="note">Calendar feed unavailable (Worker /calendar). Use the MQL5 or TradingView tab.</p>'});
+};
+
 /* ---- cards ---- */
 const C={
-  gex:{page:'tech',t:'nq gamma levels',sp:4,fit:true,noexp:true,ifh:330,ifhm:326,src:{
+  gex:{page:'tech',t:'nq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:326,ifhm:326,src:{
     zg:{l:'ZeroGEX',u:'https://zerogex.io/nq-gamma-levels',r:gex('NQ')}}},
-  gexq:{page:'tech',t:'qqq gamma levels',sp:4,fit:true,noexp:true,ifh:330,ifhm:286,src:{
+  gexq:{page:'tech',t:'qqq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:310,ifhm:286,src:{
     zg:{l:'ZeroGEX',u:'https://zerogex.io/qqq-gamma-levels',r:gex('QQQ')}}},
   econ:{page:'news',t:'economic calendar',sp:7,h:640,hm:460,full:1100,fullm:1000,src:{
+    cal:{l:'Calendar',u:'https://www.forexfactory.com/calendar',r:cal},
     mql:{l:'MQL5',u:'https://www.tradays.com/en/economic-calendar',r:mql},
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
   news:{page:'news',col:true,t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
@@ -463,7 +518,7 @@ const C={
     x:{l:'X',u:'https://x.com/DeItaone',r:xtl}}},
   earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
-  look:{page:'tech',t:'ticker lookup',sp:12,h:460,hm:780,full:600,fullm:900,tb:true,src:{
+  look:{page:'tech',t:'ticker lookup',sp:8,h:460,hm:780,full:600,fullm:900,tb:true,stretch:true,noexp:true,src:{
     ov:{l:'Overview',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:overview},
     ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:technicals}}},
   heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,full:900,fullm:800,src:{
@@ -475,10 +530,15 @@ const C={
 };
 const PAGES={news:$('#p-news'),tech:$('#p-tech'),earn:$('#p-earn'),heat:$('#p-heat')};
 const estUrl=()=>'https://www.estimize.com/'+encodeURIComponent(sym.toLowerCase());
-const stack=document.createElement('div');stack.className='stack';stack.style.setProperty('--sh',C.econ.h+'px');
+const stacks={};
+function stackFor(c){
+  const id=c.col===true?'main':c.col;
+  if(!stacks[id]){const s=document.createElement('div');s.className='stack'+(id==='main'?'':' nat');if(id==='main')s.style.setProperty('--sh',C.econ.h+'px');PAGES[c.page].appendChild(s);stacks[id]=s}
+  return stacks[id];
+}
 for(const k in C){
   const c=C[k],s=document.createElement('section');
-  s.className='card'+(c.fit?' fit':'');s.id=k;if(c.ifh)s.style.setProperty('--ifh',c.ifh+'px');if(c.ifhm)s.style.setProperty('--ifhm',c.ifhm+'px');s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
+  s.className='card'+(c.fit?' fit':'')+(c.stretch?' stretch':'');s.id=k;if(c.ifh)s.style.setProperty('--ifh',c.ifh+'px');if(c.ifhm)s.style.setProperty('--ifhm',c.ifhm+'px');s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
   const keys=Object.keys(c.src);
   s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
@@ -486,7 +546,7 @@ for(const k in C){
     +(c.noexp?'':'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand to full height">'+I.expand+'</button>')+'<button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse (or double-click the header)">'+I.fold+'</button></div></div>'
     +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button><a class="btn" id="est" target="_blank" rel="noopener" href="'+estUrl()+'">estimize '+I.open+'</a></form>':'')
     +'<div class="body"></div>';
-  if(c.col){if(!stack.parentNode)PAGES[c.page].appendChild(stack);stack.appendChild(s)}else PAGES[c.page].appendChild(s);c.el=s;c.th=null;
+  if(c.col)stackFor(c).appendChild(s);else PAGES[c.page].appendChild(s);c.el=s;c.th=null;
   const sv=LS.g(KEY+'src_'+k,DEFAULTS[k]);c.cur=c.src[sv]?sv:(c.src[DEFAULTS[k]]?DEFAULTS[k]:keys[0]);
   if(LS.g(KEY+'closed_'+k)==='1')s.classList.add('closed');
 }
@@ -591,7 +651,7 @@ function showRelease(){
     +'<h3>Initial jobless claims came in above forecast</h3><div class="relt">'+esc(when)+' (your time)</div>'
     +'<table><tr><th>Actual</th><th>Forecast</th><th>Previous (revised)</th></tr><tr><td>200K</td><td>194K</td><td>191K</td></tr></table>'
     +'<p><b>Surprise.</b> +6K vs forecast, +9K vs the revised previous (first printed as 189K).</p>'
-    +'<p><b>What it is.</b> People filing for unemployment benefits for the first time that week.</p>'
+    +'<p><b>In plain English.</b> Initial claims count people who filed for unemployment benefits for the first time that week. 200K is 6K more than economists expected and 9K more than the revised week before, so layoffs ticked up a little, though the level is still low.</p>'
     +'<p><b>Read.</b> A slightly softer labour reading, though the level is still low by historical standards.</p>'
     +'<p><b>Fed lens.</b> Leans dovish (weaker labour data). How stocks react depends on the regime; reaction bars are not connected yet.</p>'
     +'<p class="relf">Layout mock. Fixed template text, not AI and not live. The real card will use official DOL figures from the Worker.</p></div>';
