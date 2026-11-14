@@ -148,8 +148,9 @@ async function qTreasury(col) {
 const SOURCES = { yahoo: qYahoo, cboe: qCboe, fred: qFred, treasury: qTreasury };
 
 // [label, kind, [[source, symbol], ...] tried in order]. USD20Y dropped (decision D2).
-// Keep in sync with ITEMS in dashboard_data.py until the Action is retired.
+// dashboard_data.py only knows the original 13 items; it is not extended (Action retires in plan 2.3).
 const ITEMS = SYMBOLS.items.map(i => [i.label, i.kind, i.chain]);   // source of truth: worker/config/symbols.json
+const META = Object.fromEntries(SYMBOLS.items.map(i => [i.label, { grp: i.group, row: i.row }]));   // tape placement, passed to the page
 
 function fixYield(q) {
   if (q.p > 25) for (const k of ['p', 'c']) if (k in q) q[k] = +(q[k] / 10).toFixed(4); // x10 quirk
@@ -291,7 +292,7 @@ async function build(ctx) {
       return stale ? { ...c.val, stale: true } : c.val;
     }
     return prevItems[label] ? { ...prevItems[label], stale: true } : { label, kind, p: null };
-  });
+  }).map(it => ({ ...it, ...META[it.label] }));
 
   const out = {
     updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),   // when this response was built, not when the quotes were made
