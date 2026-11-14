@@ -1,5 +1,5 @@
 {
- "_note": "Single item list for the Worker. Each chain is tried in order: [source, symbol]. dashboard_data.py keeps its own copy until the GitHub Action is retired (plan 2.3).",
+ "_note": "Single item list for the Worker. Each chain is tried in order: [source, symbol]. group and row place an item on the ticker tape (row A or B); array order is display order. dashboard_data.py keeps only the original 13 items and is not extended (the Action retires in plan 2.3).",
  "items": [
   {
    "label": "VIX",
@@ -13,7 +13,9 @@
      "cboe",
      "_VIX"
     ]
-   ]
+   ],
+   "group": "VOL",
+   "row": "A"
   },
   {
    "label": "VIXEQ",
@@ -27,7 +29,21 @@
      "yahoo",
      "^VIXEQ"
     ]
-   ]
+   ],
+   "group": "VOL",
+   "row": "A"
+  },
+  {
+   "label": "MOVE",
+   "kind": "idx",
+   "chain": [
+    [
+     "yahoo",
+     "^MOVE"
+    ]
+   ],
+   "group": "VOL",
+   "row": "A"
   },
   {
    "label": "DXY",
@@ -37,7 +53,9 @@
      "yahoo",
      "DX-Y.NYB"
     ]
-   ]
+   ],
+   "group": "DOLLAR",
+   "row": "A"
   },
   {
    "label": "USD02Y",
@@ -51,7 +69,9 @@
      "fred",
      "DGS2"
     ]
-   ]
+   ],
+   "group": "RATES",
+   "row": "A"
   },
   {
    "label": "USD10Y",
@@ -69,7 +89,9 @@
      "fred",
      "DGS10"
     ]
-   ]
+   ],
+   "group": "RATES",
+   "row": "A"
   },
   {
    "label": "USD30Y",
@@ -87,7 +109,9 @@
      "fred",
      "DGS30"
     ]
-   ]
+   ],
+   "group": "RATES",
+   "row": "A"
   },
   {
    "label": "ZB1!",
@@ -97,37 +121,9 @@
      "yahoo",
      "ZB=F"
     ]
-   ]
-  },
-  {
-   "label": "NQ1!",
-   "kind": "fut",
-   "chain": [
-    [
-     "yahoo",
-     "NQ=F"
-    ]
-   ]
-  },
-  {
-   "label": "ES1!",
-   "kind": "fut",
-   "chain": [
-    [
-     "yahoo",
-     "ES=F"
-    ]
-   ]
-  },
-  {
-   "label": "CL1!",
-   "kind": "fut",
-   "chain": [
-    [
-     "yahoo",
-     "CL=F"
-    ]
-   ]
+   ],
+   "group": "RATES",
+   "row": "A"
   },
   {
    "label": "GC1!",
@@ -137,7 +133,45 @@
      "yahoo",
      "GC=F"
     ]
-   ]
+   ],
+   "group": "METALS",
+   "row": "B"
+  },
+  {
+   "label": "HG1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "HG=F"
+    ]
+   ],
+   "group": "METALS",
+   "row": "B"
+  },
+  {
+   "label": "NQ1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "NQ=F"
+    ]
+   ],
+   "group": "INDICES",
+   "row": "B"
+  },
+  {
+   "label": "ES1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "ES=F"
+    ]
+   ],
+   "group": "INDICES",
+   "row": "B"
   },
   {
    "label": "YM1!",
@@ -147,7 +181,9 @@
      "yahoo",
      "YM=F"
     ]
-   ]
+   ],
+   "group": "INDICES",
+   "row": "B"
   },
   {
    "label": "RTY1!",
@@ -157,7 +193,93 @@
      "yahoo",
      "RTY=F"
     ]
-   ]
+   ],
+   "group": "INDICES",
+   "row": "B"
+  },
+  {
+   "label": "CL1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "CL=F"
+    ]
+   ],
+   "group": "ENERGY",
+   "row": "B"
+  },
+  {
+   "label": "NG1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "NG=F"
+    ]
+   ],
+   "group": "ENERGY",
+   "row": "B"
+  },
+  {
+   "label": "TIP",
+   "kind": "etf",
+   "chain": [
+    [
+     "yahoo",
+     "TIP"
+    ]
+   ],
+   "group": "BONDS & CREDIT",
+   "row": "B"
+  },
+  {
+   "label": "TLT",
+   "kind": "etf",
+   "chain": [
+    [
+     "yahoo",
+     "TLT"
+    ]
+   ],
+   "group": "BONDS & CREDIT",
+   "row": "B"
+  },
+  {
+   "label": "IEF",
+   "kind": "etf",
+   "chain": [
+    [
+     "yahoo",
+     "IEF"
+    ]
+   ],
+   "group": "BONDS & CREDIT",
+   "row": "B"
+  },
+  {
+   "label": "HYG",
+   "kind": "etf",
+   "chain": [
+    [
+     "yahoo",
+     "HYG"
+    ]
+   ],
+   "group": "BONDS & CREDIT",
+   "row": "B"
+  },
+  {
+   "label": "LQD",
+   "kind": "etf",
+   "chain": [
+    [
+     "yahoo",
+     "LQD"
+    ]
+   ],
+   "group": "BONDS & CREDIT",
+   "row": "B"
   }
  ]
 }
