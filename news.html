@@ -54,7 +54,7 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .tabs{display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:1.25rem}
 .tab{padding:6px 14px;border-radius:calc(var(--rad) - 1px);font-size:var(--fbase);font-family:var(--sans);cursor:pointer;border:.5px solid transparent;color:var(--t2);background:transparent;transition:all .15s}
 .tab.on{font-weight:600}
-.tab.on.t-news,.tab.on.t-heat{background:var(--tablrbg);color:var(--tablr);border-color:var(--tablrbd)}
+.tab.on.t-news,.tab.on.t-heat,.tab.on.t-earn{background:var(--tablrbg);color:var(--tablr);border-color:var(--tablrbd)}
 .tab.on.t-tech{background:var(--tabdashbg);color:var(--tabdash);border-color:var(--tabdashbd)}
 .tab:hover:not(.on){color:var(--t)}
 .tabsep{color:var(--t3);user-select:none}
@@ -91,7 +91,10 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .inv .pw{color:#333;font-family:Arial,Helvetica,sans-serif}
 .inv .pw a{color:#06529D;font-weight:bold;text-decoration:none}
 html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
-.gx iframe{flex:none;height:200px;max-width:680px;width:100%;margin:0 auto}
+.gx iframe{flex:none;height:310px}
+.emb.inv{padding:0 10px}
+.xw{flex:1;min-height:0;overflow:auto}
+.card.fit{height:auto}
 #financialjuice-news-widget-container{height:100%;width:100%}
 #financialjuice-news-widget-container>*,#financialjuice-news-widget-container iframe{height:100%!important;width:100%!important}
 .note{padding:16px;color:var(--t3);font-size:var(--fsm);line-height:1.5}
@@ -101,6 +104,11 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 [data-a="c"] svg{transition:transform .15s}
 .card.closed [data-a="c"] svg{transform:rotate(-90deg)}
 [hidden]{display:none!important}
+.stack{grid-column:span 5;display:flex;flex-direction:column;gap:10px;height:var(--sh,640px);min-width:0}
+.stack:has(.card.tall){height:auto}
+.stack .card{flex:1 1 0;height:auto;min-height:0}
+.stack .card.closed{flex:none}
+.stack .card.tall{flex:none;height:var(--full,640px)}
 /* market gauges */
 .qgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:6px 4px;flex:1;align-content:center}
 .q{padding:8px 10px;min-width:0}
@@ -136,6 +144,11 @@ html.mobile .card.closed{height:auto}
 html.mobile .card.tall{height:var(--fullm,var(--hm))}
 html.mobile .card.closed.tall{height:auto}
 html.mobile .tb input{font-size:16px}
+html.mobile .card.fit{height:auto}
+html.mobile .stack{grid-column:auto;height:auto}
+html.mobile .stack .card{flex:none;height:var(--hm,440px)}
+html.mobile .stack .card.closed{height:auto}
+html.mobile .stack .card.tall{height:var(--fullm,var(--hm))}
 html.mobile .stk{flex-direction:column}
 html.mobile .stk .s1{flex:none;height:290px;border-right:0;border-bottom:.5px solid var(--bd)}
 html.mobile .stk .s1.ta{height:440px}
@@ -155,6 +168,7 @@ html.mobile .stk .s2{flex:1;min-height:200px}
   <div class="tabs">
     <button class="tab t-news" data-p="news">news</button><span class="tabsep">|</span>
     <button class="tab t-tech" data-p="tech">technicals</button><span class="tabsep">|</span>
+    <button class="tab t-earn" data-p="earn">earnings</button><span class="tabsep">|</span>
     <button class="tab t-heat" data-p="heat">heatmap</button>
   </div>
   <div class="mk">
@@ -170,6 +184,7 @@ html.mobile .stk .s2{flex:1;min-height:200px}
   </div>
   <div class="grid" id="p-news"></div>
   <div class="grid" id="p-tech" hidden></div>
+  <div class="grid" id="p-earn" hidden></div>
   <div class="grid" id="p-heat" hidden></div>
 </div>
 <script>
@@ -261,6 +276,15 @@ const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const OLD=30*60000; /* a quote older than this is dimmed: delayed feeds normally sit at 10-15 min */
 const fmtAge=ms=>{const m=Math.round(ms/60000);return m<1?'<1m':m<60?m+'m':m<2880?Math.floor(m/60)+'h':Math.floor(m/1440)+'d'};
 const asOf=t=>{const d=new Date(t);return d.toDateString()===new Date().toDateString()?hhmm(d):d.toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'})};
+/* CME equity-futures hours in New York time: Sun 18:00 to Fri 17:00, with a 17:00-18:00 break. Exchange holidays are not handled. */
+function futClosed(){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const g=k=>p.find(x=>x.type===k).value,d=g('weekday'),m=+g('hour')*60+ +g('minute');
+  if(d==='Sat')return true;
+  if(d==='Sun')return m<1080;
+  if(d==='Fri')return m>=1020;
+  return m>=1020&&m<1080;
+}
 function fresh(it){
   const tip=[];let tag='',dim=false;
   if(it.src)tip.push(it.src.replace(':',' '));
@@ -270,10 +294,10 @@ function fresh(it){
     if(!tag)tag='close';
     tip.push('end-of-day value'+(it.t!=null?' for '+new Date(it.t).toLocaleDateString([],{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}):''));
   }else if(it.t!=null){
-    const age=Date.now()-it.t;
-    if(!tag)tag=fmtAge(age);
-    if(age>OLD)dim=true;
-    tip.push('as of '+asOf(it.t));
+    const age=Date.now()-it.t,shut=age>OLD&&futClosed();
+    if(!tag)tag=shut?'closed':fmtAge(age);
+    if(age>OLD&&!shut)dim=true;
+    tip.push((shut?'market closed, last quote ':'as of ')+asOf(it.t));
   }else tip.push('source gives no timestamp');
   if(it.rolledAt&&Date.now()-it.rolledAt<864e5){tip.push('contract rolled '+ago(Date.now()-it.rolledAt));tag=tag?'rolled '+tag:'rolled'}
   return {tag,dim,tip};
@@ -286,7 +310,7 @@ function paintStamp(msg){
   const ts=items.filter(i=>i.p!=null&&!i.stale&&i.cls!=='prior'&&i.t!=null).map(i=>i.t);
   const miss=items.filter(i=>i.p==null).length,stl=items.filter(i=>i.stale).length;
   let s;
-  if(ts.length){const n=Math.max(...ts),age=Date.now()-n;s='quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(age>OLD?' \u00b7 old':'')}
+  if(ts.length){const n=Math.max(...ts),age=Date.now()-n,shut=age>OLD&&futClosed();s=shut?'market closed \u00b7 last quotes '+asOf(n):'quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(age>OLD?' \u00b7 old':'')}
   else s='no timestamped quotes';
   if(stl)s+=' \u00b7 '+stl+' stale';
   if(miss)s+=' \u00b7 '+miss+' missing';
@@ -361,12 +385,26 @@ const embed=(el,src,title,credit,cls)=>{
   el.innerHTML='<div class="emb '+(cls||'')+'"><iframe title="'+title+'" loading="lazy"></iframe><div class="pw">'+credit+'</div></div>';
   $('iframe',el).src=src;
 };
-const INV='https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&importance=3&features=datepicker,timezone&countries=5&calType=week&timeZone=8&lang=1';
+const INV='https://sslecal2.investing.com?columns=exc_importance,exc_actual,exc_forecast,exc_previous&importance=3&features=timezone&countries=5&calType=week&timeZone=8&lang=1';
 const invest=el=>embed(el,INV,'Economic calendar','Real Time Economic Calendar provided by <a href="https://www.investing.com/" rel="nofollow noopener" target="_blank">Investing.com</a>.','inv');
 const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1&wid='+wid,'Finviz market map',
   '<a href="https://finviz.com/map?t='+t+'&st=d1&utm_source=finviz_widget&utm_medium=widget&utm_campaign=map&utm_content='+wid+'" target="_blank" rel="noopener">Market map by FINVIZ</a>');
-const gex=el=>embed(el,'https://zerogex.io/embed/NQ?theme='+(dark()?'dark':'light'),'NQ gamma levels by ZeroGEX',
-  'NQ gamma levels by <a href="https://zerogex.io/nq-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed)','gx');
+const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
+  n+' gamma levels by <a href="https://zerogex.io/'+n.toLowerCase()+'-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed'+(n==='NQ'?'; levels are NDX cash, futures trade at a premium':'')+')','gx');
+/* X timeline. X_ISOLATE=true runs widgets.js inside a sandboxed iframe (no access to this page's localStorage). If the timeline stays blank, set it to false. */
+const X_ISOLATE=true;
+const xtl=el=>{
+  const h=Math.max(180,el.clientHeight-30),th=dark()?'dark':'light';
+  const a='<a class="twitter-timeline" data-theme="'+th+'" data-chrome="noheader nofooter noborders transparent" data-height="'+h+'" href="https://x.com/DeItaone?ref_src=twsrc%5Etfw">Posts by DeItaone</a>';
+  const cr='<a href="https://x.com/DeItaone" target="_blank" rel="noopener">Open @DeItaone on X</a> \u00b7 blank? X blocks embeds when logged out or with tracking protection';
+  if(X_ISOLATE){
+    el.innerHTML='<div class="emb"><iframe title="X timeline: DeItaone" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe><div class="pw">'+cr+'</div></div>';
+    $('iframe',el).srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0">'+a+'<script async src="https://platform.x.com/widgets.js" charset="utf-8"><\/script>';
+  }else{
+    el.innerHTML='<div class="emb"><div class="xw">'+a+'</div><div class="pw">'+cr+'</div></div>';
+    load('https://platform.x.com/widgets.js','x').then(()=>window.twttr&&window.twttr.widgets&&window.twttr.widgets.load(el)).catch(()=>note(el,'X did not load.'));
+  }
+};
 const fj=el=>{
   el.innerHTML='<div id="financialjuice-news-widget-container"></div>';
   load('https://feed.financialjuice.com/widgets/widgets.js?r='+Math.floor(Math.random()*9999),'fj','FJ-Widgets').then(()=>{
@@ -385,15 +423,19 @@ const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',sho
 
 /* ---- cards ---- */
 const C={
-  gex:{page:'news',t:'nq gamma levels',sp:12,h:290,hm:300,full:290,fullm:300,src:{
-    zg:{l:'ZeroGEX',u:'https://zerogex.io/nq-gamma-levels',r:gex}}},
-  econ:{page:'news',t:'economic calendar',sp:7,h:500,hm:460,full:1100,fullm:1000,src:{
+  gex:{page:'tech',t:'nq gamma levels',sp:4,fit:true,noexp:true,src:{
+    zg:{l:'ZeroGEX',u:'https://zerogex.io/nq-gamma-levels',r:gex('NQ')}}},
+  gexq:{page:'tech',t:'qqq gamma levels',sp:4,fit:true,noexp:true,src:{
+    zg:{l:'ZeroGEX',u:'https://zerogex.io/qqq-gamma-levels',r:gex('QQQ')}}},
+  econ:{page:'news',t:'economic calendar',sp:7,h:640,hm:460,full:1100,fullm:1000,src:{
     inv:{l:'Investing',u:'https://www.investing.com/economic-calendar/',r:invest},
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
-  news:{page:'news',t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
+  news:{page:'news',col:true,t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
     tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
-  earn:{page:'tech',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
+  x:{page:'news',col:true,t:'x \u00b7 @deitaone',sp:5,h:320,hm:420,full:900,fullm:900,src:{
+    x:{l:'X',u:'https://x.com/DeItaone',r:xtl}}},
+  earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
   look:{page:'tech',t:'ticker lookup',sp:12,h:460,hm:780,full:600,fullm:900,tb:true,src:{
     ov:{l:'Overview',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:overview},
@@ -405,19 +447,20 @@ const C={
     nq:{l:'Nasdaq 100',u:'https://finviz.com/map?t=sec_ndx&st=d1',r:finviz('sec_ndx','usevk757')},
     th:{l:'Themes',u:'https://finviz.com/map?t=themes&st=d1',r:finviz('themes','6ide5n4x')}}}
 };
-const PAGES={news:$('#p-news'),tech:$('#p-tech'),heat:$('#p-heat')};
+const PAGES={news:$('#p-news'),tech:$('#p-tech'),earn:$('#p-earn'),heat:$('#p-heat')};
 const estUrl=()=>'https://www.estimize.com/'+encodeURIComponent(sym.toLowerCase());
+const stack=document.createElement('div');stack.className='stack';stack.style.setProperty('--sh',C.econ.h+'px');
 for(const k in C){
   const c=C[k],s=document.createElement('section');
-  s.className='card';s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
+  s.className='card'+(c.fit?' fit':'');s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
   const keys=Object.keys(c.src);
   s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
     +'<div class="acts"><button class="topicon" data-a="r" aria-label="refresh" data-tt="refresh">'+I.refresh+'</button><button class="topicon" data-a="o" aria-label="open source" data-tt="open source">'+I.open+'</button>'
-    +'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand to full height">'+I.expand+'</button><button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse (or double-click the header)">'+I.fold+'</button></div></div>'
+    +(c.noexp?'':'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand to full height">'+I.expand+'</button>')+'<button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse (or double-click the header)">'+I.fold+'</button></div></div>'
     +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button><a class="btn" id="est" target="_blank" rel="noopener" href="'+estUrl()+'">estimize '+I.open+'</a></form>':'')
     +'<div class="body"></div>';
-  PAGES[c.page].appendChild(s);c.el=s;c.th=null;
+  if(c.col){if(!stack.parentNode)PAGES[c.page].appendChild(stack);stack.appendChild(s)}else PAGES[c.page].appendChild(s);c.el=s;c.th=null;
   const sv=LS.g(KEY+'src_'+k,DEFAULTS[k]);c.cur=c.src[sv]?sv:(c.src[DEFAULTS[k]]?DEFAULTS[k]:keys[0]);
   if(LS.g(KEY+'closed_'+k)==='1')s.classList.add('closed');
 }
@@ -438,7 +481,7 @@ $('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(
 function paintCard(k){
   const c=C[k],cl=c.el.classList.contains('closed'),tl=c.el.classList.contains('tall');
   const f=$('[data-a="f"]',c.el),x=$('[data-a="c"]',c.el);
-  f.setAttribute('data-tt',tl?'back to normal size':'expand to full height');
+  if(f)f.setAttribute('data-tt',tl?'back to normal size':'expand to full height');
   x.setAttribute('data-tt',cl?'open (or double-click the header)':'collapse (or double-click the header)');
 }
 function setClosed(k,closed){
