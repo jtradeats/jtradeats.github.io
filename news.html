@@ -214,12 +214,26 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 #remb.on{color:var(--pbsel)}
 .nev{font-size:var(--fbase);font-weight:600}
 .nsub{font-size:var(--fxs);color:var(--t3)}
-.sess{display:flex;align-items:center;gap:8px;font-size:var(--fbase)}
-.sd{width:8px;height:8px;border-radius:50%;background:var(--t3);flex:none}
-.sd.on{background:var(--g)}
-.sn{flex:1}
-.ss{color:var(--t2);font-size:var(--fsm);font-variant-numeric:tabular-nums}
-.sess.sft{color:var(--t3);font-size:var(--fxs)}
+.cbody{justify-content:stretch;gap:8px;padding:10px 12px}
+.sx{--ac:var(--a1);flex:1;position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:11px;padding:8px 12px 10px;border-radius:10px;border:.5px solid var(--bd);background:var(--s2);overflow:hidden}
+.si{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:.5px solid var(--bdm);color:var(--t3)}
+.si svg{width:18px;height:18px}
+.sm b{display:block;font-weight:600;font-size:var(--fbase)}
+.sm small{display:flex;align-items:center;gap:6px;color:var(--t3);font-size:var(--fxs);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sm i{width:6px;height:6px;border-radius:50%;background:var(--t3);flex:none}
+.sr{text-align:right;font-variant-numeric:tabular-nums;line-height:1.3;white-space:nowrap}
+.sr small{display:block;font-size:10px;color:var(--t3)}
+.sr b{display:block;font-size:17px;font-weight:600;color:var(--t2)}
+.sb{position:absolute;left:0;right:0;bottom:0;height:3px}
+.sb i{display:block;height:100%;width:0;background:var(--ac)}
+.sx.on .si{color:var(--ac);border-color:var(--ac)}
+.sx.on .sm i{background:var(--g)}
+.sx.on .sr b{color:var(--ac)}
+@supports (background:color-mix(in srgb,red 10%,transparent)){
+.sx.on{border-color:color-mix(in srgb,var(--ac) 42%,transparent);background:linear-gradient(120deg,color-mix(in srgb,var(--ac) 14%,transparent),var(--s2) 70%)}
+.sx.on .si{background:color-mix(in srgb,var(--ac) 16%,transparent)}
+.sx.on .sm i{box-shadow:0 0 0 3px color-mix(in srgb,var(--g) 22%,transparent)}}
+.cft{color:var(--t3);font-size:var(--fxs);padding:0 2px}
 html.mobile .mk3{grid-template-columns:minmax(0,1fr)}
 #toasts{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 24px));pointer-events:none}
 .toast{pointer-events:auto;position:relative;background:#f9e3d3;color:#2a1d14;border:.5px solid #e9c7ae;border-radius:10px;padding:10px 30px 10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-size:var(--fsm);line-height:1.35}
@@ -383,7 +397,7 @@ function paintTape(items){
   if(rebuilt)tapeLayout();
 }
 function tapeLayout(){
-  const st=isMob()||reduceMo.matches;
+  const st=reduceMo.matches; /* phones scroll too; the OS 'reduce motion' setting switches to the static grid */
   document.querySelectorAll('#tape .tape').forEach(t=>{
     t.classList.toggle('static',st);t.classList.remove('fit');
     if(st)return;
@@ -577,11 +591,32 @@ const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',sho
 /* ---- native economic calendar (Worker /calendar; USD only; High by default, '+ medium' remembered per browser) ---- */
 const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
 let calData=null,calAt=0,calMed=LS.g(KEY+'cal_med','0')==='1',calRng=LS.g(KEY+'cal_rng','week');
+/* Fallback if the Worker cannot get the feed (it shares Cloudflare IPs that the feed rate-limits): ask the feed straight from this browser.
+   Works only if the feed allows cross-origin reads; if not, it fails quietly and the Worker's error is shown. */
+const CAL_DIRECT=['https://nfs.faireconomy.media/ff_calendar_thisweek.json','https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
+async function calDirect(){
+  const ev=[];let ok=0;
+  await Promise.all(CAL_DIRECT.map(async u=>{try{
+    const r=await fetch(u);if(!r.ok)return;const rows=await r.json();ok++;
+    for(const x of rows){const t=Date.parse(x.date);if(x.country!=='USD'||!t||(x.impact!=='High'&&x.impact!=='Medium'))continue;
+      ev.push({t,title:String(x.title).slice(0,80),imp:x.impact==='High'?3:2,fc:x.forecast||null,pv:x.previous||null,ac:x.actual||null})}
+  }catch(e){}}));
+  if(!ok)throw new Error('direct fetch failed');
+  ev.sort((a,b)=>a.t-b.t);return{updated:new Date().toISOString(),src:'faireconomy direct (unofficial)',events:ev};
+}
+let calFailAt=0,calLastErr=null;
 async function calGet(){
   if(calData&&Date.now()-calAt<300000)return calData;
-  const r=await fetch(CAL_URL,{cache:'no-store'});if(!r.ok)throw new Error(r.status);
-  const d=await r.json();if(!Array.isArray(d.events))throw new Error('bad payload');
-  calData=d;calAt=Date.now();return d;
+  if(calFailAt&&Date.now()-calFailAt<150000){if(calData)return calData;throw calLastErr} /* do not hammer a rate-limited feed */
+  let d;
+  try{
+    const r=await fetch(CAL_URL,{cache:'no-store'});
+    if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(r.status+(j.error?' '+j.error:''))}
+    d=await r.json();if(!Array.isArray(d.events))throw new Error('bad payload');
+  }catch(e){
+    try{d=await calDirect()}catch(_){calFailAt=Date.now();calLastErr=e;if(calData)return calData;throw e}
+  }
+  calFailAt=0;calData=d;calAt=Date.now();return d;
 }
 const cal=el=>{
   el.innerHTML='<div class="cal"><div class="calbar"><button class="pbtn" data-ck="today">today</button><button class="pbtn" data-ck="week">upcoming</button><button class="pbtn" data-ck="med">+ medium</button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading\u2026</p></div></div>';
@@ -613,7 +648,7 @@ function nxtMsg(b,k,html){if(b.dataset.k!==k){b.dataset.k=k;b.removeAttribute('d
 function nxtPaint(){
   const b=$('#nbody');if(!b)return;
   if(!calData){
-    const why=calErr==='404'?'The Worker has no /calendar route yet. Deploy worker/src/index.js.':calErr==='502'?'The Worker could not reach the feed. Open its /calendar URL to see why.':calErr?'Worker /calendar failed ('+esc(calErr)+').':'';
+    const why=/429/.test(calErr)?'The free feed is rate-limiting the Worker (HTTP 429). It retries on its own.':/^404/.test(calErr)?'The Worker has no /calendar route yet. Deploy worker/src/index.js.':/^502/.test(calErr)?'The Worker could not reach the feed. Open its /calendar URL to see why.':calErr?'Worker /calendar failed ('+esc(calErr.slice(0,60))+').':'';
     nxtMsg(b,'m'+calFail+calErr,'<p class="note">'+(calFail?'calendar feed unavailable'+(why?'<br>'+why:''):'loading\u2026')+'</p>');
     return;
   }
@@ -662,25 +697,49 @@ function remCheck(){
 setInterval(remCheck,1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)remCheck()});
 
-/* sessions in each exchange's own local hours (minutes from midnight); holidays and lunch breaks are not handled */
-const SESS=[['Asia \u00b7 Tokyo','Asia/Tokyo',540,930],['London','Europe/London',480,990],['New York cash','America/New_York',570,960]];
+/* sessions: each exchange's own local hours (minutes from midnight); holidays and lunch breaks are not handled.
+   Countdown and the time on the right are in the visitor's own zone (device setting). */
+const SESS=[['Tokyo','Asia/Tokyo',540,930,2],['London','Europe/London',480,990,1],['New York','America/New_York',570,960,4]];
+const SI=[
+  ico('<path d="M2 6c5 1.2 15 1.2 20 0"/><path d="M4 10h16"/><path d="M6 10v11M18 10v11"/>'),
+  ico('<path d="M9 22V9l3-6 3 6v13"/><circle cx="12" cy="13" r="2"/><path d="M7 22h10"/>'),
+  ico('<path d="M12 2v4"/><path d="M9 22V8h6v14"/><path d="M5 22v-9h4M15 22v-11h4"/><path d="M2 22h20"/>')
+];
 function inTz(tz){
-  const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
   const g=k=>p.find(x=>x.type===k).value;
-  return{d:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(g('weekday')),m:+g('hour')*60+ +g('minute')};
+  return{d:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(g('weekday')),m:+g('hour')*60+ +g('minute'),s:+g('second')};
 }
-const dm=m=>{m=Math.round(m);return m>=60?Math.floor(m/60)+'h '+m%60+'m':m+'m'};
+const dhm=s=>{s=Math.max(0,Math.floor(s));const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m '+p2(s%60)+'s'};
+const setT=(el,v)=>{if(el&&el.textContent!==v)el.textContent=v};
+let clkBuilt=false;
 function clkPaint(){
-  const el=$('#cbody');if(!el)return;
-  el.innerHTML=SESS.map(([n,tz,o,c])=>{
-    const t=inTz(tz),wk=t.d>0&&t.d<6,op=wk&&t.m>=o&&t.m<c;let s;
-    if(op)s='open \u00b7 closes in '+dm(c-t.m);
-    else{let w=null;if(wk&&t.m<o)w=o-t.m;else for(let i=1;i<=7;i++){const nd=(t.d+i)%7;if(nd>0&&nd<6){w=i*1440-t.m+o;break}}s='opens in '+dm(w)}
-    return '<div class="sess"><span class="sd'+(op?' on':'')+'"></span><span class="sn">'+n+'</span><span class="ss">'+s+'</span></div>';
-  }).join('')+'<div class="sess sft">CME equity futures: '+(futClosed()?'closed':'open')+'</div>';
+  const box=$('#cbody');if(!box)return;
+  if(!clkBuilt){
+    clkBuilt=true;
+    box.innerHTML=SESS.map((x,i)=>'<div class="sx" style="--ac:var(--a'+x[4]+')"><div class="si">'+SI[i]+'</div><div class="sm"><b>'+x[0]+'</b><small><i></i><span class="st"></span></small></div><div class="sr"><small class="sk"></small><b class="sv"></b><small class="sw"></small></div><div class="sb"><i></i></div></div>').join('')+'<div class="cft"></div>';
+  }
+  SESS.forEach(([n,tz,o,c],i)=>{
+    const el=box.children[i],t=inTz(tz),e=t.m*60+t.s,wk=t.d>0&&t.d<6,op=wk&&e>=o*60&&e<c*60;
+    let k,secs,pr=0;
+    if(op){k='closes in';secs=c*60-e;pr=(e-o*60)/((c-o)*60)}
+    else{
+      let w=null;
+      if(wk&&e<o*60)w=o*60-e;
+      else for(let j=1;j<=7;j++){const nd=(t.d+j)%7;if(nd>0&&nd<6){w=j*86400+o*60-e;break}}
+      k='opens in';secs=w;
+    }
+    const at=new Date(Date.now()+secs*1000);
+    el.classList.toggle('on',op);
+    setT($('.st',el),new Date().toLocaleTimeString([],{timeZone:tz,hour:'2-digit',minute:'2-digit',timeZoneName:'short'})+' \u00b7 '+(op?'open':'closed'));
+    setT($('.sk',el),k);setT($('.sv',el),dhm(secs));
+    setT($('.sw',el),op?'until '+hhmm(at):at.toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'}));
+    $('.sb i',el).style.width=(op?Math.min(100,pr*100):0)+'%';
+  });
+  setT(box.lastChild,'CME equity futures: '+(futClosed()?'closed':'open')+' \u00b7 times on the right are in your zone');
 }
-setInterval(()=>{if(!document.hidden){nxtPaint();lclkPaint()}},1000);
-setInterval(()=>{if(!document.hidden){clkPaint();nxtLoad()}},30000);
+setInterval(()=>{if(!document.hidden){nxtPaint();lclkPaint();clkPaint()}},1000);
+setInterval(()=>{if(!document.hidden)nxtLoad()},30000);
 
 /* ---- cards ---- */
 const C={
