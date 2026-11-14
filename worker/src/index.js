@@ -3,6 +3,9 @@
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
+import SCHEDULE from '../config/schedule.json';
+import INDICATORS from '../config/indicators.json';
+import { etToMs, expand, audit, overlay } from './schedule.js';
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -43,20 +46,6 @@ function quote(price, prev, t) {
     out.pc = +(((price - prev) / prev) * 100).toFixed(3);
   }
   return out;
-}
-
-// 'YYYY-MM-DDTHH:MM:SS' written as New York wall-clock time -> epoch ms (null if it doesn't parse)
-function etToMs(s) {
-  const m = /^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)(?::(\d\d))?$/.exec(String(s || ''));
-  if (!m) return null;
-  const asUTC = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(new Date(asUTC));
-  const g = k => +parts.find(p => p.type === k).value;
-  const ny = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second'));
-  return asUTC - (ny - asUTC);
 }
 
 async function qYahoo(sym) {
@@ -224,15 +213,23 @@ async function getFng() {
   }
 }
 
-// ---- economic calendar: USD High + Medium from the free Fair Economy (Forex Factory) weekly feeds. Unofficial; forecast and previous only ----
+// ---- economic calendar ----
+// The schedule (worker/config/schedule.json: official release dates and times) is the calendar and never depends on the network.
+// The Fair Economy / Forex Factory weekly feeds are an optional extra: forecast and previous, plus an independent cross-check on dates and times.
+// They are unofficial and rate-limit shared Cloudflare IPs (HTTP 429). A failure there leaves the schedule untouched.
 const CAL_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
-const CAL_TTL = 30 * 60000;          // the feed rate-limits hard: one upstream round per 30 min
-const CAL_RETRY = 5 * 60000;
-const cal = { body: null, at: 0, failAt: 0, err: null };
+const CAL_TTL = 30 * 60000;          // one upstream round per 30 min
+const CAL_RETRY = 5 * 60000;         // after a failure
+const CAL_RETRY_429 = 15 * 60000;    // after a 429, leave the feed alone for longer
+const CAL_USE_MAX = 12 * 3600e3;     // never lay a feed copy older than this over the schedule
+const CAL_WAIT = 1200;               // a first request waits at most this long for the feed, then answers without it
+const CAL_WINDOW = [-2 * 864e5, 60 * 864e5];
+const CAL_KEY = 'calendar:last';
+const feedState = { events: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null };
 
-async function loadCalendar() {
+async function loadFeed() {
   const notes = [], events = [];
-  let ok = 0;
+  let ok = 0, rate = false;
   await Promise.all(CAL_FEEDS.map(async u => {
     try {
       const rows = JSON.parse(await get(u, { Accept: 'application/json' }));
@@ -243,34 +240,82 @@ async function loadCalendar() {
         events.push({ t, title: String(r.title).slice(0, 80), imp: r.impact === 'High' ? 3 : 2,
           fc: r.forecast || null, pv: r.previous || null, ac: r.actual || null });
       }
-    } catch (e) { notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
+    } catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
-  if (!ok) throw new Error(notes.join(' | '));
+  if (!ok) { const err = new Error(notes.join(' | ')); err.rate = rate; throw err; }
   events.sort((a, b) => a.t - b.t);
-  return { updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), src: 'faireconomy (unofficial)', events, notes };
+  return { events, notes };
 }
 
-const CAL_KEY = 'calendar:last';
-async function getCalendar(env) {
+// Bring the feed copy up to date if it is due. Never throws; records the outcome in feedState.
+async function refreshFeed(env) {
   const now = Date.now();
-  if (cal.body && now - cal.at < CAL_TTL) return cal.body;
-  // The feed rate-limits shared Cloudflare IPs (HTTP 429) and every isolate asks on its own, so share one copy through KV
+  if (feedState.events && now - feedState.at < CAL_TTL) return;
+  // every isolate would otherwise ask the feed on its own, so share one good copy through KV
   if (env && env.MARKET_KV) {
     try {
       const sn = await env.MARKET_KV.get(CAL_KEY, 'json');
-      if (sn && sn.body && sn.at > cal.at) { cal.body = sn.body; cal.at = sn.at; }
+      if (sn && sn.events && sn.at > feedState.at) { feedState.events = sn.events; feedState.at = sn.at; feedState.status = 'ok'; }
     } catch (e) { /* KV unavailable: carry on */ }
-    if (cal.body && Date.now() - cal.at < CAL_TTL) return cal.body;
+    if (feedState.events && Date.now() - feedState.at < CAL_TTL) return;
   }
-  if (cal.failAt && now - cal.failAt < CAL_RETRY) { if (cal.body) return cal.body; throw new Error(cal.err); }
+  if (feedState.failAt && now - feedState.failAt < (feedState.rate ? CAL_RETRY_429 : CAL_RETRY)) return;
   try {
-    cal.body = JSON.stringify(await loadCalendar()); cal.at = Date.now(); cal.failAt = 0; cal.err = null;
-    if (env && env.MARKET_KV) { try { await env.MARKET_KV.put(CAL_KEY, JSON.stringify({ at: cal.at, body: cal.body })); } catch (e) { /* ignore */ } }
+    const f = await loadFeed();
+    feedState.events = f.events; feedState.at = Date.now(); feedState.failAt = 0; feedState.err = null; feedState.rate = false; feedState.status = 'ok';
+    if (env && env.MARKET_KV) { try { await env.MARKET_KV.put(CAL_KEY, JSON.stringify({ at: feedState.at, events: f.events })); } catch (e) { /* ignore */ } }
   } catch (e) {
-    cal.failAt = Date.now(); cal.err = String(e.message).slice(0, 200);
-    if (!cal.body) throw e;   // otherwise keep serving the last good copy, however old
+    feedState.failAt = Date.now(); feedState.err = String(e.message).slice(0, 200); feedState.rate = !!e.rate;
+    feedState.status = e.rate ? 'rate-limited' : 'unavailable';
   }
-  return cal.body;
+}
+function feedRefresh(env, ctx) {
+  if (!feedState.inflight) {
+    feedState.inflight = refreshFeed(env).finally(() => { feedState.inflight = null; });
+    if (ctx) ctx.waitUntil(feedState.inflight);
+  }
+  return feedState.inflight;
+}
+
+// The expanded schedule and its audit are cheap but not free (10 ms CPU limit): keep them for a while
+// kinds without the feed-title patterns (those are only for the Worker's cross-check)
+const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k, v]) => { const { match, ...rest } = v; return [k, rest]; }));
+const schedCache = { events: null, aud: null, at: 0 };
+function schedule(now) {
+  if (!schedCache.events) schedCache.events = expand(SCHEDULE, INDICATORS);
+  if (!schedCache.aud || now - schedCache.at > 10 * 60000) { schedCache.aud = audit(SCHEDULE, INDICATORS, now); schedCache.at = now; }
+  return schedCache;
+}
+
+async function getCalendar(env, ctx) {
+  const now = Date.now();
+  const sch = schedule(now);
+  const p = feedRefresh(env, ctx);
+  if (!feedState.events) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the feed a moment, never longer
+
+  const fresh = feedState.events && now - feedState.at < CAL_USE_MAX;
+  let events = sch.events, issues = [], fstat = feedState.status, matched = 0, extras = 0;
+  if (fresh) {
+    const o = overlay(sch.events, feedState.events, INDICATORS, now);
+    events = o.events; issues = o.issues; matched = o.matched; extras = o.extras;
+    if (now - feedState.at > CAL_TTL * 2) fstat = 'stale';
+  } else if (feedState.events) fstat = 'stale';
+  else if (fstat === 'none' && feedState.failAt) fstat = 'unavailable';
+
+  const [lo, hi] = CAL_WINDOW;
+  const win = events.filter(e => e.t >= now + lo && e.t <= now + hi);
+  const a = sch.aud, all = issues.concat(a.issues);
+  const status = a.status === 'error' || issues.some(i => i.lvl === 'error') ? 'error' : (a.status === 'check' || issues.length) ? 'check' : 'ok';
+  return JSON.stringify({
+    updated: new Date(now).toISOString().replace(/\.\d+Z$/, 'Z'),
+    now,                                                  // the page compares this with its own clock
+    src: 'official release schedule',
+    sources: SCHEDULE.sources, checked: SCHEDULE.checked, kinds: KINDS_PUBLIC,   // what the page needs to explain each release
+    feed: { status: fstat, at: feedState.at || null, matched, extras, error: fstat === 'ok' ? null : feedState.err },
+    audit: { status, nIssues: a.nIssues + issues.length, counts: a.counts, total: a.total, first: a.first, horizon: a.horizon,
+      checked: a.checked, issues: all.slice(0, 25) },
+    events: win,
+  });
 }
 
 // ---- last resort: the data branch written by the GitHub Action (only while USE_DATA_BRANCH) ----
@@ -383,7 +428,7 @@ export default {
         ok: true, kv: !!(env && env.MARKET_KV),
         memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
         cached_items: itemCache.size,
-        calendar_age_s: cal.body ? Math.round((Date.now() - cal.at) / 1000) : null,
+        calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null },
       }), { headers: json });
     }
     if (pathname === '/market') {
@@ -395,7 +440,7 @@ export default {
     }
     if (pathname === '/calendar') {
       try {
-        return new Response(await getCalendar(env), { headers: { ...json, 'Cache-Control': 'public, max-age=300' } });
+        return new Response(await getCalendar(env, ctx), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
