@@ -22,6 +22,8 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --pbsel:#A47DAB;--pbselbg:rgba(164,125,171,0.14);--pbselbd:rgba(164,125,171,0.34);
   --tabdash:#A15B78;--tabdashbg:rgba(161,91,120,0.12);--tabdashbd:rgba(161,91,120,0.32);
   --tablr:#4F7691;--tablrbg:rgba(79,118,145,0.12);--tablrbd:rgba(79,118,145,0.32);
+  --tabA:#4F7691;--tabAbg:rgba(79,118,145,0.12);--tabAbd:rgba(79,118,145,0.32); /* tab accent A: blue (odd tabs) */
+  --tabB:#A15B78;--tabBbg:rgba(161,91,120,0.12);--tabBbd:rgba(161,91,120,0.32); /* tab accent B: mauve (even tabs) */
   --a1:#4F7691;--a2:#A15B78;--a3:#6F8A4A;--a4:#B7803A;--a5:#6E6AA8;--a6:#3F8F8A;
   --pc1:#E8794A;--pc2:#DD5B7A;--pc3:#D4483F; /* next-event card: peach to coral-pink, hotter under an hour */
   --s-off:#E5484D; /* session dot when closed */
@@ -39,6 +41,8 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --pbsel:#EDC8FF;--pbselbg:rgba(237,200,255,0.15);--pbselbd:rgba(237,200,255,0.35);
   --tabdash:#A9C6DE;--tabdashbg:rgba(169,198,222,0.15);--tabdashbd:rgba(169,198,222,0.35);
   --tablr:#E0AFC2;--tablrbg:rgba(224,175,194,0.15);--tablrbd:rgba(224,175,194,0.35);
+  --tabA:#A9C6DE;--tabAbg:rgba(169,198,222,0.15);--tabAbd:rgba(169,198,222,0.35);
+  --tabB:#E0AFC2;--tabBbg:rgba(224,175,194,0.15);--tabBbd:rgba(224,175,194,0.35);
   --a1:#A9C6DE;--a2:#E0AFC2;--a3:#B9CC8E;--a4:#E8C07A;--a5:#B7B3E6;--a6:#8FD0C9;
   --pc1:#FFB08C;--pc2:#FF8A9A;--pc3:#FF7A7A;
 }
@@ -60,8 +64,9 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .tabs{display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:1.25rem}
 .tab{padding:6px 14px;border-radius:calc(var(--rad) - 1px);font-size:var(--fbase);font-family:var(--sans);cursor:pointer;border:.5px solid transparent;color:var(--t2);background:transparent;transition:all .15s}
 .tab.on{font-weight:600}
-.tab.on.t-news,.tab.on.t-heat,.tab.on.t-earn{background:var(--tablrbg);color:var(--tablr);border-color:var(--tablrbd)}
-.tab.on.t-tech{background:var(--tabdashbg);color:var(--tabdash);border-color:var(--tabdashbd)}
+/* tab colour comes from the tab's position (buttons only, the | separators are spans): 1st, 3rd... blue, 2nd, 4th... mauve. Adding a tab needs no colour choice. */
+.tab.on:nth-of-type(odd){background:var(--tabAbg);color:var(--tabA);border-color:var(--tabAbd)}
+.tab.on:nth-of-type(even){background:var(--tabBbg);color:var(--tabB);border-color:var(--tabBbd)}
 .tab:hover:not(.on){color:var(--t)}
 .tabsep{color:var(--t3);user-select:none}
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;margin-bottom:1.25rem;align-items:start}
@@ -123,10 +128,8 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .tape+.tape{border-top:.5px solid var(--bd)}
 .trk{display:flex;width:max-content;will-change:transform}
 .seq{display:flex;flex:none;align-items:stretch}
-.tape.fit,.tape.static{cursor:default}
-.tape.fit .trk{width:100%;transform:none!important}
-.tape.fit .seq{width:100%;justify-content:space-around}
-.tape.fit .seq+.seq,.tape.static .seq+.seq{display:none}
+.tape.static{cursor:default}
+.tape.static .seq+.seq{display:none}
 .tape.static{overflow:visible;-webkit-mask-image:none;mask-image:none}
 .tape.static .trk{width:auto;display:block;transform:none!important}
 .tape.static .seq{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
@@ -355,7 +358,7 @@ const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/
    Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
    (the reset icon in the header clears those and brings these back). */
-const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'QQQ'};
+const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'all',tab:'news',ticker:'QQQ'};
 const KEY='wss_dash2_';
 try{localStorage.removeItem('wss_gh_token')}catch(e){} /* one-click workflow token is no longer used */
 
@@ -450,7 +453,7 @@ function paintTape(items){
    the tape drifts on again by itself. Pointer events cover mouse, touch and pen; touch-action:pan-y leaves vertical page scroll alone. */
 const TS=new Map();let tapeRaf=0,tapeT=0;
 const tapeSt=t=>{let s=TS.get(t);if(!s){s={x:0,v:TAPE_PX,w:0,id:null,hover:false,lx:0,smp:[]};TS.set(t,s)}return s};
-const tapeMoves=t=>!t.classList.contains('fit')&&!t.classList.contains('static');
+const tapeMoves=t=>!t.classList.contains('static');
 function tapeMeasure(t){const q=$('.seq',t);tapeSt(t).w=q?q.offsetWidth:0}
 function tapeLoop(ts){
   const dt=Math.min(.1,Math.max(0,(ts-tapeT)/1000));tapeT=ts;
@@ -473,9 +476,14 @@ function tapeLayout(){
   const st=reduceMo.matches; /* the OS 'reduce motion' setting switches to the static grid */
   document.querySelectorAll('#tape .tape').forEach(t=>{
     t.classList.toggle('static',st);t.classList.remove('fit');
+    const sq=t.querySelectorAll('.seq');
+    sq.forEach(q=>{q.style.paddingRight=''}); /* measure the natural width first */
     if(st){t.firstChild.style.transform='';return}
-    const w=$('.seq',t).offsetWidth;
-    if(w&&w<=t.clientWidth){t.classList.add('fit');t.firstChild.style.transform='';return}
+    let w=sq[0].offsetWidth;
+    /* A row that is narrower than the tape (tablets) used to stop and sit still. Instead pad the end of each
+       copy so one cycle is a little wider than the tape: the loop stays seamless and the row keeps drifting. */
+    const need=t.clientWidth+40;
+    if(w&&w<need){sq.forEach(q=>{q.style.paddingRight=(need-w)+'px'});w=need}
     tapeSt(t).w=w;
   });
   tapeStart();
@@ -902,10 +910,10 @@ const C={
     ov:{l:'Overview',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:overview},
     ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:technicals}}},
   heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,full:900,fullm:800,src:{
-    fut:{l:'Futures',u:'https://finviz.com/map?t=futures&st=d1',r:finviz('futures','9ed4jtmk')},
     all:{l:'All stocks',u:'https://finviz.com/map?t=sec_all&st=d1',r:finviz('sec_all','d34rloj8')},
     sp:{l:'S&P 500',u:'https://finviz.com/map?t=sec&st=d1',r:finviz('sec','j43bn5fy')},
     nq:{l:'Nasdaq 100',u:'https://finviz.com/map?t=sec_ndx&st=d1',r:finviz('sec_ndx','usevk757')},
+    fut:{l:'Futures',u:'https://finviz.com/map?t=futures&st=d1',r:finviz('futures','9ed4jtmk')},
     th:{l:'Themes',u:'https://finviz.com/map?t=themes&st=d1',r:finviz('themes','6ide5n4x')}}}
 };
 const PAGES={news:$('#p-news'),tech:$('#p-tech'),earn:$('#p-earn'),heat:$('#p-heat')};
