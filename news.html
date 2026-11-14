@@ -156,6 +156,16 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .spin svg{animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin svg{animation:none}}
+.wp{padding:8px 12px;border-bottom:.5px solid var(--bd)}
+.wp.new{background:var(--pbselbg)}
+.wh{display:flex;gap:8px;align-items:baseline;font-size:var(--fxs);color:var(--t3);font-variant-numeric:tabular-nums}
+.wh .wa{margin-right:auto}
+.wh a{color:var(--t2)}
+.wt{margin-top:2px;font-size:var(--fbase);line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+.wt.media{color:var(--t3);font-style:italic}
+.wmore{background:none;border:0;color:var(--tabdash);cursor:pointer;font:inherit;font-size:var(--fxs);padding:0 0 0 6px}
+.wnote{padding:8px 12px;font-size:var(--fsm);line-height:1.4;border-bottom:.5px solid var(--bd);color:var(--t2)}
+.wnote.bad{color:var(--r)}.wnote.warn{color:#C98A2E}
 html.mobile #app{padding:1rem max(.85rem,env(safe-area-inset-right)) 3rem max(.85rem,env(safe-area-inset-left))}
 html.mobile h1{font-size:22px}
 html.mobile .topicon{height:32px;min-width:32px}
@@ -672,20 +682,66 @@ const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1
   '<a href="https://finviz.com/map?t='+t+'&st=d1&utm_source=finviz_widget&utm_medium=widget&utm_campaign=map&utm_content='+wid+'" target="_blank" rel="noopener">Market map by FINVIZ</a>');
 const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
   n+' gamma levels by <a href="https://zerogex.io/'+n.toLowerCase()+'-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session')+')','gx');
-/* X timeline. The sandboxed-iframe mode (true) did not render X, so widgets.js now loads on this page (false). */
-const X_ISOLATE=false;
-const xtl=el=>{
-  const h=Math.max(180,el.clientHeight-30),th=dark()?'dark':'light';
-  const a='<a class="twitter-timeline" data-theme="'+th+'" data-chrome="noheader nofooter noborders transparent" data-height="'+h+'" href="https://x.com/DeItaone?ref_src=twsrc%5Etfw">Posts by DeItaone</a>';
-  const cr='<a href="https://x.com/DeItaone" target="_blank" rel="noopener">Open @DeItaone on X</a> \u00b7 blank? X blocks embeds when logged out or with tracking protection';
-  if(X_ISOLATE){
-    el.innerHTML='<div class="emb"><iframe title="X timeline: DeItaone" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe><div class="pw">'+cr+'</div></div>';
-    $('iframe',el).srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0">'+a+'<script async src="https://platform.x.com/widgets.js" charset="utf-8"><\/script>';
-  }else{
-    el.innerHTML='<div class="emb"><div class="xw">'+a+'</div><div class="pw">'+cr+'</div></div>';
-    load('https://platform.x.com/widgets.js','x').then(()=>window.twttr&&window.twttr.widgets&&window.twttr.widgets.load(el)).catch(()=>note(el,'X did not load.'));
+/* DeItaone wire card (plan 1.5, D46 to D49). Source: the public Telegram mirror, read by the Worker's /feed (unofficial, unconfirmed).
+   Display only. Every post is built with textContent, never innerHTML, because the text comes from a third party (R32).
+   Polls only while the card is on screen: news tab, card open, page visible. Health comes from the poll, never from post age:
+   gaps of an hour or more are normal on this wire, so an old newest post is "quiet", while a failed poll is "broken". */
+const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
+const WIRE={d:null,err:null,at:0,busy:false,maxId:0,fresh:new Map(),open:new Set(),el:null};
+const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280;
+const wireVisible=()=>!document.hidden&&tab==='news'&&WIRE.el&&WIRE.el.isConnected&&!WIRE.el.closest('.card.closed');
+async function wireLoad(){
+  if(WIRE.busy)return;WIRE.busy=true;
+  try{
+    const r=await fetch(FEED_URL,{cache:'no-store'});
+    if(!r.ok)throw new Error('Worker /feed answered '+r.status);
+    const d=await r.json();
+    if(!Array.isArray(d.posts))throw new Error(d.error||'bad payload');
+    if(WIRE.d)d.posts.forEach(p=>{if(p.id>WIRE.maxId)WIRE.fresh.set(p.id,Date.now())}); /* highlight only what arrives after the first load */
+    if(d.posts.length&&d.posts[0].id>WIRE.maxId)WIRE.maxId=d.posts[0].id;
+    WIRE.d=d;WIRE.err=null;
+  }catch(e){WIRE.err=String(e.message||e)}
+  finally{WIRE.busy=false;WIRE.at=Date.now();wirePaint()}
+}
+function wirePaint(){
+  const el=WIRE.el;if(!el||!el.isConnected)return;
+  const box=$('.xw',el),st=$('.pw',el);if(!box||!st)return;
+  const d=WIRE.d,now=NOW(),mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+  const oldTop=box.scrollTop,oldH=box.scrollHeight;
+  box.textContent='';
+  for(const [id,at] of WIRE.fresh)if(Date.now()-at>=WIRE_NEW_MS)WIRE.fresh.delete(id);
+  if(!d){box.appendChild(mk('div','wnote'+(WIRE.err?' bad':''),WIRE.err?'Wire unavailable: '+WIRE.err:'loading…'))}
+  else{
+    if(WIRE.err)box.appendChild(mk('div','wnote bad','Could not reach the Worker ('+WIRE.err+'). Showing the last response from '+asOf(WIRE.at)+'.'));
+    if(d.status==='broken')box.appendChild(mk('div','wnote bad','Telegram feed broken'+(d.error?': '+d.error:'')+'. Showing the last known posts: do not rely on this card until it recovers.'));
+    else if(d.status==='stale')box.appendChild(mk('div','wnote warn','Feed stale: the last good poll was '+ago(now-(d.health.okAt||0))+'.'));
+    if(!d.posts.length)box.appendChild(mk('div','wnote','No posts yet.'));
+    for(const p of d.posts){
+      const row=mk('div','wp'+(WIRE.fresh.has(p.id)?' new':'')),h=mk('div','wh');
+      h.appendChild(mk('span','',p.t?asOf(p.t):'no time'));
+      h.appendChild(mk('span','wa',p.t?fmtAge(now-p.t)+' ago':''));
+      if(typeof p.url==='string'&&p.url.indexOf('https://t.me/')===0){const a=mk('a','','open on Telegram');a.href=p.url;a.target='_blank';a.rel='noopener';h.appendChild(a)}
+      row.appendChild(h);
+      const full=p.text||'',long=full.length>WIRE_CUT&&!WIRE.open.has(p.id);
+      const t=mk('div','wt'+(!full?' media':''),!full?(p.media?'[media post: open on Telegram]':'[empty post]'):long?full.slice(0,WIRE_CUT).replace(/\s+$/,'')+'…':full);
+      if(full.length>WIRE_CUT){const b=mk('button','wmore',long?'more':'less');b.onclick=()=>{WIRE.open.has(p.id)?WIRE.open.delete(p.id):WIRE.open.add(p.id);wirePaint()};t.appendChild(b)}
+      row.appendChild(t);box.appendChild(row);
+    }
   }
+  box.scrollTop=oldTop>8?oldTop+(box.scrollHeight-oldH):0; /* reading lower down: new posts above must not push the text away */
+  st.textContent='';
+  const nw=d&&d.posts[0]&&d.posts[0].t?now-d.posts[0].t:null;
+  st.appendChild(document.createTextNode('DeItaone wire via Telegram mirror · ultrafast, unconfirmed'+(d?' · poll '+d.status+(d.status!=='broken'&&nw!=null&&nw>36e5?' · quiet, newest post '+fmtAge(nw)+' old':''):'')+' · '));
+  const a=mk('a','','open channel');a.href='https://t.me/s/WalterBloomberg';a.target='_blank';a.rel='noopener';st.appendChild(a);
+}
+const wire=el=>{
+  WIRE.el=el;
+  el.innerHTML='<div class="emb"><div class="xw"></div><div class="pw"></div></div>';
+  wirePaint();wireLoad();
 };
+setInterval(()=>{if(wireVisible())wireLoad()},WIRE_POLL);
+setInterval(()=>{if(wireVisible())wirePaint()},15000); /* keeps the ages moving between polls */
+document.addEventListener('visibilitychange',()=>{if(wireVisible())wireLoad()});
 const fj=el=>{
   el.innerHTML='<div id="financialjuice-news-widget-container"></div>';
   load('https://feed.financialjuice.com/widgets/widgets.js?r='+Math.floor(Math.random()*9999),'fj','FJ-Widgets').then(()=>{
@@ -902,8 +958,8 @@ const C={
   news:{page:'news',col:true,t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
     tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
-  x:{page:'news',col:true,t:'x \u00b7 @deitaone',sp:5,h:320,hm:420,full:900,fullm:900,src:{
-    x:{l:'X',u:'https://x.com/DeItaone',r:xtl}}},
+  wire:{page:'news',col:true,t:'deitaone wire \u00b7 telegram mirror',sp:5,h:320,hm:420,full:900,fullm:900,src:{
+    tg:{l:'Telegram',u:'https://t.me/s/WalterBloomberg',r:wire}}},
   earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
   look:{page:'tech',t:'ticker lookup',sp:8,h:460,hm:780,full:600,fullm:900,tb:true,stretch:true,noexp:true,src:{
