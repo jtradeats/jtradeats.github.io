@@ -1,0 +1,11 @@
+name = "market-dashboard"
+main = "src/index.js"
+compatibility_date = "2025-11-01"
+
+[[kv_namespaces]]
+binding = "MARKET_KV"
+id = "101bd0442c804018a9880d7d4685621d"
+
+# Phase 3 and 4 (one dispatcher, not yet used):
+# [triggers]
+# crons = ["* * * * *"]
