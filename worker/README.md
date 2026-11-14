@@ -2,6 +2,7 @@
 
 - `src/index.js`: the Worker (same logic as the version deployed from the dashboard editor; only the item list moved).
 - `config/symbols.json`: the item list. Edit here, not in the code.
+- `src/feed.js`: DeItaone wire from the public Telegram preview, served at `/feed` (plan 1.5). `/feed?debug=1` adds a markup sample when parsing fails. Tests: `npm i -D html-rewriter-wasm`, then `node --test worker/test/feed.test.mjs`.
 - `wrangler.toml`: name must stay `market-dashboard` so the URL does not change.
 
 ## Switching to Git deploys (plan 2.1)
@@ -11,5 +12,3 @@
 4. After the first deploy open `/health`: expect `ok:true` and `kv:true`.
 
 Imports from `../config/` stay inside `worker/` so the build works whichever way the root directory is handled.
-
-
