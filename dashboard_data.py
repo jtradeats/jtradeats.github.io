@@ -59,7 +59,11 @@ def q_yahoo(sym):
             meta = json.loads(get(url, tries=1))["chart"]["result"][0]["meta"]
             prev = meta.get("chartPreviousClose") or meta.get("previousClose")
             t = meta.get("regularMarketTime")
-            return quote(meta["regularMarketPrice"], prev, t * 1000 if t else None)
+            out = quote(meta["regularMarketPrice"], prev, t * 1000 if t else None)
+            name = meta.get("shortName") or meta.get("longName")
+            if name:
+                out["contract"] = str(name)[:60]
+            return out
         except Exception as e:  # noqa: BLE001
             err = e
     raise err
@@ -117,7 +121,6 @@ ITEMS = [
     ("DXY", "idx", [("yahoo", "DX-Y.NYB")]),
     ("USD02Y", "yield", [("treasury", "2 Yr"), ("fred", "DGS2")]),
     ("USD10Y", "yield", [("yahoo", "^TNX"), ("treasury", "10 Yr"), ("fred", "DGS10")]),
-    ("USD20Y", "yield", [("treasury", "20 Yr"), ("fred", "DGS20")]),
     ("USD30Y", "yield", [("yahoo", "^TYX"), ("treasury", "30 Yr"), ("fred", "DGS30")]),
     ("ZB1!", "fut", [("yahoo", "ZB=F")]),
     ("NQ1!", "fut", [("yahoo", "NQ=F")]),
