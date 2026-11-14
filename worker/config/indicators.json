@@ -1,0 +1,75 @@
+{
+ "_note": "What each release kind is. name = short label in the calendar and countdown; imp = 3 high, 2 medium; time = the usual New York release time (the audit flags a schedule line whose time differs); dow = allowed weekdays for the date (0 Sun to 6 Sat, omit for any weekday); per = how often it should appear (m monthly, w weekly, q8 eight a year); dir says how to read a surprise: infl (higher is hotter), grow (higher is stronger), claims (higher is weaker labour), none (no number to compare); match = regular expressions for the Fair Economy (Forex Factory) titles of the same release, used only to cross-check times and to attach forecast and previous. The match patterns have not been checked against a live feed yet, so a miss simply means no forecast is attached. The text fields are fixed plain-English explainers written by hand, not generated and not live.",
+ "kinds": {
+  "cpi": {
+   "name": "CPI", "title": "Consumer Price Index", "agency": "BLS", "imp": 3, "time": "08:30", "per": "m", "dir": "infl",
+   "match": ["^CPI\\b", "^Core CPI\\b"],
+   "what": "The Consumer Price Index tracks how much prices changed for a basket of things households buy, such as rent, food, fuel and cars. The Bureau of Labor Statistics publishes it monthly. Markets watch the month-on-month change and the core figure that strips out food and energy.",
+   "why": "It is the main inflation reading the Fed reacts to. A number above forecast raises the odds of tighter policy and tends to push yields and the dollar up; a number below forecast does the opposite.",
+   "watch": "Core month-on-month first, then the headline, then shelter. The first print is the one that moves the market."
+  },
+  "nfp": {
+   "name": "Nonfarm Payrolls", "title": "Employment Situation (jobs report)", "agency": "BLS", "imp": 3, "time": "08:30", "per": "m", "dir": "grow", "dow": [5, 4],
+   "match": ["Non-Farm Employment Change", "^Nonfarm Payrolls", "^Unemployment Rate", "^Average Hourly Earnings"],
+   "what": "The monthly jobs report from the Bureau of Labor Statistics: how many jobs the economy added, the unemployment rate and average hourly earnings. It normally comes out on the first Friday of the month.",
+   "why": "It is the biggest regular read on the labour market, which the Fed weighs against inflation. Strong jobs with hot wages can lift yields; a weak print can raise rate-cut hopes, though a very weak one can also read as recession risk.",
+   "watch": "The headline job count, the unemployment rate, wage growth, and revisions to the two prior months."
+  },
+  "claims": {
+   "name": "Jobless Claims", "title": "Initial Jobless Claims", "agency": "DOL", "imp": 3, "time": "08:30", "per": "w", "dir": "claims", "dow": [4, 3],
+   "match": ["Unemployment Claims", "Jobless Claims"],
+   "what": "The number of people who filed for unemployment benefits for the first time in the latest week, published by the Department of Labor every Thursday. In weeks with a Thursday holiday the release moves to Wednesday.",
+   "why": "It is the fastest weekly signal of layoffs. A rising trend suggests the labour market is softening; the level is low by historical standards, so the direction over several weeks matters more than one print.",
+   "watch": "The headline against forecast, the four-week average, and continuing claims (people still receiving benefits)."
+  },
+  "fomc": {
+   "name": "FOMC Rate Decision", "title": "FOMC statement and rate decision", "agency": "Fed", "imp": 3, "time": "14:00", "per": "q8", "dir": "none", "dow": [3, 2],
+   "match": ["Federal Funds Rate", "FOMC Statement", "FOMC Press Conference", "FOMC Economic Projections"],
+   "what": "The Federal Open Market Committee announces its interest-rate decision and a written statement at 2:00 pm New York time on the second day of each meeting. The chair's press conference follows at 2:30 pm. Some meetings also publish the Summary of Economic Projections (the dot plot).",
+   "why": "It sets the policy rate. The wording of the statement, the vote split and the press conference often move markets more than the decision itself, because the decision is usually priced in beforehand.",
+   "watch": "Any change in the statement wording, the dissents, the dot plot if there is one, and the tone of the 2:30 pm press conference. Expect large, fast swings between 2:00 and 3:00 pm."
+  },
+  "minutes": {
+   "name": "FOMC Minutes", "title": "FOMC meeting minutes", "agency": "Fed", "imp": 2, "time": "14:00", "per": "q8", "dir": "none", "dow": [3],
+   "match": ["FOMC Meeting Minutes"],
+   "what": "A fuller account of what the committee discussed at its last meeting, published three weeks after the decision at 2:00 pm New York time.",
+   "why": "It adds colour on how divided the committee was and how close it came to a different decision. It rarely changes the rate outlook on its own, but it can move yields when the discussion is more hawkish or dovish than the statement suggested.",
+   "watch": "Language about inflation risks, the pace of balance-sheet reduction, and how many members favoured another outcome."
+  },
+  "retail": {
+   "name": "Retail Sales", "title": "Advance Monthly Retail Sales", "agency": "Census", "imp": 3, "time": "08:30", "per": "m", "dir": "grow",
+   "match": ["^Retail Sales", "^Core Retail Sales"],
+   "what": "The Census Bureau's first estimate of how much consumers spent at stores, restaurants and online retailers last month. The figures are in current dollars, so rising prices inflate them.",
+   "why": "Consumer spending is about two thirds of US GDP, so this is a quick read on whether growth is holding up. Strong sales can lift yields; weak sales can raise growth worries.",
+   "watch": "The control group (which feeds into GDP), the headline against forecast, and revisions to the prior month."
+  },
+  "gdp": {
+   "name": "GDP", "title": "Gross Domestic Product", "agency": "BEA", "imp": 3, "time": "08:30", "per": "m", "dir": "grow", "dow": [3, 4, 5],
+   "match": ["GDP q/q", "GDP Price Index"],
+   "what": "The broadest measure of US economic output, from the Bureau of Economic Analysis. Each quarter has three estimates: advance, second and third. The advance estimate is the one that moves markets; the later two are revisions.",
+   "why": "It shows whether the economy is expanding or contracting. Markets care most about the surprise against forecast in the advance print and about the consumer spending and price components.",
+   "watch": "Growth against forecast, consumer spending, the GDP price index, and for revisions, how far the number moved."
+  },
+  "pce": {
+   "name": "PCE Inflation", "title": "Personal Income and Outlays (PCE price index)", "agency": "BEA", "imp": 3, "time": "08:30", "per": "m", "dir": "infl", "dow": [3, 4, 5],
+   "match": ["PCE Price Index", "Core PCE", "^Personal Income", "^Personal Spending"],
+   "what": "The Bureau of Economic Analysis's monthly report on personal income, spending and the PCE price index. The PCE price index is the inflation measure the Fed targets, at 2%.",
+   "why": "Because it is the Fed's preferred gauge, a surprise in core PCE can shift rate expectations. CPI and producer prices released earlier in the month usually let analysts forecast it closely, so surprises are smaller than for CPI.",
+   "watch": "Core PCE month-on-month and year-on-year, plus spending and income growth."
+  },
+  "ism_m": {
+   "name": "ISM Manufacturing PMI", "title": "ISM Manufacturing PMI", "agency": "ISM", "imp": 3, "time": "10:00", "per": "m", "dir": "grow",
+   "match": ["ISM Manufacturing PMI", "ISM Manufacturing Prices"],
+   "what": "A monthly survey of purchasing managers at US factories, published by the Institute for Supply Management on the first business day of the month at 10:00 am New York time. A reading above 50 means the sector is expanding.",
+   "why": "It is one of the earliest monthly reads on the economy. The new orders, employment and prices-paid components feed growth and inflation views.",
+   "watch": "The headline against 50 and against forecast, new orders, and the prices-paid sub-index."
+  },
+  "ism_s": {
+   "name": "ISM Services PMI", "title": "ISM Services PMI", "agency": "ISM", "imp": 3, "time": "10:00", "per": "m", "dir": "grow",
+   "match": ["ISM Services PMI", "ISM Non-Manufacturing"],
+   "what": "The matching survey for the services sector, which is most of the US economy, published on the third business day of the month at 10:00 am New York time. A reading above 50 means expansion.",
+   "why": "Services drive the bulk of jobs and spending, so a surprise here can move yields and the dollar. The prices and employment sub-indexes get attention too.",
+   "watch": "The headline against 50 and forecast, business activity, and the prices index."
+  }
+ }
+}
