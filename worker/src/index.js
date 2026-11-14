@@ -1,11 +1,12 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /health -> small status object.
+// GET /market -> JSON for the page. GET /feed -> DeItaone wire posts. GET /calendar -> release schedule. GET /health -> small status object.
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
 import SCHEDULE from '../config/schedule.json';
 import INDICATORS from '../config/indicators.json';
 import { etToMs, expand, audit, overlay } from './schedule.js';
+import { getFeed, feedHealth } from './feed.js';   // DeItaone wire via the Telegram mirror (plan 1.5)
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -429,6 +430,7 @@ export default {
         memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
         cached_items: itemCache.size,
         calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null },
+        wire: feedHealth(),
       }), { headers: json });
     }
     if (pathname === '/market') {
@@ -441,6 +443,14 @@ export default {
     if (pathname === '/calendar') {
       try {
         return new Response(await getCalendar(env, ctx), { headers: { ...json, 'Cache-Control': 'no-store' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+      }
+    }
+    if (pathname === '/feed') {
+      try {
+        const debug = new URL(req.url).searchParams.has('debug');   // /feed?debug=1 adds a markup sample when the parser finds nothing
+        return new Response(await getFeed(env, ctx, { debug }), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
