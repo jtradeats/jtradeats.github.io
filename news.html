@@ -23,6 +23,7 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --tabdash:#A15B78;--tabdashbg:rgba(161,91,120,0.12);--tabdashbd:rgba(161,91,120,0.32);
   --tablr:#4F7691;--tablrbg:rgba(79,118,145,0.12);--tablrbd:rgba(79,118,145,0.32);
   --a1:#4F7691;--a2:#A15B78;--a3:#6F8A4A;--a4:#B7803A;--a5:#6E6AA8;--a6:#3F8F8A;
+  --s-tokyo:#7FB6EE;--s-london:#E9D25F;--s-ny:#EE8B8B; /* session tints: light blue, pale yellow, light red (ORB colours): change here */
   --rad:8px;--radl:12px;
   --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
   --fxs:11px;--fsm:12px;--fbase:13px;--fh1:26px;
@@ -114,17 +115,17 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .stack .card.tall{flex:none;height:var(--full,640px)}
 /* market tape */
 .tapes{display:flex;flex-direction:column;padding:2px 0}
-.tape{position:relative;overflow:hidden;padding:5px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.tape{position:relative;overflow:hidden;padding:5px 0;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.tape.drag{cursor:grabbing}
 .tape+.tape{border-top:.5px solid var(--bd)}
-.trk{display:flex;width:max-content;animation:tk var(--dur,60s) linear infinite}
-.tape:hover .trk,.tape:focus-within .trk,.tape.hold .trk,.tapes.frozen .trk{animation-play-state:paused}
-@keyframes tk{to{transform:translateX(-50%)}}
+.trk{display:flex;width:max-content;will-change:transform}
 .seq{display:flex;flex:none;align-items:stretch}
-.tape.fit .trk{animation:none;width:100%}
+.tape.fit,.tape.static{cursor:default}
+.tape.fit .trk{width:100%;transform:none!important}
 .tape.fit .seq{width:100%;justify-content:space-around}
 .tape.fit .seq+.seq,.tape.static .seq+.seq{display:none}
 .tape.static{overflow:visible;-webkit-mask-image:none;mask-image:none}
-.tape.static .trk{animation:none;width:auto;display:block}
+.tape.static .trk{width:auto;display:block;transform:none!important}
 .tape.static .seq{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
 .tape.static .ti{min-width:0;padding:6px 8px}
 .tape.static .gc{grid-column:1/-1;justify-self:start;margin:6px 0 0 8px}
@@ -179,21 +180,34 @@ html.mobile .card.stretch{height:var(--hm,440px);align-self:auto;min-height:0}
 html.mobile .card.stretch.closed{height:auto}
 html.mobile .card.stretch .stk{position:static;height:100%}
 .cal{display:flex;flex-direction:column;height:100%}
-.calbar{flex:none;display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
+.calbar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .calnote{margin-left:auto;font-size:var(--fxs);color:var(--t3);text-align:right}
+.audit{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
+.audit:hover{border-color:var(--bdm);color:var(--t)}
+.audit i{width:7px;height:7px;border-radius:50%;background:var(--g);flex:none}
+.audit.check i{background:#E0A24A}.audit.error i{background:var(--r)}.audit.unk i{background:var(--t3)}
 .calscroll{flex:1;min-height:0;overflow:auto}
 .ct{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-.ct th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;font-size:var(--fxs);font-weight:500;color:var(--t3);padding:6px 10px;border-bottom:.5px solid var(--bd)}
-.ct td{padding:8px 10px;border-bottom:.5px solid var(--bd);font-size:var(--fbase);white-space:nowrap}
-.ct td.ev{white-space:normal;min-width:140px}
+.ct th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;font-size:var(--fxs);font-weight:500;color:var(--t3);padding:6px 10px;border-bottom:.5px solid var(--bd);white-space:nowrap}
+.ct td{padding:9px 10px;border-bottom:.5px solid var(--bd);font-size:var(--fbase);white-space:nowrap}
+.ct td.ev{white-space:normal;min-width:130px;font-weight:500}
 .ct th.n,.ct td.n{text-align:right}
-.ct tr.day td{background:var(--s2);font-size:var(--fsm);font-weight:600;color:var(--t2)}
+.ct td.n{min-width:54px}
+.ct td.tt{color:var(--t2);width:1%}
+.ct td .none{color:var(--t3)}
+.ct tr.day td{background:var(--s2);font-size:var(--fsm);font-weight:600;color:var(--t2);padding:7px 10px;cursor:default}
+.ct tr.day td small{font-weight:400;color:var(--t3);margin-left:6px}
+.ct tr.rw{cursor:pointer}
+.ct tr.rw:hover td,.ct tr.rw:focus-visible td{background:var(--s2)}
 .ct tr.past td{opacity:.5}
 .ct tr.next td{background:var(--pbselbg)}
-.imp{display:inline-flex;gap:2px;vertical-align:middle}
-.imp i{width:4px;height:13px;border-radius:1px;background:var(--bdm)}
-.imp.h i{background:var(--r)}
-.imp.m i:nth-child(-n+2){background:#E0A24A}
+.flames{display:inline-flex;gap:1px;vertical-align:middle}
+.flames i{display:inline-flex;color:var(--bdm)}
+.flames svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.flames.h i.f{color:var(--r)}.flames.m i.f{color:#E0A24A}
+.flames i.f svg{fill:currentColor;fill-opacity:.8}
+.vq{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;border:.5px solid var(--bdm);font-size:10px;font-weight:600;color:var(--t3);vertical-align:1px}
+.vq.w{color:#C98A2E;border-color:#C98A2E}
 .mk3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
 .mk .card,.mk3 .card{grid-column:auto}
 .mk3 .card{height:auto}
@@ -214,27 +228,43 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 #remb.on{color:var(--pbsel)}
 .nev{font-size:var(--fbase);font-weight:600}
 .nsub{font-size:var(--fxs);color:var(--t3)}
-.cbody{justify-content:stretch;gap:8px;padding:10px 12px}
-.sx{--ac:var(--a1);flex:1;position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:11px;padding:8px 12px 10px;border-radius:10px;border:.5px solid var(--bd);background:var(--s2);overflow:hidden}
-.si{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:.5px solid var(--bdm);color:var(--t3)}
-.si svg{width:18px;height:18px}
-.sm b{display:block;font-weight:600;font-size:var(--fbase)}
-.sm small{display:flex;align-items:center;gap:6px;color:var(--t3);font-size:var(--fxs);font-variant-numeric:tabular-nums;white-space:nowrap}
-.sm i{width:6px;height:6px;border-radius:50%;background:var(--t3);flex:none}
-.sr{text-align:right;font-variant-numeric:tabular-nums;line-height:1.3;white-space:nowrap}
-.sr small{display:block;font-size:10px;color:var(--t3)}
-.sr b{display:block;font-size:17px;font-weight:600;color:var(--t2)}
-.sb{position:absolute;left:0;right:0;bottom:0;height:3px}
-.sb i{display:block;height:100%;width:0;background:var(--ac)}
-.sx.on .si{color:var(--ac);border-color:var(--ac)}
-.sx.on .sm i{background:var(--g)}
-.sx.on .sr b{color:var(--ac)}
+.cbody{justify-content:stretch;gap:6px;padding:8px 10px}
+.sx{--sc:var(--s-tokyo);flex:1;min-height:40px;position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:9px;padding:5px 10px 7px;border-radius:9px;border:.5px solid var(--bd);background:var(--s2);overflow:hidden}
 @supports (background:color-mix(in srgb,red 10%,transparent)){
-.sx.on{border-color:color-mix(in srgb,var(--ac) 42%,transparent);background:linear-gradient(120deg,color-mix(in srgb,var(--ac) 14%,transparent),var(--s2) 70%)}
-.sx.on .si{background:color-mix(in srgb,var(--ac) 16%,transparent)}
+.sx{border-color:color-mix(in srgb,var(--sc) 26%,transparent);background:color-mix(in srgb,var(--sc) 8%,transparent)}
+.sx.on{border-color:color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 17%,transparent)}
+.sx.on .si{background:color-mix(in srgb,var(--sc) 20%,transparent)}
 .sx.on .sm i{box-shadow:0 0 0 3px color-mix(in srgb,var(--g) 22%,transparent)}}
-.cft{color:var(--t3);font-size:var(--fxs);padding:0 2px}
+.si{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:.5px solid var(--bdm);color:var(--t3)}
+.si svg{width:15px;height:15px}
+.sm{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
+.sm b{font-weight:600;font-size:var(--fbase)}
+.sm small{color:var(--t3);font-size:var(--fxs);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+.sm i{width:6px;height:6px;border-radius:50%;background:var(--t3);flex:none}
+.sr{display:flex;align-items:baseline;gap:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sr small{font-size:10px;color:var(--t3)}
+.sr b{font-size:var(--fbase);font-weight:600;color:var(--t2)}
+.sb{position:absolute;left:0;right:0;bottom:0;height:2px}
+.sb i{display:block;height:100%;width:0;background:var(--sc)}
+.sx.on .si{color:var(--sc);border-color:var(--sc)}
+.sx.on .sm i{background:var(--g)}
+.sx.on .sr b{color:var(--t)}
+.nev{cursor:pointer}.nev:hover{text-decoration:underline}
+.nsub .vq{margin-left:4px}
 html.mobile .mk3{grid-template-columns:minmax(0,1fr)}
+html.mobile .ct th,html.mobile .ct td{padding:8px 5px;font-size:12px}
+html.mobile .ct td.ev{min-width:0}
+html.mobile .ct td.n{min-width:0}
+html.mobile .flames svg{width:10px;height:10px}
+html.mobile .mk3{gap:8px;margin-bottom:1rem}
+html.mobile .mk3 .card{height:auto}
+html.mobile .cbody{gap:5px;padding:7px 8px}
+html.mobile .sx{flex:none;min-height:0;padding:4px 9px 6px}
+html.mobile .fbody{padding:4px 12px 8px;gap:2px}
+html.mobile .fbody svg{max-width:168px}
+html.mobile .nbody{padding:8px 12px;gap:4px}
+html.mobile .tu{min-width:52px;padding:5px 5px 4px}
+html.mobile .tu b{font-size:22px}
 #toasts{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 24px));pointer-events:none}
 .toast{pointer-events:auto;position:relative;background:#f9e3d3;color:#2a1d14;border:.5px solid #e9c7ae;border-radius:10px;padding:10px 30px 10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-size:var(--fsm);line-height:1.35}
 .toast .src{display:block;font-size:var(--fbase)}
@@ -247,6 +277,14 @@ html.mobile .mk3{grid-template-columns:minmax(0,1fr)}
 .relh{display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid var(--bd);padding-bottom:8px;margin-bottom:10px}
 .relh .topicon{font-size:22px}
 .relc h3{font-size:17px;font-weight:600;margin-bottom:2px}
+.relc h3.g{color:var(--g)}.relc h3.b{color:var(--r)}
+.relc h4{font-size:var(--fxs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin:12px 0 2px}
+.relc .src{font-size:var(--fsm);color:var(--t2);border-top:.5px solid var(--bd);margin-top:12px;padding-top:8px}
+.relc .src.w{color:#C98A2E}
+.relc ul.iss{list-style:none;margin:8px 0}.relc ul.iss li{font-size:var(--fsm);padding:5px 0 5px 16px;position:relative;border-bottom:.5px solid var(--bd)}
+.relc ul.iss li::before{content:'';position:absolute;left:2px;top:11px;width:7px;height:7px;border-radius:50%;background:#E0A24A}
+.relc ul.iss li.error::before{background:var(--r)}
+.relc td.num{font-variant-numeric:tabular-nums}
 .relc .relt,.relc .relf{font-size:var(--fxs);color:var(--t3)}
 .relc table{width:100%;border-collapse:collapse;margin:10px 0;font-variant-numeric:tabular-nums}
 .relc th{font-weight:500;color:var(--t3);font-size:var(--fxs);text-align:left;padding:4px 6px;border-bottom:.5px solid var(--bd)}
@@ -361,7 +399,7 @@ const fmt=(v,dp)=>Number(v).toLocaleString('en-US',{minimumFractionDigits:dp,max
 const sg=v=>v>0?'+':v<0?'\u2212':'';
 const GRPN={VOL:'vol',DOLLAR:'dollar',RATES:'rates',METALS:'metals',INDICES:'indices',ENERGY:'energy','BONDS & CREDIT':'bonds & credit'};
 const GRPC={VOL:2,DOLLAR:3,RATES:1,METALS:4,INDICES:5,ENERGY:6,'BONDS & CREDIT':1};
-const TAPE_PX=30; /* scroll speed, px per second (slow on purpose) */
+const TAPE_PX=30; /* drift speed, px per second (slow on purpose) */
 function tapeFill(el,it){
   const yl=it.kind==='yield',has=it.p!=null;
   const price=!has?'\u2014':yl?fmt(it.p,3)+'%':fmt(it.p,2);
@@ -382,7 +420,7 @@ function paintTape(items){
   const box=$('#tape'),sig=items.map(i=>i.label+'|'+(i.row||'A')+'|'+(i.grp||'')).join();
   const rebuilt=sig!==tapeSig;
   if(rebuilt){
-    tapeSig=sig;const rows={};
+    tapeSig=sig;TS.clear();const rows={};
     items.forEach(i=>{const r=i.row||'A';(rows[r]=rows[r]||[]).push(i)});
     box.innerHTML=Object.keys(rows).sort().map(r=>{
       let seq='',g=null;
@@ -394,25 +432,83 @@ function paintTape(items){
     }).join('');
   }
   items.forEach(i=>box.querySelectorAll('[data-l="'+esc(i.label)+'"]').forEach(el=>tapeFill(el,i)));
-  if(rebuilt)tapeLayout();
+  tapeLayout(); /* prices change the text width a little, so measure again */
 }
+/* The tape is moved by script, not by a CSS animation, so it can be dragged. Each row keeps an offset x (px) into its own
+   track, which holds two identical copies side by side: when x passes one copy's width it wraps, so the loop is seamless.
+   v is the current speed in px/s: it eases toward the drift speed (or toward 0 while paused), so a flick coasts and then
+   the tape drifts on again by itself. Pointer events cover mouse, touch and pen; touch-action:pan-y leaves vertical page scroll alone. */
+const TS=new Map();let tapeRaf=0,tapeT=0;
+const tapeSt=t=>{let s=TS.get(t);if(!s){s={x:0,v:TAPE_PX,w:0,id:null,hover:false,lx:0,smp:[]};TS.set(t,s)}return s};
+const tapeMoves=t=>!t.classList.contains('fit')&&!t.classList.contains('static');
+function tapeMeasure(t){const q=$('.seq',t);tapeSt(t).w=q?q.offsetWidth:0}
+function tapeLoop(ts){
+  const dt=Math.min(.1,Math.max(0,(ts-tapeT)/1000));tapeT=ts;
+  let any=false;
+  document.querySelectorAll('#tape .tape').forEach(t=>{
+    if(!tapeMoves(t))return;
+    any=true;const s=tapeSt(t);if(!s.w)tapeMeasure(t);if(!s.w)return;
+    if(s.id==null){ /* not being held */
+      const auto=(frozen||s.hover||t.matches(':focus-visible'))?0:TAPE_PX;
+      s.v+=(auto-s.v)*(1-Math.exp(-dt/.3));
+      s.x+=s.v*dt;
+    }
+    s.x=((s.x%s.w)+s.w)%s.w;
+    t.firstChild.style.transform='translate3d('+(-s.x).toFixed(2)+'px,0,0)';
+  });
+  tapeRaf=any?requestAnimationFrame(tapeLoop):0;
+}
+function tapeStart(){if(!tapeRaf){tapeT=performance.now();tapeRaf=requestAnimationFrame(tapeLoop)}}
 function tapeLayout(){
-  const st=reduceMo.matches; /* phones scroll too; the OS 'reduce motion' setting switches to the static grid */
+  const st=reduceMo.matches; /* the OS 'reduce motion' setting switches to the static grid */
   document.querySelectorAll('#tape .tape').forEach(t=>{
     t.classList.toggle('static',st);t.classList.remove('fit');
-    if(st)return;
+    if(st){t.firstChild.style.transform='';return}
     const w=$('.seq',t).offsetWidth;
-    if(w&&w<=t.clientWidth){t.classList.add('fit');return}
-    if(w)t.style.setProperty('--dur',Math.round(w/TAPE_PX)+'s');
+    if(w&&w<=t.clientWidth){t.classList.add('fit');t.firstChild.style.transform='';return}
+    tapeSt(t).w=w;
   });
+  tapeStart();
 }
 function paintFreeze(){
-  $('#tape').classList.toggle('frozen',frozen);
+  $('#tape').classList.toggle('frozen',frozen); /* frozen stops the drift only; the tape can still be dragged */
   const b=$('#mfreeze'),t=frozen?'resume the ticker tape':'pause the ticker tape';
   b.innerHTML=frozen?I.play:I.pause;b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
 }
 $('#mfreeze').onclick=()=>{frozen=!frozen;LS.s(KEY+'frozen',frozen?'1':'0');paintFreeze()};
-$('#tape').addEventListener('pointerdown',e=>{const t=e.target.closest('.tape');if(t&&e.pointerType==='touch')t.classList.toggle('hold')});
+{
+  const box=$('#tape'),hold=e=>{const t=e.target.closest('.tape');return t&&tapeMoves(t)?t:null};
+  box.addEventListener('pointerdown',e=>{
+    const t=hold(e);if(!t||(e.pointerType==='mouse'&&e.button!==0))return;
+    const s=tapeSt(t);s.id=e.pointerId;s.lx=e.clientX;s.v=0;s.smp=[[performance.now(),s.x]];
+    t.classList.add('drag');try{t.setPointerCapture(e.pointerId)}catch(_){}
+  });
+  box.addEventListener('pointermove',e=>{
+    const t=hold(e);if(!t)return;const s=tapeSt(t);if(s.id!==e.pointerId)return;
+    s.x-=e.clientX-s.lx;s.lx=e.clientX; /* content follows the finger or cursor */
+    const n=performance.now();s.smp.push([n,s.x]);while(s.smp.length>1&&n-s.smp[0][0]>120)s.smp.shift();
+  });
+  const release=e=>{
+    const t=e.target.closest&&e.target.closest('.tape');if(!t)return;const s=tapeSt(t);if(s.id!==e.pointerId)return;
+    const n=performance.now(),a=s.smp[0],b=s.smp[s.smp.length-1];
+    /* fling speed from the last ~100 ms; a pause before letting go means no fling */
+    s.v=a&&b&&b[0]>a[0]&&n-b[0]<80?Math.max(-3000,Math.min(3000,(b[1]-a[1])/((b[0]-a[0])/1000))):0;
+    s.id=null;s.smp=[];t.classList.remove('drag');
+  };
+  box.addEventListener('pointerup',release);box.addEventListener('pointercancel',release);
+  box.addEventListener('lostpointercapture',release);
+  /* a mouse resting on the tape pauses it for reading; touch never does, so nothing can get stuck paused */
+  box.addEventListener('pointerover',e=>{if(e.pointerType!=='mouse')return;const t=hold(e);if(t)tapeSt(t).hover=true});
+  box.addEventListener('pointerout',e=>{if(e.pointerType!=='mouse')return;const t=hold(e);if(t&&!t.contains(e.relatedTarget))tapeSt(t).hover=false});
+  box.addEventListener('wheel',e=>{ /* trackpad sideways swipe, or shift+wheel */
+    const t=hold(e);if(!t)return;
+    if(Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.shiftKey){e.preventDefault();tapeSt(t).x+=e.deltaX||e.deltaY}
+  },{passive:false});
+  box.addEventListener('keydown',e=>{
+    const t=hold(e);if(!t||(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'))return;
+    e.preventDefault();tapeSt(t).x+=e.key==='ArrowRight'?160:-160;
+  });
+}
 let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(tapeLayout,200)});
 reduceMo.addEventListener&&reduceMo.addEventListener('change',tapeLayout);
 const band=s=>s<25?'extreme fear':s<45?'fear':s<56?'neutral':s<76?'greed':'extreme greed';
@@ -440,7 +536,7 @@ const fmtAge=ms=>{const m=Math.round(ms/60000);return m<1?'<1m':m<60?m+'m':m<288
 const asOf=t=>{const d=new Date(t);return d.toDateString()===new Date().toDateString()?hhmm(d):d.toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'})};
 /* CME equity-futures hours in New York time: Sun 18:00 to Fri 17:00, with a 17:00-18:00 break. Exchange holidays are not handled. */
 function futClosed(){
-  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(NOW()));
   const g=k=>p.find(x=>x.type===k).value,d=g('weekday'),m=+g('hour')*60+ +g('minute');
   if(d==='Sat')return true;
   if(d==='Sun')return m<1080;
@@ -448,7 +544,7 @@ function futClosed(){
   return m>=1020&&m<1080;
 }
 function cashOpen(){
-  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(NOW()));
   const g=k=>p.find(x=>x.type===k).value,d=g('weekday'),m=+g('hour')*60+ +g('minute');
   return d!=='Sat'&&d!=='Sun'&&m>=570&&m<960;
 }
@@ -588,86 +684,121 @@ const overview=pair(tv('symbol-info',()=>({symbol:sym})),'ov');
 const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',showIntervalTabs:true})),'ta');
 
 
-/* ---- native economic calendar (Worker /calendar; USD only; High by default, '+ medium' remembered per browser) ---- */
+/* ---- schedule-first economic calendar ----
+   The Worker's /calendar serves the OFFICIAL release schedule (BLS, BEA, Census, DOL, Fed, ISM). Forecast and previous come from an
+   unofficial feed laid over it when that feed answers; when it does not (it rate-limits shared Cloudflare IPs), nothing here breaks.
+   If the Worker itself cannot be reached, the page reads the same schedule file from the repo (worker/config/), so the countdown
+   never depends on the forecast feed. */
 const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
+const STATIC_BASE='worker/config/'; /* relative to this page: assumes the repo root is what GitHub Pages serves */
 let calData=null,calAt=0,calMed=LS.g(KEY+'cal_med','0')==='1',calRng=LS.g(KEY+'cal_rng','week');
-/* Fallback if the Worker cannot get the feed (it shares Cloudflare IPs that the feed rate-limits): ask the feed straight from this browser.
-   Works only if the feed allows cross-origin reads; if not, it fails quietly and the Worker's error is shown. */
-const CAL_DIRECT=['https://nfs.faireconomy.media/ff_calendar_thisweek.json','https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
-async function calDirect(){
-  const ev=[];let ok=0;
-  await Promise.all(CAL_DIRECT.map(async u=>{try{
-    const r=await fetch(u);if(!r.ok)return;const rows=await r.json();ok++;
-    for(const x of rows){const t=Date.parse(x.date);if(x.country!=='USD'||!t||(x.impact!=='High'&&x.impact!=='Medium'))continue;
-      ev.push({t,title:String(x.title).slice(0,80),imp:x.impact==='High'?3:2,fc:x.forecast||null,pv:x.previous||null,ac:x.actual||null})}
-  }catch(e){}}));
-  if(!ok)throw new Error('direct fetch failed');
-  ev.sort((a,b)=>a.t-b.t);return{updated:new Date().toISOString(),src:'faireconomy direct (unofficial)',events:ev};
+let clkOff=0; /* Worker clock minus this device's clock, ms. Countdown, reminders and sessions use NOW() so a wrong device clock cannot skew them */
+const NOW=()=>Date.now()+clkOff;
+const ETF=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function etP(ms){const p=ETF.formatToParts(new Date(ms)),g=k=>p.find(x=>x.type===k).value;return{iso:g('year')+'-'+g('month')+'-'+g('day'),h:+g('hour'),mi:+g('minute'),s:+g('second'),y:+g('year'),mo:+g('month'),d:+g('day')}}
+function etMs(str){ /* 'YYYY-MM-DDTHH:MM' as New York wall-clock time -> epoch ms (two passes so DST edges are right) */
+  const m=/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)$/.exec(str);if(!m)return null;
+  const u=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]),off=t=>{const q=etP(t);return Date.UTC(q.y,q.mo-1,q.d,q.h,q.mi,q.s)-t};
+  let t=u-off(u);t=u-off(t);return t;
+}
+const etClock=ms=>{const q=etP(ms),h=q.h%12||12;return h+':'+p2(q.mi)+' '+(q.h<12?'AM':'PM')};
+const etDay=ms=>new Date(ms).toLocaleDateString('en-US',{timeZone:'America/New_York',weekday:'long',month:'short',day:'numeric'});
+const fmtIso=iso=>iso?new Date(iso+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}):'';
+async function calStatic(){
+  const [sc,ind]=await Promise.all(['schedule.json','indicators.json'].map(f=>fetch(STATIC_BASE+f,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(r.status+' '+f);return r.json()})));
+  const events=[];
+  for(const r of sc.releases){
+    const k=ind.kinds[r.k],t=etMs(r.d+'T'+r.t);if(!k||t==null)continue;
+    events.push({t,k:r.k,title:k.name+(r.p?(/^Q\d/.test(r.p)?' '+r.p:' ('+r.p+')'):''),imp:r.i||k.imp,agency:k.agency,v:r.v||'official',n:r.n||null,pd:r.p||null,d:r.d,src:'schedule',fc:null,pv:null,ac:null});
+  }
+  events.sort((a,b)=>a.t-b.t);
+  const now=Date.now(),ch=Object.values(sc.checked||{}).sort();
+  return{updated:new Date().toISOString(),now:null,src:'schedule file',offline:true,feed:{status:'none'},sources:sc.sources,checked:sc.checked,kinds:ind.kinds,
+    audit:{status:'unk',nIssues:0,counts:null,total:sc.releases.length,horizon:sc.releases.reduce((m,r)=>r.d>m?r.d:m,''),checked:ch[0]||null,issues:[]},
+    events:events.filter(e=>e.t>=now-2*864e5&&e.t<=now+60*864e5)};
 }
 let calFailAt=0,calLastErr=null;
 async function calGet(){
   if(calData&&Date.now()-calAt<300000)return calData;
-  if(calFailAt&&Date.now()-calFailAt<150000){if(calData)return calData;throw calLastErr} /* do not hammer a rate-limited feed */
+  if(calFailAt&&Date.now()-calFailAt<150000){if(calData)return calData;throw calLastErr} /* do not hammer a failing route */
   let d;
   try{
-    const r=await fetch(CAL_URL,{cache:'no-store'});
+    const t0=Date.now(),r=await fetch(CAL_URL,{cache:'no-store'}),t1=Date.now();
     if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(r.status+(j.error?' '+j.error:''))}
     d=await r.json();if(!Array.isArray(d.events))throw new Error('bad payload');
+    if(d.now)clkOff=Math.round(d.now-(t0+t1)/2); /* half the round trip is the best guess for when the Worker read its clock */
   }catch(e){
-    try{d=await calDirect()}catch(_){calFailAt=Date.now();calLastErr=e;if(calData)return calData;throw e}
+    if(calData&&!calData.offline&&Date.now()-calAt<1800000){calFailAt=Date.now();return calData} /* keep a recent Worker copy rather than swap to the bare file */
+    try{d=await calStatic()}catch(_){calFailAt=Date.now();calLastErr=e;if(calData)return calData;throw e}
   }
   calFailAt=0;calData=d;calAt=Date.now();return d;
 }
+const FLAME='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
+const flames=n=>'<span class="flames '+(n>=3?'h':'m')+'" role="img" aria-label="'+(n>=3?'high':'medium')+' impact">'+[1,2,3].map(i=>'<i class="'+(i<=n?'f':'')+'">'+FLAME+'</i>').join('')+'</span>';
+const cell=v=>v?esc(v):'<span class="none">—</span>';
+const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
+  +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">!</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
+const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
+const feedTxt=d=>d.feed&&d.feed.status==='ok'?'forecast and previous: unofficial feed':'no forecast'+(d.feed&&d.feed.status&&d.feed.status!=='none'?' (feed '+d.feed.status+')':'');
 const cal=el=>{
-  el.innerHTML='<div class="cal"><div class="calbar"><button class="pbtn" data-ck="today">today</button><button class="pbtn" data-ck="week">upcoming</button><button class="pbtn" data-ck="med">+ medium</button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading\u2026</p></div></div>';
-  const bar=$('.calbar',el),box=$('.calscroll',el);
+  el.innerHTML='<div class="cal"><div class="calbar"><button class="pbtn" data-ck="today">today</button><button class="pbtn" data-ck="week">upcoming</button><button class="pbtn" data-ck="med">+ medium</button><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading…</p></div></div>';
+  const bar=$('.calbar',el),box=$('.calscroll',el);let shown=[];
   const paint=d=>{
-    const now=Date.now(),s0=new Date();s0.setHours(0,0,0,0);const a=s0.getTime();
-    const ev=d.events.filter(e=>(calMed||e.imp===3)&&e.t>=a&&(calRng==='week'||e.t<a+864e5));
-    const nx=ev.find(e=>e.t>now);let h='',last='';
-    for(const e of ev){
-      const day=new Date(e.t).toDateString();
-      if(day!==last){last=day;h+='<tr class="day"><td colspan="6">'+esc(new Date(e.t).toLocaleDateString([],{weekday:'long',day:'numeric',month:'short'}))+'</td></tr>'}
-      h+='<tr class="'+(e.t<now?'past':e===nx?'next':'')+'"><td>'+esc(new Date(e.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))+'</td><td><span class="imp '+(e.imp===3?'h':'m')+'"><i></i><i></i><i></i></span></td><td class="ev">'+esc(e.title)+'</td><td class="n"><b>'+esc(e.ac||'')+'</b></td><td class="n">'+esc(e.fc||'')+'</td><td class="n">'+esc(e.pv||'')+'</td></tr>';
-    }
-    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th>time</th><th>imp</th><th>event (USD)</th><th class="n">actual</th><th class="n">forecast</th><th class="n">previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
+    const now=NOW(),today=etP(now).iso,end=etP(now+14*864e5).iso;
+    const ev=d.events.filter(e=>(calMed||e.imp===3)&&e.d>=today&&(calRng==='week'?e.d<=end:e.d===today));
+    const nx=ev.find(e=>e.t>now&&e.src!=='feed');let h='',last='';shown=ev;
+    ev.forEach((e,i)=>{
+      if(e.d!==last){last=e.d;h+='<tr class="day"><td colspan="6">'+esc(etDay(e.t))+(e.d===today?'<small>today</small>':'')+'</td></tr>'}
+      h+='<tr class="rw '+(e.t<now?'past':e===nx?'next':'')+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+etClock(e.t)+'</td><td>'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+vmark(e)+'</td><td class="n"><b>'+cell(e.ac)+'</b></td><td class="n">'+cell(e.fc)+'</td><td class="n">'+cell(e.pv)+'</td></tr>';
+    });
+    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th>Time (ET)</th><th>Imp.</th><th>Event</th><th class="n">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
     bar.querySelectorAll('.pbtn').forEach(b=>{const k=b.dataset.ck;b.classList.toggle('on',k==='med'?calMed:k===calRng)});
-    $('.calnote',el).textContent='forecast and previous only \u00b7 unofficial feed \u00b7 '+hhmm(new Date(d.updated));
+    const a=d.audit||{},ab=$('.audit',bar),st=a.status||'unk';
+    ab.className='audit '+st;
+    $('span',ab).textContent=st==='ok'?'schedule checked '+fmtIso(a.checked):st==='unk'?'schedule not audited':'schedule: '+a.nIssues+' note'+(a.nIssues===1?'':'s');
+    ab.title='Open the schedule check';
+    $('.calnote',el).textContent=['click a row to explain',feedTxt(d),skewTxt()].filter(Boolean).join(' · ');
   };
   bar.onclick=e=>{const b=e.target.closest('[data-ck]');if(!b||!calData)return;const k=b.dataset.ck;
+    if(k==='audit'){showAudit(calData);return}
     if(k==='med'){calMed=!calMed;LS.s(KEY+'cal_med',calMed?'1':'0')}else{calRng=k;LS.s(KEY+'cal_rng',k)}paint(calData)};
-  calGet().then(paint).catch(()=>{box.innerHTML='<p class="note">Calendar feed unavailable (Worker /calendar). Use the MQL5 or TradingView tab.</p>'});
+  const open=e=>{const tr=e.target.closest('tr[data-i]');if(tr&&shown[+tr.dataset.i])showRelease(shown[+tr.dataset.i])};
+  box.onclick=open;
+  box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){if(e.target.closest('tr[data-i]')){e.preventDefault();open(e)}}};
+  calGet().then(paint).catch(()=>{box.innerHTML='<p class="note">The schedule could not be loaded (Worker /calendar and worker/config/schedule.json both failed). Use the MQL5 or TradingView tab.</p>'});
 };
 
 /* ---- next high-impact USD event countdown + session clock (row under the gauges) ---- */
 const cd=ms=>{const s=Math.max(0,Math.floor(ms/1000)),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m '+String(s%60).padStart(2,'0')+'s'};
-let calFail=false,calErr='';
+let calFail=false,calErr='',nxtEv=null;
 const p2=n=>String(n).padStart(2,'0');
 const tzName=t=>new Date(t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}); /* visitor's own zone, follows the device */
 function nxtMsg(b,k,html){if(b.dataset.k!==k){b.dataset.k=k;b.removeAttribute('data-st');b.innerHTML=html}}
 function nxtPaint(){
   const b=$('#nbody');if(!b)return;
   if(!calData){
-    const why=/429/.test(calErr)?'The free feed is rate-limiting the Worker (HTTP 429). It retries on its own.':/^404/.test(calErr)?'The Worker has no /calendar route yet. Deploy worker/src/index.js.':/^502/.test(calErr)?'The Worker could not reach the feed. Open its /calendar URL to see why.':calErr?'Worker /calendar failed ('+esc(calErr.slice(0,60))+').':'';
-    nxtMsg(b,'m'+calFail+calErr,'<p class="note">'+(calFail?'calendar feed unavailable'+(why?'<br>'+why:''):'loading\u2026')+'</p>');
+    nxtMsg(b,'m'+calFail+calErr,'<p class="note">'+(calFail?'schedule unavailable<br>Neither the Worker /calendar nor worker/config/schedule.json could be read ('+esc(calErr.slice(0,60))+').':'loading…')+'</p>');
     return;
   }
-  const now=Date.now(),hi=calData.events.filter(x=>x.imp===3&&x.t>now-900000),e=hi[0];
-  if(!e){nxtMsg(b,'none','<p class="note">no high-impact USD event in the feed</p>');return}
+  const now=NOW(),hi=calData.events.filter(x=>x.imp===3&&x.src!=='feed'&&x.t>now-900000),e=hi[0]; /* official schedule only: the feed never drives the countdown */
+  if(!e){nxtMsg(b,'none','<p class="note">no high-impact USD event left in the schedule<br>refresh worker/config/schedule.json</p>');return}
+  nxtEv=e;
   const same=hi.filter(x=>x.t===e.t),rel=e.t<=now,ms=Math.abs(e.t-now),s=Math.floor(ms/1000);
   const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sc=s%60;
   const parts=rel?[['min',m],['sec',sc]]:d?[['day',d],['hr',h],['min',m],['sec',sc]]:[['hr',h],['min',m],['sec',sc]];
-  const st=rel?'live':ms<36e5?'soon':'calm',key=e.t+'|'+same.length+'|'+st+'|'+parts.map(x=>x[0]).join();
+  const st=rel?'live':ms<36e5?'soon':'calm',key=e.t+'|'+same.length+'|'+st+'|'+parts.map(x=>x[0]).join()+'|'+(e.fc||'')+(e.pv||'')+(e.v||'')+(e.flag||'');
   if(b.dataset.k!==key){
     b.dataset.k=key;b.dataset.st=st;
-    b.innerHTML='<div class="tm" role="timer" aria-live="off" aria-label="'+esc(e.title)+'">'+parts.map(x=>'<div class="tu"><b>00</b><small>'+x[0]+'</small></div>').join('')+'</div><div class="nbar"><i></i></div><div class="nev">'+esc(e.title)+(same.length>1?' <span class="more">+'+(same.length-1)+' more</span>':'')+'</div><div class="nsub">'+(rel?'released ':'')+esc(tzName(e.t))+(e.fc?' \u00b7 forecast '+esc(e.fc):'')+(e.pv?' \u00b7 previous '+esc(e.pv):'')+'</div>';
+    b.innerHTML='<div class="tm" role="timer" aria-live="off" aria-label="'+esc(e.title)+'">'+parts.map(x=>'<div class="tu"><b>00</b><small>'+x[0]+'</small></div>').join('')+'</div><div class="nbar"><i></i></div><div class="nev" role="button" tabindex="0" title="what is this release?">'+esc(e.title)+(same.length>1?' <span class="more">+'+(same.length-1)+' more</span>':'')+'</div><div class="nsub">'+(rel?'released ':'')+esc(etClock(e.t))+' ET · '+esc(tzName(e.t))+(e.fc?' · forecast '+esc(e.fc):'')+(e.pv?' · previous '+esc(e.pv):'')+vmark(e)+'</div>';
   }
   const nums=b.querySelectorAll('.tu b');
   parts.forEach((x,i)=>{const v=p2(x[1]);if(nums[i]&&nums[i].textContent!==v)nums[i].textContent=v});
   const bar=b.querySelector('.nbar i');if(bar)bar.style.width=Math.max(0,Math.min(100,100-ms/864e5*100))+'%'; /* fills over the last 24 h */
 }
+$('#nbody').addEventListener('click',e=>{if(e.target.closest('.nev')&&nxtEv)showRelease(nxtEv)});
+$('#nbody').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.nev')&&nxtEv){e.preventDefault();showRelease(nxtEv)}});
 const nxtLoad=()=>calGet().then(()=>{calFail=false;calErr='';nxtPaint()}).catch(e=>{calFail=true;calErr=String(e.message);nxtPaint()});
-function lclkPaint(){const el=$('#lclk');if(el)el.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'})}
+function lclkPaint(){const el=$('#lclk');if(el)el.textContent='CME '+(futClosed()?'closed':'open')+' \u00b7 '+new Date(NOW()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'})}
 
 /* ---- calendar reminders (plan 4.2, in-page version): toasts for High-impact USD events, 15 min and 5 min before and at release.
    Only fires while this page is open (a hidden tab is fine). Each reminder fires once per event, remembered per browser. Push to the phone needs the Worker cron (plan 4.5). ---- */
@@ -682,15 +813,15 @@ function paintRem(){
 function toggleRem(){remOn=!remOn;LS.s(KEY+'rem_on',remOn?'1':'0');paintRem()}
 function remCheck(){
   if(!remOn||!calData)return;
-  const now=Date.now(),by=new Map();let dirty=false;
-  calData.events.forEach(e=>{if(e.imp===3){if(!by.has(e.t))by.set(e.t,[]);by.get(e.t).push(e)}});
+  const now=NOW(),by=new Map();let dirty=false;
+  calData.events.forEach(e=>{if(e.imp===3&&e.src!=='feed'){if(!by.has(e.t))by.set(e.t,[]);by.get(e.t).push(e)}});
   for(const [t,list] of by)for(const r of REM){
     const at=t-r*60000,k=t+'|'+r;
     if(now<at||now>at+REM_WINDOW||fired.includes(k))continue; /* too late to be useful: skip, never replay old ones */
     fired.push(k);dirty=true;
     const one=list.length===1?list[0]:null,mins=Math.max(1,Math.ceil((t-now)/60000));
-    toast({src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 '+(r?'RELEASE IN '+mins+' MIN':'RELEASE NOW'),h:list.map(x=>x.title).join(' \u00b7 '),
-      s:r===0?'The actual is not in this feed yet.':one?(one.fc?'Forecast '+one.fc:'No forecast')+(one.pv?' \u00b7 previous '+one.pv:''):list.length+' releases at '+hhmm(new Date(t))+'.',ms:60000});
+    toast({src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 '+(r?'RELEASE IN '+mins+' MIN':'RELEASE NOW'),h:list.map(x=>x.title).join(' \u00b7 '),rel:true,ev:list[0],
+      s:r===0?'Actual figures are not connected yet.':one?(one.fc?'Forecast '+one.fc:'Scheduled '+etClock(t)+' ET')+(one.pv?' \u00b7 previous '+one.pv:''):list.length+' releases at '+etClock(t)+' ET.',ms:60000});
   }
   if(dirty){fired=fired.filter(k=>+k.split('|')[0]>now-2*864e5);LS.s(KEY+'rem_fired',JSON.stringify(fired))}
 }
@@ -699,14 +830,14 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)remCheck()
 
 /* sessions: each exchange's own local hours (minutes from midnight); holidays and lunch breaks are not handled.
    Countdown and the time on the right are in the visitor's own zone (device setting). */
-const SESS=[['Tokyo','Asia/Tokyo',540,930,2],['London','Europe/London',480,990,1],['New York','America/New_York',570,960,4]];
+const SESS=[['Tokyo','Asia/Tokyo',540,930,'tokyo'],['London','Europe/London',480,990,'london'],['New York','America/New_York',570,960,'ny']];
 const SI=[
   ico('<path d="M2 6c5 1.2 15 1.2 20 0"/><path d="M4 10h16"/><path d="M6 10v11M18 10v11"/>'),
   ico('<path d="M9 22V9l3-6 3 6v13"/><circle cx="12" cy="13" r="2"/><path d="M7 22h10"/>'),
   ico('<path d="M12 2v4"/><path d="M9 22V8h6v14"/><path d="M5 22v-9h4M15 22v-11h4"/><path d="M2 22h20"/>')
 ];
 function inTz(tz){
-  const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(NOW()));
   const g=k=>p.find(x=>x.type===k).value;
   return{d:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(g('weekday')),m:+g('hour')*60+ +g('minute'),s:+g('second')};
 }
@@ -717,7 +848,7 @@ function clkPaint(){
   const box=$('#cbody');if(!box)return;
   if(!clkBuilt){
     clkBuilt=true;
-    box.innerHTML=SESS.map((x,i)=>'<div class="sx" style="--ac:var(--a'+x[4]+')"><div class="si">'+SI[i]+'</div><div class="sm"><b>'+x[0]+'</b><small><i></i><span class="st"></span></small></div><div class="sr"><small class="sk"></small><b class="sv"></b><small class="sw"></small></div><div class="sb"><i></i></div></div>').join('')+'<div class="cft"></div>';
+    box.innerHTML=SESS.map((x,i)=>'<div class="sx" style="--sc:var(--s-'+x[4]+')"><div class="si">'+SI[i]+'</div><div class="sm"><i></i><b>'+x[0]+'</b><small class="st"></small></div><div class="sr"><small class="sk"></small><b class="sv"></b></div><div class="sb"><i></i></div></div>').join('');
   }
   SESS.forEach(([n,tz,o,c],i)=>{
     const el=box.children[i],t=inTz(tz),e=t.m*60+t.s,wk=t.d>0&&t.d<6,op=wk&&e>=o*60&&e<c*60;
@@ -729,14 +860,13 @@ function clkPaint(){
       else for(let j=1;j<=7;j++){const nd=(t.d+j)%7;if(nd>0&&nd<6){w=j*86400+o*60-e;break}}
       k='opens in';secs=w;
     }
-    const at=new Date(Date.now()+secs*1000);
+    const at=new Date(NOW()+secs*1000);
     el.classList.toggle('on',op);
-    setT($('.st',el),new Date().toLocaleTimeString([],{timeZone:tz,hour:'2-digit',minute:'2-digit',timeZoneName:'short'})+' \u00b7 '+(op?'open':'closed'));
+    el.title=(op?'closes ':'opens ')+at.toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'})+' your time';
+    setT($('.st',el),new Date(NOW()).toLocaleTimeString([],{timeZone:tz,hour:'numeric',minute:'2-digit'}));
     setT($('.sk',el),k);setT($('.sv',el),dhm(secs));
-    setT($('.sw',el),op?'until '+hhmm(at):at.toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'}));
     $('.sb i',el).style.width=(op?Math.min(100,pr*100):0)+'%';
   });
-  setT(box.lastChild,'CME equity futures: '+(futClosed()?'closed':'open')+' \u00b7 times on the right are in your zone');
 }
 setInterval(()=>{if(!document.hidden){nxtPaint();lclkPaint();clkPaint()}},1000);
 setInterval(()=>{if(!document.hidden)nxtLoad()},30000);
@@ -878,25 +1008,58 @@ function toast(a){
   let t;const kill=()=>{clearTimeout(t);el.remove()};
   t=setTimeout(kill,a.ms||TOAST_MS);
   $('.x',el).onclick=kill;
-  const rd=$('.rd',el);if(rd)rd.onclick=()=>{kill();showRelease()};
+  const rd=$('.rd',el);if(rd)rd.onclick=()=>{kill();showRelease(a.ev)};
   toastBox.appendChild(el);
   while(toastBox.children.length>TOAST_MAX)toastBox.firstChild.remove();
 }
-function testAlert(){toast(MOCKS[mockI++%MOCKS.length])}
+function testAlert(){const m={...MOCKS[mockI++%MOCKS.length]};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
 const relBox=document.createElement('div');relBox.id='rel';relBox.hidden=true;document.body.appendChild(relBox);
 const closeRel=()=>{relBox.hidden=true};
-function showRelease(){
-  const when=new Date('2026-11-12T13:30:00Z').toLocaleString([],{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-  relBox.innerHTML='<div class="relc" role="dialog" aria-modal="true" aria-label="Economic release"><div class="relh"><b>Economic release</b><button class="topicon" aria-label="close">\u00d7</button></div>'
-    +'<h3>Initial jobless claims came in above forecast</h3><div class="relt">'+esc(when)+' (your time)</div>'
-    +'<table><tr><th>Actual</th><th>Forecast</th><th>Previous (revised)</th></tr><tr><td>200K</td><td>194K</td><td>191K</td></tr></table>'
-    +'<p><b>Surprise.</b> +6K vs forecast, +9K vs the revised previous (first printed as 189K).</p>'
-    +'<p><b>In plain English.</b> Initial claims count people who filed for unemployment benefits for the first time that week. 200K is 6K more than economists expected and 9K more than the revised week before, so layoffs ticked up a little, though the level is still low.</p>'
-    +'<p><b>Read.</b> A slightly softer labour reading, though the level is still low by historical standards.</p>'
-    +'<p><b>Fed lens.</b> Leans dovish (weaker labour data). How stocks react depends on the regime; reaction bars are not connected yet.</p>'
-    +'<p class="relf">Layout mock. Fixed template text, not AI and not live. The real card will use official DOL figures from the Worker.</p></div>';
-  relBox.hidden=false;
-  $('.relh .topicon',relBox).onclick=closeRel;
+const numOf=v=>{if(v==null)return NaN;const m=String(v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):NaN};
+function relHead(e,k){ /* headline tone from actual vs forecast; only possible once an actual exists */
+  const a=numOf(e.ac),f=numOf(e.fc),nm=k?k.name:e.title;
+  if(isNaN(a)||isNaN(f))return e.t>NOW()?{c:'',h:'Upcoming: '+e.title}:{c:'',h:'Released: '+e.title+' (actual not connected yet)'};
+  if(a===f)return{c:'',h:nm+' came in line with forecast'};
+  const up=a>f,dir=k?k.dir:'none',w=up?'above':'below';
+  if(dir==='claims')return up?{c:'b',h:'Bad news: '+nm+' rose more than expected'}:{c:'g',h:'Good news: '+nm+' fell more than expected'};
+  if(dir==='infl')return up?{c:'b',h:'Hot: '+nm+' came in above forecast'}:{c:'g',h:'Cool: '+nm+' came in below forecast'};
+  if(dir==='grow')return up?{c:'g',h:'Good news: '+nm+' came in above forecast'}:{c:'b',h:'Bad news: '+nm+' came in below forecast'};
+  return{c:'',h:nm+' came in '+w+' forecast'};
+}
+function relShell(label,inner){
+  relBox.innerHTML='<div class="relc" role="dialog" aria-modal="true" aria-label="'+esc(label)+'"><div class="relh"><b>'+esc(label)+'</b><button class="topicon" aria-label="close">×</button></div>'+inner+'</div>';
+  relBox.hidden=false;$('.relh .topicon',relBox).onclick=closeRel;$('.relh .topicon',relBox).focus();
+}
+function showRelease(e){
+  if(!e)return;
+  const d=calData||{},k=(d.kinds||{})[e.k],hd=relHead(e,k);
+  const loc=new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});
+  const rows=[e].concat(e.sub||[]).map(x=>'<tr><td class="num">'+esc(x.title)+'</td><td class="num">'+cell(x.ac)+'</td><td class="num">'+cell(x.fc)+'</td><td class="num">'+cell(x.pv)+'</td></tr>').join('');
+  const ck=d.checked&&d.checked[e.k],srcUrl=d.sources&&d.sources[e.k];
+  let src;
+  if(e.src==='feed')src='<div class="src w">This event is only in the unofficial feed. It is not part of the official schedule and does not drive the countdown or reminders.</div>';
+  else if(e.v==='rule')src='<div class="src w">Date derived from the usual pattern for '+esc(e.agency||'the agency')+'; the agency has not published this one yet. '+esc(e.n||'')+'</div>';
+  else if(e.v==='check')src='<div class="src w">Date in doubt. '+esc(e.n||'')+'</div>';
+  else src='<div class="src">Date and time from the official '+esc(e.agency||'')+' schedule'+(ck?', checked '+esc(fmtIso(ck)):'')+'.'+(srcUrl?' <a href="'+esc(srcUrl)+'" target="_blank" rel="noopener">source</a>':'')+(e.n?' '+esc(e.n):'')+'</div>';
+  const flag=e.flag?'<div class="src w">The unofficial feed disagrees: '+esc(e.flag)+'. The schedule above is what the countdown uses. Check the agency page.</div>':'';
+  relShell('Economic release',
+    '<h3 class="'+hd.c+'">'+esc(hd.h)+'</h3><div class="relt">'+esc(etDay(e.t))+', '+etClock(e.t)+' ET · '+esc(loc)+' (your time)</div>'
+    +'<table><tr><th>Event</th><th>Actual</th><th>Forecast</th><th>Previous</th></tr>'+rows+'</table>'
+    +(k?'<h4>What it is</h4><p>'+esc(k.what)+'</p><h4>Why it matters</h4><p>'+esc(k.why)+'</p><h4>What to watch</h4><p>'+esc(k.watch)+'</p>':'')
+    +src+flag
+    +'<p class="relf">Explainer text is fixed per release type, written by hand: not AI and not live. Actual figures are not connected yet (plan 3.5), so the good/bad headline appears once a release carries an actual.</p>');
+}
+function showAudit(d){
+  const a=d.audit||{},c=a.counts,iss=(a.issues||[]).map(i=>'<li class="'+esc(i.lvl)+'">'+esc(i.msg)+'</li>').join('');
+  const src=Object.entries(d.sources||{}).filter(([k],i,arr)=>arr.findIndex(x=>x[1]===d.sources[k])===i).map(([k,u])=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(u.replace(/^https?:\/\/(www\.)?/,'').split('/')[0])+'</a>').join(' · ');
+  relShell('Schedule check',
+    '<h3 class="'+(a.status==='ok'?'g':a.status==='error'?'b':'')+'">'+(a.status==='ok'?'No problems found':a.status==='unk'?'Not audited (the Worker was not reached)':a.nIssues+' note'+(a.nIssues===1?'':'s')+(a.status==='error'?', including errors':''))+'</h3>'
+    +'<div class="relt">'+(a.total||0)+' scheduled releases, '+fmtIso(a.first)+' to '+fmtIso(a.horizon)+(a.checked?' · oldest check '+fmtIso(a.checked):'')+'</div>'
+    +(c?'<p>'+c.official+' dates read from agency pages · '+c.rule+' derived from the agency’s usual pattern · '+c.check+' in doubt.</p>':'')
+    +(iss?'<ul class="iss">'+iss+'</ul>':'')
+    +'<h4>What is checked</h4><p>On every load the Worker re-checks the file: no weekend or federal-holiday dates, the right time for each release type, no missing or doubled weeks and months, FOMC spacing, minutes three weeks after each decision, how long ago each type was checked, and how far ahead the file runs. When the unofficial feed answers, its dates and times are compared with the schedule too. A device-clock check runs against the Worker’s clock'+(Math.abs(clkOff)>2000?' (yours is off by '+(Math.abs(clkOff)/1000).toFixed(0)+' s and is corrected)':' (yours agrees to within 2 s)')+'.</p>'
+    +(src?'<h4>Official sources</h4><p>'+src+'</p>':'')
+    +'<p class="relf">The check proves the file is consistent, not that the agencies have not changed a date since it was last compared with their pages.</p>');
 }
 relBox.addEventListener('click',e=>{if(e.target===relBox)closeRel()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRel()});
