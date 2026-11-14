@@ -59,7 +59,7 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .tab:hover:not(.on){color:var(--t)}
 .tabsep{color:var(--t3);user-select:none}
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;margin-bottom:1.25rem;align-items:start}
-.mk{display:grid;grid-template-columns:minmax(0,9fr) minmax(0,3fr);gap:10px;margin-bottom:10px}
+.mk{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:10px}
 .card{grid-column:span var(--sp,6);height:var(--h,460px);display:flex;flex-direction:column;background:var(--s2);border:.5px solid var(--bd);border-radius:var(--radl);overflow:hidden}
 .mk .card{height:auto}
 .ch{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:.5px solid var(--bd);min-height:38px;user-select:none;-webkit-user-select:none}
@@ -80,9 +80,10 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .body{flex:1;min-height:0;position:relative;overflow:auto}
 .body iframe,.card iframe{width:100%;height:100%;border:0;display:block;color-scheme:normal}
 .body .tradingview-widget-container,.body .tradingview-widget-container__widget{height:100%;width:100%}
-.stk{display:flex;flex-direction:row;height:100%}
-.stk .s1{flex:0 0 40%;min-width:0;border-right:.5px solid var(--bd)}
-.stk .s2{flex:1;min-width:0}
+.stk{display:flex;flex-direction:column;height:100%}
+.stk .s1{flex:none;height:290px;min-width:0;border-bottom:.5px solid var(--bd)}
+.stk .s1.ta{height:440px}
+.stk .s2{flex:1;min-width:0;min-height:200px}
 .emb{display:flex;flex-direction:column;height:100%}
 .emb iframe{flex:1;min-height:0;height:auto}
 .pw{flex:none;padding:4px 10px;font-size:var(--fxs);color:var(--t3)}
@@ -178,6 +179,21 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .imp i{width:4px;height:13px;border-radius:1px;background:var(--bdm)}
 .imp.h i{background:var(--r)}
 .imp.m i:nth-child(-n+2){background:#E0A24A}
+.mk3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
+.mk3 .card{height:auto}
+.nbody,.cbody{flex:1;display:flex;flex-direction:column;justify-content:center;padding:10px 14px;gap:5px}
+.nbody{align-items:center;text-align:center}
+.ncd{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
+.nev{font-size:var(--fbase);font-weight:600}
+.nsub{font-size:var(--fxs);color:var(--t3)}
+.sess{display:flex;align-items:center;gap:8px;font-size:var(--fbase)}
+.sd{width:8px;height:8px;border-radius:50%;background:var(--t3);flex:none}
+.sd.on{background:var(--g)}
+.sn{flex:1}
+.ss{color:var(--t2);font-size:var(--fsm);font-variant-numeric:tabular-nums}
+.sess.sft{color:var(--t3);font-size:var(--fxs)}
+html.mobile .mk3{grid-template-columns:repeat(2,minmax(0,1fr))}
+html.mobile #fng{grid-column:1/-1}
 #toasts{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 24px));pointer-events:none}
 .toast{pointer-events:auto;position:relative;background:#f9e3d3;color:#2a1d14;border:.5px solid #e9c7ae;border-radius:10px;padding:10px 30px 10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-size:var(--fsm);line-height:1.35}
 .toast .src{display:block;font-size:var(--fbase)}
@@ -220,9 +236,19 @@ html.mobile .card.stretch .stk{position:static;height:100%}
         <button class="topicon" id="mrefresh" aria-label="reload the latest data" data-tt="reload the latest data"></button></div>
       <div class="qgrid" id="qgrid"></div>
     </section>
+  </div>
+  <div class="mk3">
     <section class="card" id="fng">
       <div class="ch"><span class="plbl">fear &amp; greed</span></div>
       <div class="fbody" id="fbody"></div>
+    </section>
+    <section class="card" id="nxt">
+      <div class="ch"><span class="plbl">next high-impact event · usd</span></div>
+      <div class="nbody" id="nbody"></div>
+    </section>
+    <section class="card" id="clk">
+      <div class="ch"><span class="plbl">sessions</span></div>
+      <div class="cbody" id="cbody"></div>
     </section>
   </div>
   <div class="grid" id="p-news"></div>
@@ -239,7 +265,7 @@ const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/
    Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
    (the reset icon in the header clears those and brings these back). */
-const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'AAPL'};
+const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'QQQ'};
 const KEY='wss_dash2_';
 try{localStorage.removeItem('wss_gh_token')}catch(e){} /* one-click workflow token is no longer used */
 
@@ -501,6 +527,37 @@ const cal=el=>{
   calGet().then(paint).catch(()=>{box.innerHTML='<p class="note">Calendar feed unavailable (Worker /calendar). Use the MQL5 or TradingView tab.</p>'});
 };
 
+/* ---- next high-impact USD event countdown + session clock (row under the gauges) ---- */
+const cd=ms=>{const s=Math.max(0,Math.floor(ms/1000)),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m '+String(s%60).padStart(2,'0')+'s'};
+let calFail=false;
+function nxtPaint(){
+  const b=$('#nbody');if(!b)return;
+  if(!calData){b.innerHTML='<p class="note">'+(calFail?'calendar feed unavailable':'loading\u2026')+'</p>';return}
+  const now=Date.now(),e=calData.events.find(x=>x.imp===3&&x.t>now-900000);
+  if(!e){b.innerHTML='<p class="note">no high-impact USD event in the feed</p>';return}
+  b.innerHTML='<div class="ncd">'+(e.t<=now?'released '+Math.floor((now-e.t)/60000)+'m ago':'in '+cd(e.t-now))+'</div><div class="nev">'+esc(e.title)+'</div><div class="nsub">'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'}))+(e.fc?' \u00b7 forecast '+esc(e.fc):'')+(e.pv?' \u00b7 previous '+esc(e.pv):'')+'</div>';
+}
+const nxtLoad=()=>calGet().then(()=>{calFail=false;nxtPaint()}).catch(()=>{calFail=true;nxtPaint()});
+/* sessions in each exchange's own local hours (minutes from midnight); holidays and lunch breaks are not handled */
+const SESS=[['Asia \u00b7 Tokyo','Asia/Tokyo',540,930],['London','Europe/London',480,990],['New York cash','America/New_York',570,960]];
+function inTz(tz){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const g=k=>p.find(x=>x.type===k).value;
+  return{d:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(g('weekday')),m:+g('hour')*60+ +g('minute')};
+}
+const dm=m=>{m=Math.round(m);return m>=60?Math.floor(m/60)+'h '+m%60+'m':m+'m'};
+function clkPaint(){
+  const el=$('#cbody');if(!el)return;
+  el.innerHTML=SESS.map(([n,tz,o,c])=>{
+    const t=inTz(tz),wk=t.d>0&&t.d<6,op=wk&&t.m>=o&&t.m<c;let s;
+    if(op)s='open \u00b7 closes in '+dm(c-t.m);
+    else{let w=null;if(wk&&t.m<o)w=o-t.m;else for(let i=1;i<=7;i++){const nd=(t.d+i)%7;if(nd>0&&nd<6){w=i*1440-t.m+o;break}}s='opens in '+dm(w)}
+    return '<div class="sess"><span class="sd'+(op?' on':'')+'"></span><span class="sn">'+n+'</span><span class="ss">'+s+'</span></div>';
+  }).join('')+'<div class="sess sft">CME equity futures: '+(futClosed()?'closed':'open')+'</div>';
+}
+setInterval(()=>{if(!document.hidden)nxtPaint()},1000);
+setInterval(()=>{if(!document.hidden){clkPaint();nxtLoad()}},30000);
+
 /* ---- cards ---- */
 const C={
   gex:{page:'tech',t:'nq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:326,ifhm:326,src:{
@@ -661,7 +718,7 @@ function showRelease(){
 relBox.addEventListener('click',e=>{if(e.target===relBox)closeRel()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRel()});
 
-paintTheme();applyLayout();paintCached();showPage(tab);for(const k in C)paintCard(k);loadMarket();
+paintTheme();applyLayout();paintCached();showPage(tab);for(const k in C)paintCard(k);loadMarket();nxtLoad();nxtPaint();clkPaint();
 </script>
 </body>
 </html>
