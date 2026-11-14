@@ -23,6 +23,8 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --tabdash:#A15B78;--tabdashbg:rgba(161,91,120,0.12);--tabdashbd:rgba(161,91,120,0.32);
   --tablr:#4F7691;--tablrbg:rgba(79,118,145,0.12);--tablrbd:rgba(79,118,145,0.32);
   --a1:#4F7691;--a2:#A15B78;--a3:#6F8A4A;--a4:#B7803A;--a5:#6E6AA8;--a6:#3F8F8A;
+  --pc1:#E8794A;--pc2:#DD5B7A;--pc3:#D4483F; /* next-event card: peach to coral-pink, hotter under an hour */
+  --s-off:#E5484D; /* session dot when closed */
   --s-tokyo:#7FB6EE;--s-london:#E9D25F;--s-ny:#EE8B8B; /* session tints: light blue, pale yellow, light red (ORB colours): change here */
   --rad:8px;--radl:12px;
   --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
@@ -38,6 +40,7 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --tabdash:#A9C6DE;--tabdashbg:rgba(169,198,222,0.15);--tabdashbd:rgba(169,198,222,0.35);
   --tablr:#E0AFC2;--tablrbg:rgba(224,175,194,0.15);--tablrbd:rgba(224,175,194,0.35);
   --a1:#A9C6DE;--a2:#E0AFC2;--a3:#B9CC8E;--a4:#E8C07A;--a5:#B7B3E6;--a6:#8FD0C9;
+  --pc1:#FFB08C;--pc2:#FF8A9A;--pc3:#FF7A7A;
 }
 body{font-family:var(--sans);background:var(--bg);color:var(--t);min-height:100vh;font-size:var(--fbase)}
 #app{max-width:1152px;margin:0 auto;padding:2rem 1.25rem 4rem}
@@ -129,8 +132,11 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .tape.static .seq{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
 .tape.static .ti{min-width:0;padding:6px 8px}
 .tape.static .gc{grid-column:1/-1;justify-self:start;margin:6px 0 0 8px}
-.gc{align-self:center;flex:none;font-size:var(--fxs);font-weight:600;padding:2px 9px;border-radius:999px;margin:0 4px 0 16px;border:.5px solid currentColor}
+.gc{align-self:center;flex:none;font-size:var(--fxs);font-weight:600;padding:2px 9px;border-radius:999px;margin:0 4px 0 16px;border:.5px solid currentColor;white-space:pre-line;text-align:center;line-height:1.2}
 @supports (background:color-mix(in srgb,red 10%,transparent)){.gc{background:color-mix(in srgb,currentColor 12%,transparent)}}
+.gc.gc2{padding:3px 10px;border-radius:12px}
+.tape.static .gc{white-space:nowrap}
+.tape.static .gc.gc2{padding:2px 9px;border-radius:999px}
 .ti{flex:none;min-width:112px;padding:3px 14px;white-space:nowrap}
 .ti .l{font-size:var(--fxs);color:var(--t3);letter-spacing:.06em;display:flex;justify-content:space-between;gap:10px}
 .ti .a{font-size:10px;letter-spacing:0;font-variant-numeric:tabular-nums}
@@ -213,8 +219,8 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .mk3 .card{height:auto}
 .nbody,.cbody{flex:1;display:flex;flex-direction:column;justify-content:center;padding:10px 14px;gap:5px}
 .nbody{align-items:center;text-align:center}
-.nbody{--ac:var(--a1);--ac2:var(--a5)}
-.nbody[data-st=soon]{--ac:var(--a4);--ac2:var(--a2)}
+.nbody{--ac:var(--pc1);--ac2:var(--pc2)}
+.nbody[data-st=soon]{--ac:var(--pc2);--ac2:var(--pc3)}
 .nbody[data-st=live]{--ac:var(--a3);--ac2:var(--a6)}
 .tm{display:flex;gap:7px;justify-content:center}
 .tu{min-width:58px;padding:7px 6px 5px;border-radius:10px;border:.5px solid var(--bd);background:var(--s2)}
@@ -224,8 +230,9 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .nbar{width:100%;max-width:260px;height:3px;border-radius:2px;background:var(--bd);overflow:hidden}
 .nbar i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,var(--ac),var(--ac2))}
 .nbody[data-st=live] .nbar{display:none}
+@supports (background:color-mix(in srgb,red 10%,transparent)){#nxt{border-color:color-mix(in srgb,var(--pc2) 34%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--pc1) 12%,transparent),color-mix(in srgb,var(--pc2) 6%,transparent))}}
 .nev .more{font-weight:400;color:var(--t3);font-size:var(--fxs)}
-#remb.on{color:var(--pbsel)}
+#remb.on{color:var(--pc1)}
 .nev{font-size:var(--fbase);font-weight:600}
 .nsub{font-size:var(--fxs);color:var(--t3)}
 .cbody{justify-content:stretch;gap:6px;padding:8px 10px}
@@ -234,13 +241,13 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .sx{border-color:color-mix(in srgb,var(--sc) 26%,transparent);background:color-mix(in srgb,var(--sc) 8%,transparent)}
 .sx.on{border-color:color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 17%,transparent)}
 .sx.on .si{background:color-mix(in srgb,var(--sc) 20%,transparent)}
-.sx.on .sm i{box-shadow:0 0 0 3px color-mix(in srgb,var(--g) 22%,transparent)}}
+}
 .si{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:.5px solid var(--bdm);color:var(--t3)}
 .si svg{width:15px;height:15px}
 .sm{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
 .sm b{font-weight:600;font-size:var(--fbase)}
 .sm small{color:var(--t3);font-size:var(--fxs);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
-.sm i{width:6px;height:6px;border-radius:50%;background:var(--t3);flex:none}
+.sm i{position:relative;width:7px;height:7px;border-radius:50%;background:var(--s-off);flex:none}
 .sr{display:flex;align-items:baseline;gap:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .sr small{font-size:10px;color:var(--t3)}
 .sr b{font-size:var(--fbase);font-weight:600;color:var(--t2)}
@@ -248,6 +255,9 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .sb i{display:block;height:100%;width:0;background:var(--sc)}
 .sx.on .si{color:var(--sc);border-color:var(--sc)}
 .sx.on .sm i{background:var(--g)}
+.sx.on .sm i::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--g);animation:dotp 1.8s ease-out infinite}
+@keyframes dotp{from{transform:scale(1);opacity:.65}to{transform:scale(3.2);opacity:0}}
+@media (prefers-reduced-motion:reduce){.sx.on .sm i::after{animation:none;display:none}}
 .sx.on .sr b{color:var(--t)}
 .nev{cursor:pointer}.nev:hover{text-decoration:underline}
 .nsub .vq{margin-left:4px}
@@ -397,7 +407,7 @@ mq.addEventListener&&mq.addEventListener('change',applyLayout);
 /* ---- market gauges + fear & greed (native, fed by market.json) ---- */
 const fmt=(v,dp)=>Number(v).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
 const sg=v=>v>0?'+':v<0?'\u2212':'';
-const GRPN={VOL:'vol',DOLLAR:'dollar',RATES:'rates',METALS:'metals',INDICES:'indices',ENERGY:'energy','BONDS & CREDIT':'bonds & credit'};
+const GRPN={VOL:'vol',DOLLAR:'dollar',RATES:'rates',METALS:'metals',INDICES:'indices',ENERGY:'energy','BONDS & CREDIT':'bonds &\ncredit'};
 const GRPC={VOL:2,DOLLAR:3,RATES:1,METALS:4,INDICES:5,ENERGY:6,'BONDS & CREDIT':1};
 const TAPE_PX=30; /* drift speed, px per second (slow on purpose) */
 function tapeFill(el,it){
@@ -425,7 +435,7 @@ function paintTape(items){
     box.innerHTML=Object.keys(rows).sort().map(r=>{
       let seq='',g=null;
       rows[r].forEach(i=>{
-        if(i.grp&&i.grp!==g){g=i.grp;seq+='<span class="gc" style="color:var(--a'+(GRPC[g]||1)+')">'+esc(GRPN[g]||g.toLowerCase())+'</span>'}
+        if(i.grp&&i.grp!==g){g=i.grp;const lb=GRPN[g]||g.toLowerCase();seq+='<span class="gc'+(lb.indexOf('\n')>-1?' gc2':'')+'" style="color:var(--a'+(GRPC[g]||1)+')">'+esc(lb)+'</span>'}
         seq+='<div class="ti" data-l="'+esc(i.label)+'"></div>';
       });
       return '<div class="tape" role="group" aria-label="market tape" tabindex="0"><div class="trk"><div class="seq">'+seq+'</div><div class="seq" aria-hidden="true">'+seq+'</div></div></div>';
