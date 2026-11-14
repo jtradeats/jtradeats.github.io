@@ -91,10 +91,10 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .inv .pw{color:#333;font-family:Arial,Helvetica,sans-serif}
 .inv .pw a{color:#06529D;font-weight:bold;text-decoration:none}
 html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
-.gx iframe{flex:none;height:310px}
-.emb.inv{padding:0 10px}
+.gx iframe{flex:none;height:var(--ifh,330px)}
+.gx .pw{min-height:36px}
 .xw{flex:1;min-height:0;overflow:auto}
-.card.fit{height:auto}
+.card.fit{height:auto;align-self:stretch}
 #financialjuice-news-widget-container{height:100%;width:100%}
 #financialjuice-news-widget-container>*,#financialjuice-news-widget-container iframe{height:100%!important;width:100%!important}
 .note{padding:16px;color:var(--t3);font-size:var(--fsm);line-height:1.5}
@@ -145,6 +145,7 @@ html.mobile .card.tall{height:var(--fullm,var(--hm))}
 html.mobile .card.closed.tall{height:auto}
 html.mobile .tb input{font-size:16px}
 html.mobile .card.fit{height:auto}
+html.mobile .gx iframe{height:var(--ifhm,var(--ifh,330px))}
 html.mobile .stack{grid-column:auto;height:auto}
 html.mobile .stack .card{flex:none;height:var(--hm,440px)}
 html.mobile .stack .card.closed{height:auto}
@@ -153,6 +154,23 @@ html.mobile .stk{flex-direction:column}
 html.mobile .stk .s1{flex:none;height:290px;border-right:0;border-bottom:.5px solid var(--bd)}
 html.mobile .stk .s1.ta{height:440px}
 html.mobile .stk .s2{flex:1;min-height:200px}
+#toasts{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 24px));pointer-events:none}
+.toast{pointer-events:auto;position:relative;background:#f9e3d3;color:#2a1d14;border:.5px solid #e9c7ae;border-radius:10px;padding:10px 30px 10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-size:var(--fsm);line-height:1.35}
+.toast .src{display:block;font-size:var(--fbase)}
+.toast .tag{font-size:10px;letter-spacing:.08em;color:#b24a1c;font-weight:700;margin:2px 0 4px}
+.toast p{margin:3px 0 6px}
+.toast .x{position:absolute;top:5px;right:8px;background:none;border:0;color:#2a1d14;cursor:pointer;font-size:18px;line-height:1}
+.toast a,.toast .rd{color:#b24a1c;font-weight:600;font-size:var(--fsm);text-decoration:none;background:none;border:0;cursor:pointer;padding:0;font-family:var(--sans)}
+#rel{position:fixed;inset:0;z-index:2147483100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+.relc{background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--radl);max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:14px 18px 16px;line-height:1.5}
+.relh{display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid var(--bd);padding-bottom:8px;margin-bottom:10px}
+.relh .topicon{font-size:22px}
+.relc h3{font-size:17px;font-weight:600;margin-bottom:2px}
+.relc .relt,.relc .relf{font-size:var(--fxs);color:var(--t3)}
+.relc table{width:100%;border-collapse:collapse;margin:10px 0;font-variant-numeric:tabular-nums}
+.relc th{font-weight:500;color:var(--t3);font-size:var(--fxs);text-align:left;padding:4px 6px;border-bottom:.5px solid var(--bd)}
+.relc td{padding:6px;font-size:15px;font-weight:600}
+.relc p{margin:7px 0}
 </style>
 </head>
 <body>
@@ -160,6 +178,7 @@ html.mobile .stk .s2{flex:1;min-height:200px}
   <div class="topbar">
     <div><p class="brand">J.</p><h1>dashboard</h1></div>
     <div class="topbaracts">
+      <button class="topicon" id="test" onclick="testAlert()"></button>
       <button class="topicon" id="reset" onclick="resetPrefs()"></button>
       <button class="topicon" id="layout" onclick="toggleLayout()"></button>
       <button class="topicon themetoggle" id="theme" onclick="toggleTheme()"></button>
@@ -196,7 +215,7 @@ const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/
    Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
    (the reset icon in the header clears those and brings these back). */
-const DEFAULTS={econ:'inv',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'AAPL'};
+const DEFAULTS={econ:'mql',news:'fj',earn:'eh',look:'ov',heat:'fut',tab:'news',ticker:'AAPL'};
 const KEY='wss_dash2_';
 try{localStorage.removeItem('wss_gh_token')}catch(e){} /* one-click workflow token is no longer used */
 
@@ -213,9 +232,11 @@ const I={
   refresh:ico('<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
   open:ico('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
   expand:ico('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
-  fold:ico('<polyline points="6 9 12 15 18 9"/>')
+  fold:ico('<polyline points="6 9 12 15 18 9"/>'),
+  bell:ico('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>')
 };
 $('#mrefresh').innerHTML=I.refresh;
+{const b=$('#test');b.innerHTML=I.bell;b.setAttribute('aria-label','send a test alert');b.setAttribute('data-tt','send a test alert (mock)');}
 {const b=$('#reset');b.innerHTML=I.reset;b.setAttribute('aria-label','reset to defaults');b.setAttribute('data-tt','reset to defaults');}
 
 /* ---- theme + layout (same storage keys as the journal, so both pages stay in sync) ---- */
@@ -284,6 +305,11 @@ function futClosed(){
   if(d==='Sun')return m<1080;
   if(d==='Fri')return m>=1020;
   return m>=1020&&m<1080;
+}
+function cashOpen(){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const g=k=>p.find(x=>x.type===k).value,d=g('weekday'),m=+g('hour')*60+ +g('minute');
+  return d!=='Sat'&&d!=='Sun'&&m>=570&&m<960;
 }
 function fresh(it){
   const tip=[];let tag='',dim=false;
@@ -385,14 +411,14 @@ const embed=(el,src,title,credit,cls)=>{
   el.innerHTML='<div class="emb '+(cls||'')+'"><iframe title="'+title+'" loading="lazy"></iframe><div class="pw">'+credit+'</div></div>';
   $('iframe',el).src=src;
 };
-const INV='https://sslecal2.investing.com?columns=exc_importance,exc_actual,exc_forecast,exc_previous&importance=3&features=timezone&countries=5&calType=week&timeZone=8&lang=1';
-const invest=el=>embed(el,INV,'Economic calendar','Real Time Economic Calendar provided by <a href="https://www.investing.com/" rel="nofollow noopener" target="_blank">Investing.com</a>.','inv');
+/* MQL5 / Tradays calendar: its widget.js only builds this iframe, so we load the iframe directly (no third-party script on this page). */
+const mql=el=>embed(el,'https://www.tradays.com/en/economic-calendar/widget?mode=2&fw=html&utm_source='+encodeURIComponent(location.hostname||'jtradeats.github.io'),'Economic calendar','Calendar by <a href="https://www.mql5.com/?utm_source=calendar.widget&utm_medium=link&utm_term=economic.calendar&utm_content=visit.mql5.calendar&utm_campaign=202.calendar.widget" rel="noopener nofollow" target="_blank">MQL5 Algo Trading Community</a>','inv');
 const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1&wid='+wid,'Finviz market map',
   '<a href="https://finviz.com/map?t='+t+'&st=d1&utm_source=finviz_widget&utm_medium=widget&utm_campaign=map&utm_content='+wid+'" target="_blank" rel="noopener">Market map by FINVIZ</a>');
 const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
-  n+' gamma levels by <a href="https://zerogex.io/'+n.toLowerCase()+'-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed'+(n==='NQ'?'; levels are NDX cash, futures trade at a premium':'')+')','gx');
-/* X timeline. X_ISOLATE=true runs widgets.js inside a sandboxed iframe (no access to this page's localStorage). If the timeline stays blank, set it to false. */
-const X_ISOLATE=true;
+  n+' gamma levels by <a href="https://zerogex.io/'+n.toLowerCase()+'-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session')+')','gx');
+/* X timeline. The sandboxed-iframe mode (true) did not render X, so widgets.js now loads on this page (false). */
+const X_ISOLATE=false;
 const xtl=el=>{
   const h=Math.max(180,el.clientHeight-30),th=dark()?'dark':'light';
   const a='<a class="twitter-timeline" data-theme="'+th+'" data-chrome="noheader nofooter noborders transparent" data-height="'+h+'" href="https://x.com/DeItaone?ref_src=twsrc%5Etfw">Posts by DeItaone</a>';
@@ -423,12 +449,12 @@ const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',sho
 
 /* ---- cards ---- */
 const C={
-  gex:{page:'tech',t:'nq gamma levels',sp:4,fit:true,noexp:true,src:{
+  gex:{page:'tech',t:'nq gamma levels',sp:4,fit:true,noexp:true,ifh:330,ifhm:326,src:{
     zg:{l:'ZeroGEX',u:'https://zerogex.io/nq-gamma-levels',r:gex('NQ')}}},
-  gexq:{page:'tech',t:'qqq gamma levels',sp:4,fit:true,noexp:true,src:{
+  gexq:{page:'tech',t:'qqq gamma levels',sp:4,fit:true,noexp:true,ifh:330,ifhm:286,src:{
     zg:{l:'ZeroGEX',u:'https://zerogex.io/qqq-gamma-levels',r:gex('QQQ')}}},
   econ:{page:'news',t:'economic calendar',sp:7,h:640,hm:460,full:1100,fullm:1000,src:{
-    inv:{l:'Investing',u:'https://www.investing.com/economic-calendar/',r:invest},
+    mql:{l:'MQL5',u:'https://www.tradays.com/en/economic-calendar',r:mql},
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
   news:{page:'news',col:true,t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
@@ -452,7 +478,7 @@ const estUrl=()=>'https://www.estimize.com/'+encodeURIComponent(sym.toLowerCase(
 const stack=document.createElement('div');stack.className='stack';stack.style.setProperty('--sh',C.econ.h+'px');
 for(const k in C){
   const c=C[k],s=document.createElement('section');
-  s.className='card'+(c.fit?' fit':'');s.id=k;s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
+  s.className='card'+(c.fit?' fit':'');s.id=k;if(c.ifh)s.style.setProperty('--ifh',c.ifh+'px');if(c.ifhm)s.style.setProperty('--ifhm',c.ifhm+'px');s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
   const keys=Object.keys(c.src);
   s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
@@ -536,6 +562,44 @@ $('.tb').addEventListener('submit',e=>{
   const i=$('.tb input'),v=i.value.toUpperCase().replace(/[^A-Z0-9.:\-]/g,'');
   if(!v)return;sym=v;i.value=v;LS.s(KEY+'sym',v);$('#est').href=estUrl();draw('look');
 });
+
+/* ---- alert toasts + release card: MOCKS only (plan 4.1 and 3.10). Real alerts will come from the Worker. ---- */
+const TOAST_MS=15000,TOAST_MAX=3;
+const MOCKS=[
+  {src:'X \u00b7 @DeItaone',tag:'NEW POST DETECTED',h:'Sample post headline appears here',s:'Test alert only. Live X alerts need a permitted free feed (plan 4.4).',u:'https://x.com/DeItaone'},
+  {src:'FinancialJuice',tag:'HIGH-IMPACT HEADLINE',h:'Sample high-impact headline',s:'MNQ: uncertain \u00b7 MGC: uncertain. Test alert only.',u:'https://www.financialjuice.com/home'},
+  {src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 RELEASE IN 5 MIN',h:'Initial Jobless Claims',s:'Forecast 194K \u00b7 previous 191K. Test alert only.',rel:true}
+];
+let mockI=0;
+const toastBox=document.createElement('div');toastBox.id='toasts';document.body.appendChild(toastBox);
+function toast(a){
+  const el=document.createElement('div');el.className='toast';
+  el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><b class="src">'+esc(a.src)+'</b><div class="tag">'+esc(a.tag)+'</div><b>'+esc(a.h)+'</b><p>'+esc(a.s)+'</p>'+(a.rel?'<button class="rd">Read</button>':'<a href="'+esc(a.u)+'" target="_blank" rel="noopener">Read</a>');
+  let t;const kill=()=>{clearTimeout(t);el.remove()};
+  t=setTimeout(kill,TOAST_MS);
+  $('.x',el).onclick=kill;
+  const rd=$('.rd',el);if(rd)rd.onclick=()=>{kill();showRelease()};
+  toastBox.appendChild(el);
+  while(toastBox.children.length>TOAST_MAX)toastBox.firstChild.remove();
+}
+function testAlert(){toast(MOCKS[mockI++%MOCKS.length])}
+const relBox=document.createElement('div');relBox.id='rel';relBox.hidden=true;document.body.appendChild(relBox);
+const closeRel=()=>{relBox.hidden=true};
+function showRelease(){
+  const when=new Date('2026-11-12T13:30:00Z').toLocaleString([],{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  relBox.innerHTML='<div class="relc" role="dialog" aria-modal="true" aria-label="Economic release"><div class="relh"><b>Economic release</b><button class="topicon" aria-label="close">\u00d7</button></div>'
+    +'<h3>Initial jobless claims came in above forecast</h3><div class="relt">'+esc(when)+' (your time)</div>'
+    +'<table><tr><th>Actual</th><th>Forecast</th><th>Previous (revised)</th></tr><tr><td>200K</td><td>194K</td><td>191K</td></tr></table>'
+    +'<p><b>Surprise.</b> +6K vs forecast, +9K vs the revised previous (first printed as 189K).</p>'
+    +'<p><b>What it is.</b> People filing for unemployment benefits for the first time that week.</p>'
+    +'<p><b>Read.</b> A slightly softer labour reading, though the level is still low by historical standards.</p>'
+    +'<p><b>Fed lens.</b> Leans dovish (weaker labour data). How stocks react depends on the regime; reaction bars are not connected yet.</p>'
+    +'<p class="relf">Layout mock. Fixed template text, not AI and not live. The real card will use official DOL figures from the Worker.</p></div>';
+  relBox.hidden=false;
+  $('.relh .topicon',relBox).onclick=closeRel;
+}
+relBox.addEventListener('click',e=>{if(e.target===relBox)closeRel()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRel()});
 
 paintTheme();applyLayout();paintCached();showPage(tab);for(const k in C)paintCard(k);loadMarket();
 </script>
