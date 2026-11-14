@@ -223,6 +223,45 @@ async function getFng() {
   }
 }
 
+// ---- economic calendar: USD High + Medium from the free Fair Economy (Forex Factory) weekly feeds. Unofficial; forecast and previous only ----
+const CAL_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
+const CAL_TTL = 30 * 60000;          // the feed rate-limits hard: one upstream round per 30 min
+const CAL_RETRY = 5 * 60000;
+const cal = { body: null, at: 0, failAt: 0, err: null };
+
+async function loadCalendar() {
+  const notes = [], events = [];
+  let ok = 0;
+  await Promise.all(CAL_FEEDS.map(async u => {
+    try {
+      const rows = JSON.parse(await get(u, { Accept: 'application/json' }));
+      ok++;
+      for (const r of rows) {
+        const t = Date.parse(r.date);
+        if (r.country !== 'USD' || !t || (r.impact !== 'High' && r.impact !== 'Medium')) continue;
+        events.push({ t, title: String(r.title).slice(0, 80), imp: r.impact === 'High' ? 3 : 2,
+          fc: r.forecast || null, pv: r.previous || null, ac: r.actual || null });
+      }
+    } catch (e) { notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
+  }));
+  if (!ok) throw new Error(notes.join(' | '));
+  events.sort((a, b) => a.t - b.t);
+  return { updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), src: 'faireconomy (unofficial)', events, notes };
+}
+
+async function getCalendar() {
+  const now = Date.now();
+  if (cal.body && now - cal.at < CAL_TTL) return cal.body;
+  if (cal.failAt && now - cal.failAt < CAL_RETRY) { if (cal.body) return cal.body; throw new Error(cal.err); }
+  try {
+    cal.body = JSON.stringify(await loadCalendar()); cal.at = Date.now(); cal.failAt = 0; cal.err = null;
+  } catch (e) {
+    cal.failAt = Date.now(); cal.err = String(e.message).slice(0, 200);
+    if (!cal.body) throw e;   // otherwise keep serving the last good copy
+  }
+  return cal.body;
+}
+
 // ---- last resort: the data branch written by the GitHub Action (only while USE_DATA_BRANCH) ----
 let fb = null;
 async function dataBranch() {
@@ -333,11 +372,19 @@ export default {
         ok: true, kv: !!(env && env.MARKET_KV),
         memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
         cached_items: itemCache.size,
+        calendar_age_s: cal.body ? Math.round((Date.now() - cal.at) / 1000) : null,
       }), { headers: json });
     }
     if (pathname === '/market') {
       try {
         return new Response(await getMarket(env, ctx), { headers: { ...json, 'Cache-Control': 'public, max-age=20' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+      }
+    }
+    if (pathname === '/calendar') {
+      try {
+        return new Response(await getCalendar(), { headers: { ...json, 'Cache-Control': 'public, max-age=300' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
