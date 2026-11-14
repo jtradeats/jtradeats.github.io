@@ -250,15 +250,25 @@ async function loadCalendar() {
   return { updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), src: 'faireconomy (unofficial)', events, notes };
 }
 
-async function getCalendar() {
+const CAL_KEY = 'calendar:last';
+async function getCalendar(env) {
   const now = Date.now();
   if (cal.body && now - cal.at < CAL_TTL) return cal.body;
+  // The feed rate-limits shared Cloudflare IPs (HTTP 429) and every isolate asks on its own, so share one copy through KV
+  if (env && env.MARKET_KV) {
+    try {
+      const sn = await env.MARKET_KV.get(CAL_KEY, 'json');
+      if (sn && sn.body && sn.at > cal.at) { cal.body = sn.body; cal.at = sn.at; }
+    } catch (e) { /* KV unavailable: carry on */ }
+    if (cal.body && Date.now() - cal.at < CAL_TTL) return cal.body;
+  }
   if (cal.failAt && now - cal.failAt < CAL_RETRY) { if (cal.body) return cal.body; throw new Error(cal.err); }
   try {
     cal.body = JSON.stringify(await loadCalendar()); cal.at = Date.now(); cal.failAt = 0; cal.err = null;
+    if (env && env.MARKET_KV) { try { await env.MARKET_KV.put(CAL_KEY, JSON.stringify({ at: cal.at, body: cal.body })); } catch (e) { /* ignore */ } }
   } catch (e) {
     cal.failAt = Date.now(); cal.err = String(e.message).slice(0, 200);
-    if (!cal.body) throw e;   // otherwise keep serving the last good copy
+    if (!cal.body) throw e;   // otherwise keep serving the last good copy, however old
   }
   return cal.body;
 }
@@ -385,7 +395,7 @@ export default {
     }
     if (pathname === '/calendar') {
       try {
-        return new Response(await getCalendar(), { headers: { ...json, 'Cache-Control': 'public, max-age=300' } });
+        return new Response(await getCalendar(env), { headers: { ...json, 'Cache-Control': 'public, max-age=300' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
