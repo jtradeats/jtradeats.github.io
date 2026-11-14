@@ -1,0 +1,163 @@
+{
+ "_note": "Single item list for the Worker. Each chain is tried in order: [source, symbol]. dashboard_data.py keeps its own copy until the GitHub Action is retired (plan 2.3).",
+ "items": [
+  {
+   "label": "VIX",
+   "kind": "idx",
+   "chain": [
+    [
+     "yahoo",
+     "^VIX"
+    ],
+    [
+     "cboe",
+     "_VIX"
+    ]
+   ]
+  },
+  {
+   "label": "VIXEQ",
+   "kind": "idx",
+   "chain": [
+    [
+     "cboe",
+     "_VIXEQ"
+    ],
+    [
+     "yahoo",
+     "^VIXEQ"
+    ]
+   ]
+  },
+  {
+   "label": "DXY",
+   "kind": "idx",
+   "chain": [
+    [
+     "yahoo",
+     "DX-Y.NYB"
+    ]
+   ]
+  },
+  {
+   "label": "USD02Y",
+   "kind": "yield",
+   "chain": [
+    [
+     "treasury",
+     "2 Yr"
+    ],
+    [
+     "fred",
+     "DGS2"
+    ]
+   ]
+  },
+  {
+   "label": "USD10Y",
+   "kind": "yield",
+   "chain": [
+    [
+     "yahoo",
+     "^TNX"
+    ],
+    [
+     "treasury",
+     "10 Yr"
+    ],
+    [
+     "fred",
+     "DGS10"
+    ]
+   ]
+  },
+  {
+   "label": "USD30Y",
+   "kind": "yield",
+   "chain": [
+    [
+     "yahoo",
+     "^TYX"
+    ],
+    [
+     "treasury",
+     "30 Yr"
+    ],
+    [
+     "fred",
+     "DGS30"
+    ]
+   ]
+  },
+  {
+   "label": "ZB1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "ZB=F"
+    ]
+   ]
+  },
+  {
+   "label": "NQ1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "NQ=F"
+    ]
+   ]
+  },
+  {
+   "label": "ES1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "ES=F"
+    ]
+   ]
+  },
+  {
+   "label": "CL1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "CL=F"
+    ]
+   ]
+  },
+  {
+   "label": "GC1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "GC=F"
+    ]
+   ]
+  },
+  {
+   "label": "YM1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "YM=F"
+    ]
+   ]
+  },
+  {
+   "label": "RTY1!",
+   "kind": "fut",
+   "chain": [
+    [
+     "yahoo",
+     "RTY=F"
+    ]
+   ]
+  }
+ ]
+}
