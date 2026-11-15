@@ -1,5 +1,5 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /feed -> DeItaone wire posts. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /health -> small status object.
+// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /health -> small status object.
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
@@ -8,7 +8,7 @@ import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
 import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, applyOfficial } from './official.js';
-import { getFeed, feedHealth } from './feed.js';   // DeItaone wire via the Telegram mirror (plan 1.5)
+import { getFeed, getFeeds, feedHealth, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -533,7 +533,7 @@ export default {
         calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null,
           fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
           official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null },
-        wire: feedHealth(),
+        wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
     }
     if (pathname === '/market') {
@@ -552,8 +552,14 @@ export default {
     }
     if (pathname === '/feed') {
       try {
-        const debug = new URL(req.url).searchParams.has('debug');   // /feed?debug=1 adds a markup sample when the parser finds nothing
-        return new Response(await getFeed(env, ctx, { debug }), { headers: { ...json, 'Cache-Control': 'no-store' } });
+        const q = new URL(req.url).searchParams;
+        const debug = q.has('debug');                  // /feed?debug=1 adds a markup sample when the parser finds nothing
+        const channel = q.get('ch');                   // /feed = both channels; /feed?ch=FinancialJuice = that one alone
+        if (channel && !Object.prototype.hasOwnProperty.call(CHANNELS, channel)) {   // verified channels only (D47, D78): never a proxy for arbitrary t.me pages
+          return new Response(JSON.stringify({ error: 'unknown channel', channels: Object.keys(CHANNELS) }), { status: 400, headers: json });
+        }
+        const body = channel ? await getFeed(env, ctx, { debug, channel }) : await getFeeds(env, ctx, { debug });
+        return new Response(body, { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
