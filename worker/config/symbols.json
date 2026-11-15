@@ -1,5 +1,5 @@
 {
- "_note": "Single item list for the Worker. Each chain is tried in order: [source, symbol]. group and row place the item on the page's tape (items of one group must be consecutive). dashboard_data.py keeps its own 13-item copy until the GitHub Action is retired (plan 2.3).",
+ "_note": "Single item list for the Worker. Each chain is tried in order: [source, symbol]. group and row place the item on the page's tape (items of one group must be consecutive). \"set\" picks the route: missing or \"main\" = /market (the tape), \"sectors\" = /sectors (plan P4), \"weekly\" = /weekly (plan P5; reopen is the Sunday Globex reopen in tz, jump is the % a first 15-minute bar may move before the week open is flagged, roll is the tape label whose contract roll also voids the week). dashboard_data.py keeps its own 13-item copy until the GitHub Action is retired (plan 2.3).",
  "items": [
   {"label": "VIX", "kind": "idx", "group": "VOL", "row": "A", "chain": [["yahoo", "^VIX"], ["cboe", "_VIX"]]},
   {"label": "VIXEQ", "kind": "idx", "group": "VOL", "row": "A", "chain": [["cboe", "_VIXEQ"], ["yahoo", "^VIXEQ"]]},
@@ -23,6 +23,24 @@
   {"label": "TLT", "kind": "etf", "group": "BONDS & CREDIT", "row": "B", "chain": [["yahoo", "TLT"]]},
   {"label": "IEF", "kind": "etf", "group": "BONDS & CREDIT", "row": "B", "chain": [["yahoo", "IEF"]]},
   {"label": "HYG", "kind": "etf", "group": "BONDS & CREDIT", "row": "B", "chain": [["yahoo", "HYG"]]},
-  {"label": "LQD", "kind": "etf", "group": "BONDS & CREDIT", "row": "B", "chain": [["yahoo", "LQD"]]}
+  {"label": "LQD", "kind": "etf", "group": "BONDS & CREDIT", "row": "B", "chain": [["yahoo", "LQD"]]},
+  {"label": "XLK", "name": "Technology", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLK"]]},
+  {"label": "XLC", "name": "Communication Services", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLC"]]},
+  {"label": "XLY", "name": "Consumer Discretionary", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLY"]]},
+  {"label": "XLF", "name": "Financials", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLF"]]},
+  {"label": "XLI", "name": "Industrials", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLI"]]},
+  {"label": "XLB", "name": "Materials", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLB"]]},
+  {"label": "XLE", "name": "Energy", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLE"]]},
+  {"label": "XLV", "name": "Health Care", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLV"]]},
+  {"label": "XLU", "name": "Utilities", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLU"]]},
+  {"label": "XLP", "name": "Consumer Staples", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLP"]]},
+  {"label": "XLRE", "name": "Real Estate", "kind": "etf", "set": "sectors", "chain": [["yahoo", "XLRE"]]},
+  {"label": "SPY", "name": "S&P 500", "kind": "etf", "set": "sectors", "chain": [["yahoo", "SPY"]]},
+  {"label": "NQ", "name": "Nasdaq 100", "kind": "fut", "set": "weekly", "reopen": "18:00", "tz": "America/New_York", "jump": 3, "roll": "NQ1!", "chain": [["yahoo", "NQ=F"]]},
+  {"label": "ES", "name": "S&P 500", "kind": "fut", "set": "weekly", "reopen": "18:00", "tz": "America/New_York", "jump": 3, "roll": "ES1!", "chain": [["yahoo", "ES=F"]]},
+  {"label": "DOW", "name": "Dow Jones", "kind": "fut", "set": "weekly", "reopen": "18:00", "tz": "America/New_York", "jump": 3, "roll": "YM1!", "chain": [["yahoo", "YM=F"]]},
+  {"label": "RTY", "name": "Russell 2000", "kind": "fut", "set": "weekly", "reopen": "18:00", "tz": "America/New_York", "jump": 3, "roll": "RTY1!", "chain": [["yahoo", "RTY=F"]]},
+  {"label": "GC", "name": "Gold", "kind": "fut", "set": "weekly", "reopen": "18:00", "tz": "America/New_York", "jump": 3, "roll": "GC1!", "chain": [["yahoo", "GC=F"]]},
+  {"label": "CL", "name": "WTI crude", "kind": "fut", "set": "weekly", "reopen": "18:00", "tz": "America/New_York", "jump": 4, "roll": "CL1!", "chain": [["yahoo", "CL=F"]]}
  ]
 }
