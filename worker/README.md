@@ -2,7 +2,7 @@
 
 - `src/index.js`: the Worker (same logic as the version deployed from the dashboard editor; only the item list moved).
 - `config/symbols.json`: the item list. Edit here, not in the code.
-- `src/feed.js`: DeItaone wire from the public Telegram preview, served at `/feed` (plan 1.5). `/feed?debug=1` adds a markup sample when parsing fails. Tests: `npm i -D html-rewriter-wasm`, then `node --test worker/test/feed.test.mjs`.
+- `src/feed.js`: the two Telegram wires from the public preview (plan 1.5, P1): DeItaone (`WalterBloomberg`) and FinancialJuice, served together at `/feed` (the DeItaone view at the top level, FinancialJuice under `fj`; posts that start with the red ❗ carry `hot: true`). `/feed?ch=FinancialJuice` returns one channel; `?debug=1` adds a markup sample when parsing fails. Channels are listed in `CHANNELS` at the top of the file (an unknown `ch` is a 400). Tests: `npm i -D html-rewriter-wasm`, then `node --test worker/test/feed.fj.test.mjs` (the older `feed.test.mjs`, if you have it, still applies).
 - `wrangler.toml`: name must stay `market-dashboard` so the URL does not change.
 
 ## Switching to Git deploys (plan 2.1)
@@ -21,4 +21,4 @@ Imports from `../config/` stay inside `worker/` so the build works whichever way
 - Providers (all optional): Fair Economy feed (forecast and previous, often 429 from Cloudflare) and **Financial Modeling Prep** (forecast, previous, actual). For FMP add the secret `FMP_KEY` (Cloudflare dashboard, Settings, Variables and Secrets, type Secret) and redeploy.
 - `GET /calendar?debug=1` shows each provider's raw sample and `unmatched` titles. `/health` shows `calendar.fmp`.
 - Tests: `node --test worker/test/calendar.test.mjs`.
-- KV writes (worst case a day): market 480, calendar feed 48, wire about 96, FMP at most 144: about 770 of 1,000.
+- KV writes (worst case a day): market 480, calendar feed 48, DeItaone snapshot 96, FinancialJuice snapshot 96, FMP at most 144: about 864 of 1,000. (Plan D79's 5-minute market snapshot, not built yet, would take market to 288.)
