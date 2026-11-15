@@ -1,5 +1,5 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /health -> small status object.
+// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); both accept ?fresh=1 (manual refresh). GET /health -> small status object.
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
@@ -9,6 +9,9 @@ import RESULTS from '../config/results.json';
 import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, applyOfficial } from './official.js';
 import { getFeed, getFeeds, feedHealth, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
+import { makeSectors } from './sectors.js';   // /sectors (plan P4)
+import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
+import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -103,14 +106,7 @@ async function qFred(series) {
 async function loadTreasury(year) {
   const url = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/' +
     `${year}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${year}&page&_format=csv`;
-  const lines = (await get(url)).trim().split(/\r?\n/);
-  const clean = s => s.replace(/"/g, '').trim();
-  const head = lines[0].split(',').map(clean);
-  return lines.slice(1).map(l => {
-    const c = l.split(',').map(clean), o = {};
-    head.forEach((h, i) => { o[h] = c[i]; });
-    return o;
-  });
+  return parseTreasuryCsv(await get(url));   // same row objects as before (keyed by the CSV header), parsed in curve.js so /curve and the tape share one parser
 }
 
 // One download per year per 15 min, shared by every item that needs it
@@ -137,12 +133,61 @@ async function qTreasury(col) {
   return quote(v1, v0, ts(d1));
 }
 
+// ---- yield curve (plan P6): GET /curve. Official Treasury close, computed from the CSV the tape already downloads (shared 15 min cache),
+// cross-checked against FRED's T10Y2Y. The result is cached in memory and in KV (written only when a new trading date arrives: about 1 write a day),
+// so a request never parses the CSV: it gets the cached answer at once and a refresh runs in the background when it is older than 15 min. ----
+const CURVE_KV = 'curve:last';
+const CURVE_TTL = 15 * 60000;
+const curve = { memo: null, seeded: false, inflight: null, kvAsof: null, err: null, errAt: 0 };
+async function buildCurveNow(env) {
+  const y = new Date().getUTCFullYear();
+  const since = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10);
+  const [cur, prev, fred] = await Promise.allSettled([
+    treasuryRows(y), treasuryRows(y - 1), get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y&cosd=${since}`),
+  ]);
+  if (cur.status !== 'fulfilled') throw new Error(`Treasury CSV: ${cur.reason && cur.reason.message}`);
+  const rows = [...(prev.status === 'fulfilled' ? prev.value : []), ...cur.value];
+  const out = buildCurve(rows, fred.status === 'fulfilled' ? parseFredCsv(fred.value) : null);
+  out.updated = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  if (prev.status !== 'fulfilled') out.partial = 'last year\'s file was not reached: the 12-month change may be missing';
+  const body = JSON.stringify(out);
+  curve.memo = { at: Date.now(), body, asof: out.asof, check: out.check.status };
+  if (env && env.MARKET_KV && out.asof !== curve.kvAsof) {
+    curve.kvAsof = out.asof;
+    try { await env.MARKET_KV.put(CURVE_KV, body); } catch (_) { /* ignore */ }
+  }
+  return body;
+}
+function refreshCurve(env) {
+  if (!curve.inflight) {
+    curve.inflight = buildCurveNow(env)
+      .then(b => { curve.err = null; return b; })
+      .catch(e => { curve.err = String(e.message).slice(0, 160); curve.errAt = Date.now(); throw e; })
+      .finally(() => { curve.inflight = null; });
+  }
+  return curve.inflight;
+}
+async function getCurve(env, ctx) {
+  if (!curve.seeded) {
+    curve.seeded = true;
+    if (env && env.MARKET_KV) {
+      try { const s = await env.MARKET_KV.get(CURVE_KV, 'json'); if (s && s.asof) { curve.memo = { at: 0, body: JSON.stringify(s), asof: s.asof, check: s.check && s.check.status }; curve.kvAsof = s.asof; } } catch (_) { /* no KV */ }
+    }
+  }
+  if (curve.memo && Date.now() - curve.memo.at < CURVE_TTL) return curve.memo.body;
+  if (curve.memo && Date.now() - curve.errAt < NEG_TTL && curve.err) return curve.memo.body;   // the last refresh failed: do not hammer Treasury
+  const p = refreshCurve(env);
+  if (curve.memo) { if (ctx) ctx.waitUntil(p.catch(() => {})); return curve.memo.body; }     // stale-while-revalidate
+  return p;
+}
+
 const SOURCES = { yahoo: qYahoo, cboe: qCboe, fred: qFred, treasury: qTreasury };
 
 // [label, kind, [[source, symbol], ...] tried in order]. USD20Y dropped (decision D2).
 // dashboard_data.py only knows the original 13 items; it is not extended (Action retires in plan 2.3).
-const ITEMS = SYMBOLS.items.map(i => [i.label, i.kind, i.chain]);   // source of truth: worker/config/symbols.json
-const META = Object.fromEntries(SYMBOLS.items.map(i => [i.label, { grp: i.group, row: i.row }]));   // tape placement, passed to the page
+const MAIN = SYMBOLS.items.filter(i => !i.set || i.set === 'main');   // items with "set": "sectors" or "weekly" belong to /sectors and /weekly, not to the tape
+const ITEMS = MAIN.map(i => [i.label, i.kind, i.chain]);   // source of truth: worker/config/symbols.json
+const META = Object.fromEntries(MAIN.map(i => [i.label, { grp: i.group, row: i.row }]));   // tape placement, passed to the page
 
 function fixYield(q) {
   if (q.p > 25) for (const k of ['p', 'c']) if (k in q) q[k] = +(q[k] / 10).toFixed(4); // x10 quirk
@@ -152,6 +197,8 @@ function fixYield(q) {
 
 // ---- per-item cache: last good value + when it was fetched + how long it stays fresh ----
 const itemCache = new Map(); // label -> { val, at, ttl, failAt }
+const sectors = makeSectors(SYMBOLS.items);
+const weekly = makeWeekly({ items: SYMBOLS.items, marketRoll: label => ((itemCache.get(label) || {}).val || {}).rolledAt || null });   // a roll the tape saw after the Sunday reopen voids that future's week open (R54)
 
 async function getItem(label, kind, chain, log, notes) {
   const c = itemCache.get(label) || {};
@@ -533,6 +580,8 @@ export default {
         calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null,
           fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
           official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null },
+        sectors: sectors.health(), weekly: weekly.health(),
+        curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
     }
@@ -546,6 +595,22 @@ export default {
     if (pathname === '/calendar') {
       try {
         return new Response(await getCalendar(env, ctx, { debug: new URL(req.url).searchParams.has('debug') }), { headers: { ...json, 'Cache-Control': 'no-store' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+      }
+    }
+    if (pathname === '/sectors' || pathname === '/weekly') {
+      try {
+        const route = pathname === '/sectors' ? sectors : weekly, fresh = new URL(req.url).searchParams.has('fresh');
+        if (route === weekly && !seeded) await seed(env);   // load the tape's last snapshot first: its roll flags feed the week-open check
+        return new Response(await route.get(env, ctx, { fresh }), { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+      }
+    }
+    if (pathname === '/curve') {
+      try {
+        return new Response(await getCurve(env, ctx), { headers: { ...json, 'Cache-Control': 'public, max-age=60' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
