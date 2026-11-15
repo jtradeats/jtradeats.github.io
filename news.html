@@ -152,6 +152,42 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .ti .c{font-size:calc(var(--fsm)*var(--tk,1));font-variant-numeric:tabular-nums;color:var(--t3);white-space:nowrap}
 .ti .c.up{color:var(--g)}.ti .c.dn{color:var(--r)}
 .ti.stale .p,.ti.old .p{opacity:.55}
+/* sector strip and week-open card (plan P4, P5): the tape's tile, laid out as a fitted grid */
+.sct{display:grid;gap:2px;padding:6px 8px 2px}
+.sct.s12,.sct.w6{grid-template-columns:repeat(6,minmax(0,1fr))} /* six columns: sector ETFs fill two rows, week open one */
+html.mobile .sct.s12{grid-template-columns:repeat(3,minmax(0,1fr))}
+html.mobile .sct.w6{grid-template-columns:repeat(2,minmax(0,1fr))}
+:root{--ty:rgba(183,128,58,.16);--tr:rgba(201,120,120,.17);--tg:rgba(78,146,105,.17)} /* header tints: sector yellow, week open red / green */
+:root[data-theme="dark"]{--ty:rgba(232,192,122,.14);--tr:rgba(230,154,154,.14);--tg:rgba(127,203,160,.14)}
+.card.hy .ch{background:var(--ty)}.card.hr .ch{background:var(--tr)}.card.hg .ch{background:var(--tg)}
+.sct .ti{min-width:0;padding:7px 10px;border-radius:var(--rad)}
+.sct .ti.ref{box-shadow:inset 0 0 0 .5px var(--bdm)}
+.sct .ti.old .c,.sct .ti.old .o{opacity:.55}
+.sct .p.up{color:var(--g)}.sct .p.dn{color:var(--r)}
+.sct .o{font-size:var(--fxs);color:var(--t3);font-variant-numeric:tabular-nums;margin-top:1px}
+.sct+.pw{padding:4px 14px 8px}
+:root{--cv1:#2a78d6;--cv2:#eb6834;--cv3:#1baf7a} /* yield-curve series: validated chart palette slots 1-3 (blue, orange, aqua), fixed order */
+:root[data-theme="dark"]{--cv1:#3987e5;--cv2:#d95926;--cv3:#199e70}
+.cv{padding:8px 14px 4px;display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:8px 16px;font-variant-numeric:tabular-nums}
+.cv.nar{grid-template-columns:minmax(0,1fr)}
+.cvm,.cvr{min-width:0}
+.cvc{position:relative;cursor:pointer}.cvc svg{display:block;max-width:100%;touch-action:pan-y}
+.cvl{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:var(--fsm);color:var(--t2);margin:0 0 4px}
+.cvi{display:inline-flex;align-items:center;gap:6px}
+.cvtip{position:absolute;z-index:3;pointer-events:none;background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--rad);padding:6px 9px;font-size:var(--fsm);box-shadow:0 2px 8px rgba(0,0,0,.14);white-space:nowrap}
+.cvth{font-weight:600;margin-bottom:3px}
+.cvtr{display:flex;align-items:center;gap:7px;line-height:1.55}.cvtr .cvn{color:var(--t2);flex:1}.cvtr b{font-weight:600}
+.cvt{width:100%;border-collapse:collapse;margin:0 0 10px;font-size:var(--fsm)}
+.cvt th{font-weight:500;color:var(--t3);font-size:var(--fxs);text-align:right;padding:3px 5px;border-bottom:.5px solid var(--bd);white-space:nowrap}
+.cvt td{text-align:right;padding:4px 5px;border-bottom:.5px solid var(--bd);white-space:nowrap}
+.cvt th:first-child,.cvt td:first-child{text-align:left}
+.cvt td:first-child{font-weight:600}.cvt td:first-child svg{vertical-align:middle;margin-right:2px}
+.cvt.cvs td:last-child,.cvt.cvs th:last-child{text-align:left;color:var(--t2)}
+.cvnote{font-size:var(--fxs);color:var(--t3);line-height:1.45}
+.cvf{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;font-size:var(--fxs);color:var(--t3);padding:2px 0 8px}
+.cvw{color:#C98A2E}
+.cvb{margin-left:auto;font:inherit;color:var(--t2);background:none;border:.5px solid var(--bdm);border-radius:var(--rad);padding:2px 9px;cursor:pointer}.cvb:hover{color:var(--t)}
+.relc ul.cvul{margin:6px 0 6px 18px;font-size:var(--fsm);color:var(--t2)}.relc h4+p{margin-top:2px}
 .fbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px 12px;gap:4px}
 .fbody svg{width:100%;max-width:210px;height:auto;display:block}
 .fnum{font-size:22px;font-weight:600;line-height:1}
@@ -399,7 +435,7 @@ const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/
    Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
    (saved choices carry a version, PREFS_VER: raising it on a deploy drops choices that no longer fit). */
-const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'all',tab:'news',ticker:'QQQ'};
+const DEFAULTS={curve:'h',econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'all',tab:'news',ticker:'QQQ'};
 const KEY='wss_dash2_',PREFS_VER='1';
 try{const v=localStorage.getItem(KEY+'ver');if(v&&v!==PREFS_VER)Object.keys(localStorage).filter(k=>k.indexOf(KEY)===0).forEach(k=>localStorage.removeItem(k));localStorage.setItem(KEY+'ver',PREFS_VER)}catch(e){}
 try{localStorage.removeItem('wss_gh_token')}catch(e){} /* one-click workflow token is no longer used */
@@ -1155,8 +1191,230 @@ function clkPaint(){
 setInterval(()=>{if(!document.hidden){nxtPaint();lclkPaint();clkPaint()}},1000);
 setInterval(()=>{if(!document.hidden||remOn)nxtLoad()},15000); /* calGet itself reuses a copy for 5 min, or 15 s around a release */
 
+/* ---- sector ETF strip and week-open card (plan P4, P5): each has its own Worker route, fetched only while Technicals is open ---- */
+const SEC_URL=WORKER_URL.replace(/\/market$/,'/sectors'),WKO_URL=WORKER_URL.replace(/\/market$/,'/weekly');
+/* One loader per card. render() paints what it has (the last answer is kept in the browser) and asks for fresh data;
+   load(true) is the manual refresh. A manual refresh is limited to one request per 5 s per card (D84); everything else to one per 30 s. */
+function liveCard(id,url,paint){
+  const s={d:null,at:0,busy:false,bad:false,key:KEY+'last_'+id};
+  try{const j=JSON.parse(LS.g(s.key,''));if(j&&j.items)s.d=j}catch(e){}
+  const show=()=>{
+    const c=C[id],b=c&&c.el&&$('.body',c.el);if(!b)return;
+    try{
+      if(s.d&&s.d.items.some(i=>i.p!=null))paint(b,s.d,s.bad);
+      else note(b,s.bad?'No data: the Worker did not answer.':'Loading\u2026');
+    }catch(e){note(b,'This card failed to draw.')}
+  };
+  async function load(fresh){
+    if(s.busy||Date.now()-s.at<5000)return;
+    if(!fresh&&s.d&&Date.now()-s.at<30000)return; /* the Worker keeps an answer for 30 s, so asking sooner changes nothing (theme toggles, tab switches) */
+    s.busy=true;
+    try{
+      const r=await fetch(url+(fresh?'?fresh=1':''),{cache:'no-store'});
+      if(!r.ok)throw new Error(r.status);
+      const d=await r.json();if(!d.items)throw new Error('bad payload');
+      s.d=d;s.bad=false;LS.s(s.key,JSON.stringify(d));
+    }catch(e){s.bad=true}
+    finally{s.busy=false;s.at=Date.now();show()}
+  }
+  return {render(){show();load(false)},load,show};
+}
+function secPaint(b,d,bad){
+  const its=d.items||[],spy=its.find(i=>i.label==='SPY'),spyOk=!!(spy&&spy.pc!=null&&!spy.stale);
+  const key=i=>i.pc==null?-1e9:i.pc;
+  const rows=its.slice().sort((a,c)=>key(c)-key(a)); /* sorted by change, SPY included as the yardstick */
+  const tile=it=>{
+    const has=it.p!=null,hp=has&&it.pc!=null,f=has?fresh(it):{tag:'',dim:false,tip:[]};
+    const rel=spyOk&&hp&&!it.stale&&it.label!=='SPY'?'vs SPY '+sg(it.pc-spy.pc)+fmt(Math.abs(it.pc-spy.pc),2)+' pts':'';
+    const tip=[it.name,rel].concat(f.tip).filter(Boolean).join(' \u00b7 ');
+    const cls='ti'+(f.dim||f.tag==='closed'?' old':'')+(it.stale?' stale':'')+(it.label==='SPY'?' ref':'');
+    return '<div class="'+cls+'"'+(tip?' data-tt="'+esc(tip)+'"':'')+'><div class="l"><span>'+esc(it.label)+'</span><span class="a">'+esc(f.tag)+'</span></div>'
+      +'<div class="p '+(hp?(it.pc>0?'up':it.pc<0?'dn':''):'')+'">'+(hp?sg(it.pc)+fmt(Math.abs(it.pc),2)+'%':'\u2014')+'</div><div class="c">'+(has?fmt(it.p,2):'&nbsp;')+'</div></div>';
+  };
+  b.innerHTML='<div class="sct s12">'+rows.map(tile).join('')+'</div><div class="pw">Delayed'+(cashOpen()?'':' \u00b7 market closed, last session')+(bad?' \u00b7 refresh failed, showing the last data':'')+'</div>';
+}
+function wkoPaint(b,d,bad){
+  const tile=it=>{
+    const has=it.p!=null,f=has?fresh(it):{tag:'',dim:false,tip:[]};
+    const ok=has&&!it.rolled&&it.open!=null&&it.c!=null,up=ok?(it.c>0?'up':it.c<0?'dn':''):'';
+    const tag=it.rolled?'rolled':it.flag?'check':f.tag;
+    const chg=ok?sg(it.c)+fmt(Math.abs(it.c),2)+' ('+sg(it.pc)+fmt(Math.abs(it.pc),2)+'%)':it.rolled?'n/a, contract changed':'\u00a0';
+    const tip=[it.name,
+      it.open!=null&&it.ot?'week open '+fmt(it.open,2)+' at '+new Date(it.ot).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'}):'',
+      it.late?'reopened late':'',
+      it.rolled?'contract changed this week'+(it.was?' (was '+it.was+')':''):'',
+      it.flag?'check: '+it.flag:''].concat(f.tip).filter(Boolean).join(' \u00b7 ');
+    const cls='ti'+(f.dim||f.tag==='closed'?' old':'')+(it.stale?' stale':'');
+    return '<div class="'+cls+'"'+(tip?' data-tt="'+esc(tip)+'"':'')+'><div class="l"><span>'+esc(it.label)+'</span><span class="a">'+esc(tag)+'</span></div>'
+      +'<div class="p">'+(has?fmt(it.p,2):'\u2014')+'</div><div class="c '+up+'">'+chg+'</div><div class="o">open '+(it.open!=null?fmt(it.open,2):'n/a')+'</div></div>';
+  };
+  const down=(d.items||[]).filter(i=>i.c!=null&&i.c<0&&!i.rolled).length,upn=(d.items||[]).filter(i=>i.c!=null&&i.c>0&&!i.rolled).length,half=(d.items||[]).length/2;
+  const cd=b.closest('.card');if(cd){cd.classList.toggle('hr',down>half);cd.classList.toggle('hg',upn>half)} /* more than half down: red; more than half up: green; otherwise none */
+  b.innerHTML='<div class="sct w6">'+(d.items||[]).map(tile).join('')+'</div><div class="pw">Delayed 10+ min'+(futClosed()?' \u00b7 market closed, last session':'')+(bad?' \u00b7 refresh failed, showing the last data':'')+'</div>';
+}
+/* ---- Treasury yield curve card (plan P6): its own Worker route /curve, official close only (never mixed with the delayed tape, R5/R44) ----
+   Two views of one answer: History (2Y, 10Y and 30Y over six months) and Curve (1M to 30Y: latest close, a month ago, a year ago).
+   Inline SVG, no library. The spreads and the changes come from the Worker as numbers; the page only draws them. Clicking a chart opens a
+   template explanation (plain text with the current numbers filled in, not AI). Series colours --cv1..3 are the validated chart palette. */
+const CRV_URL=WORKER_URL.replace(/\/market$/,'/curve');
+const CV={d:null,at:0,busy:false,bad:false,view:'hist',key:KEY+'last_curve',w:0,ro:null,rt:0};
+try{const j=JSON.parse(LS.g(CV.key,''));if(j&&j.hist&&j.asof)CV.d=j}catch(e){}
+const cvY=v=>v==null?'–':v.toFixed(2),cvB=n=>n==null?'–':n===0?'0':(n>0?'+':'−')+Math.abs(n);
+const cvMk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+const cvSv=(tag,a,kids)=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in a)n.setAttribute(k,a[k]);(kids||[]).forEach(c=>n.appendChild(c));return n};
+const CVH=[['2Y','y2','var(--cv1)'],['10Y','y10','var(--cv2)'],['30Y','y30','var(--cv3)']]; /* fixed colour order: never re-assigned */
+const CVD={solid:'',dash:'6 3',dot:'1.5 3'}; /* a second cue besides colour: solid, dashed, dotted */
+function cvTicks(lo,hi){
+  const span=(hi-lo)||1,raw=span/4,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw)||mag*10,t=[];
+  for(let v=Math.floor(lo/st+1e-9)*st;v<=hi+st*0.999;v+=st){t.push(+v.toFixed(4));if(t.length&&t[t.length-1]>=hi)break}
+  return t;
+}
+/* One chart for both views. o: { n, pad, series:[{name,color,dash,vals,mark}], xlab(i)->string|'' , head(i)->string, rows(i)->[{name,color,dash,text}] } */
+function cvChart(wrap,W,o){
+  const nar=W<420,H=Math.max(190,Math.min(280,Math.round(W*(nar?0.62:0.5)))),L=34,R=nar?58:70,T=8,B=22,pw=W-L-R,ph=H-T-B,n=o.n;
+  const all=[];o.series.forEach(s=>s.vals.forEach(v=>{if(v!=null)all.push(v)}));
+  const tk=cvTicks(Math.min(...all),Math.max(...all)),lo=tk[0],hi=tk[tk.length-1];
+  const X=i=>o.pad?L+(i+0.5)*pw/n:L+(n<2?pw/2:i*pw/(n-1)),Y=v=>T+ph-(v-lo)/(hi-lo||1)*ph;
+  const svg=cvSv('svg',{viewBox:'0 0 '+W+' '+H,width:W,height:H,role:'img','aria-label':o.label||'chart'});
+  tk.forEach(v=>{ /* recessive grid and axis labels */
+    svg.appendChild(cvSv('line',{x1:L,x2:L+pw,y1:Y(v),y2:Y(v),stroke:'var(--bd)','stroke-width':1}));
+    const t=cvSv('text',{x:L-6,y:Y(v)+3.5,'text-anchor':'end','font-size':10.5,fill:'var(--t3)'});t.textContent=v.toFixed(v%1?2:1);svg.appendChild(t);
+  });
+  let last=-9;
+  for(let i=0;i<n;i++){const s=o.xlab(i);if(!s)continue;const x=X(i);if(x-last<(nar?(o.pad?24:34):40))continue;last=x;
+    const t=cvSv('text',{x:x,y:H-6,'text-anchor':'middle','font-size':10.5,fill:'var(--t3)'});t.textContent=s;svg.appendChild(t)}
+  const ends=[];
+  o.series.forEach(s=>{
+    let d='',pen=false,li=-1;
+    s.vals.forEach((v,i)=>{if(v==null){pen=false;return}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true;li=i});
+    const p=cvSv('path',{d,fill:'none',stroke:s.color,'stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'});
+    if(CVD[s.dash])p.setAttribute('stroke-dasharray',CVD[s.dash]);svg.appendChild(p);
+    if(s.mark)s.vals.forEach((v,i)=>{if(v!=null)svg.appendChild(cvSv('circle',{cx:X(i),cy:Y(v),r:4,fill:s.color,stroke:'var(--surface)','stroke-width':2}))});
+    if(li>=0)ends.push({y:Y(s.vals[li]),name:s.short||s.name,v:s.vals[li]});
+  });
+  ends.sort((a,b)=>a.y-b.y);for(let i=1;i<ends.length;i++)if(ends[i].y-ends[i-1].y<13)ends[i].y=ends[i-1].y+13; /* direct labels never collide */
+  ends.forEach(e=>{const t=cvSv('text',{x:L+pw+6,y:e.y+3.5,'font-size':11,fill:'var(--t2)'});t.textContent=e.name+' '+e.v.toFixed(2);svg.appendChild(t)});
+  /* hover layer: the crosshair snaps to the nearest position; one tooltip lists every series */
+  const cross=cvSv('line',{y1:T,y2:T+ph,stroke:'var(--bdm)','stroke-width':1,visibility:'hidden'}),dots=o.series.map(s=>cvSv('circle',{r:4,fill:s.color,stroke:'var(--surface)','stroke-width':2,visibility:'hidden'}));
+  svg.appendChild(cross);dots.forEach(c=>svg.appendChild(c));
+  const hit=cvSv('rect',{x:L,y:T,width:pw,height:ph,fill:'transparent'});svg.appendChild(hit);
+  const tip=cvMk('div','cvtip');tip.hidden=true;
+  const at=ev=>{
+    const r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)*(W/r.width);
+    let i=o.pad?Math.floor((px-L)/(pw/n)):Math.round((px-L)/(pw/(n-1||1)));i=Math.max(0,Math.min(n-1,i));
+    const x=X(i);cross.setAttribute('x1',x);cross.setAttribute('x2',x);cross.setAttribute('visibility','visible');
+    o.series.forEach((s,j)=>{const v=s.vals[i];if(v==null)dots[j].setAttribute('visibility','hidden');else{dots[j].setAttribute('cx',x);dots[j].setAttribute('cy',Y(v));dots[j].setAttribute('visibility','visible')}});
+    tip.textContent='';tip.appendChild(cvMk('div','cvth',o.head(i)));
+    o.rows(i).forEach(r=>{const row=cvMk('div','cvtr'),k=cvSv('svg',{width:16,height:6,viewBox:'0 0 16 6'},[cvSv('line',{x1:0,x2:16,y1:3,y2:3,stroke:r.color,'stroke-width':2,'stroke-dasharray':CVD[r.dash]||'0'})]);
+      row.appendChild(k);row.appendChild(cvMk('span','cvn',r.name));row.appendChild(cvMk('b','',r.text));tip.appendChild(row)});
+    tip.hidden=false;const tw=tip.offsetWidth,sx=x*(r.width/W);tip.style.left=Math.max(2,sx+14+tw>r.width?sx-14-tw:sx+14)+'px';tip.style.top='6px';
+  };
+  hit.addEventListener('pointermove',at);hit.addEventListener('pointerdown',at);
+  const off=()=>{tip.hidden=true;cross.setAttribute('visibility','hidden');dots.forEach(c=>c.setAttribute('visibility','hidden'))};
+  hit.addEventListener('pointerleave',off);
+  wrap.appendChild(svg);wrap.appendChild(tip);
+}
+function cvLegend(items){
+  const l=cvMk('div','cvl');
+  items.forEach(it=>{const k=cvSv('svg',{width:18,height:8,viewBox:'0 0 18 8'},[cvSv('line',{x1:0,x2:18,y1:4,y2:4,stroke:it.color,'stroke-width':2,'stroke-dasharray':CVD[it.dash]||'0'})]);
+    const s=cvMk('span','cvi');s.appendChild(k);s.appendChild(document.createTextNode(it.text));l.appendChild(s)});
+  return l;
+}
+function cvTable(head,rows,cls){
+  const t=cvMk('table','cvt '+(cls||'')),h=cvMk('tr');head.forEach(x=>h.appendChild(cvMk('th','',x)));t.appendChild(cvMk('thead')).appendChild(h);
+  const b=t.appendChild(cvMk('tbody'));
+  rows.forEach(r=>{const tr=cvMk('tr');r.forEach(c=>{const td=cvMk('td');if(c&&c.k){td.appendChild(cvSv('svg',{width:14,height:6,viewBox:'0 0 14 6'},[cvSv('line',{x1:0,x2:14,y1:3,y2:3,stroke:c.k,'stroke-width':2.5})]));td.appendChild(document.createTextNode(' '+c.t))}else td.textContent=c;tr.appendChild(td)});b.appendChild(tr)});
+  return t;
+}
+const cvDate=iso=>iso?new Date(iso+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'}):'';
+function cvPaint(b,d){
+  const W=Math.max(220,Math.floor(b.clientWidth||480)),nar=W<640;CV.w=W;
+  const root=cvMk('div','cv'+(nar?' nar':'')),left=cvMk('div','cvm'),right=cvMk('div','cvr'),chartW=nar?W-28:Math.floor((W-28)*0.6)-8;
+  const wrap=cvMk('div','cvc');wrap.title='Click for an explanation';wrap.onclick=()=>cvExplain();
+  if(CV.view==='hist'){
+    const h=d.hist,cut=new Date(d.asof+'T00:00:00Z');cut.setUTCMonth(cut.getUTCMonth()-6);const cs=cut.toISOString().slice(0,10);
+    let i0=h.dates.findIndex(x=>x>=cs);if(i0<0)i0=0;const idx=h.dates.slice(i0),mon={};
+    left.appendChild(cvLegend(CVH.map((s,j)=>({color:s[2],dash:['solid','dash','dot'][j],text:s[0]}))));
+    cvChart(wrap,chartW,{n:idx.length,pad:false,label:'2-year, 10-year and 30-year Treasury yields, last six months',
+      series:CVH.map((s,j)=>({name:s[0],color:s[2],dash:['solid','dash','dot'][j],vals:h[s[1]].slice(i0)})),
+      xlab:i=>{const m=idx[i].slice(0,7);return i===0||idx[i-1].slice(0,7)!==m?new Date(idx[i]+'T12:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'}):''},
+      head:i=>fmtIso(idx[i]),rows:i=>CVH.map((s,j)=>({name:s[0],color:s[2],dash:['solid','dash','dot'][j],text:cvY(h[s[1]][i0+i])+'%'}))});
+  }else{
+    const c=d.curve,keep=c.tenors.map((_,i)=>i).filter(i=>c.latest[i]!=null),pick=a=>a&&keep.map(i=>a[i]),T=pick(c.tenors),lt=pick(c.latest),m1=pick(c.m1),y1=pick(c.y1);
+    const ser=[{name:'Today',short:'Now',color:'var(--cv1)',dash:'solid',vals:lt,mark:true,tag:'now'}];
+    if(m1)ser.push({name:'1M ago',short:'1M',color:'var(--cv2)',dash:'dash',vals:m1,tag:'m1'});
+    if(y1)ser.push({name:'1Y ago',short:'1Y',color:'var(--cv3)',dash:'dot',vals:y1,tag:'y1'});
+    left.appendChild(cvLegend(ser.map(s=>({color:s.color,dash:s.dash,text:s.name+(s.tag==='m1'?' ('+cvDate(d.dates.m1)+')':s.tag==='y1'?' ('+cvDate(d.dates.y1)+')':'')}))));
+    cvChart(wrap,chartW,{n:T.length,pad:true,label:'Treasury yield curve, 1 month to 30 years',series:ser,xlab:i=>T[i],
+      head:i=>T[i]+' yield',rows:i=>ser.map(s=>({name:s.name,color:s.color,dash:s.dash,text:cvY(s.vals[i])+'%'+(s.tag!=='now'&&s.vals[i]!=null&&lt[i]!=null?' ('+cvB(Math.round((lt[i]-s.vals[i])*100))+' bp)':'')}))});
+  }
+  left.appendChild(wrap);
+  const ys=(d.yields||[]).filter(y=>['2Y','10Y','30Y'].includes(y.k));
+  right.appendChild(cvTable(['Yield','Close','1d','1w','1m','1y'],ys.map(y=>[CV.view==='hist'?{k:CVH.find(s=>s[0]===y.k)[2],t:y.k}:y.k,cvY(y.v)+'%',cvB(y.d1),cvB(y.w1),cvB(y.m1),cvB(y.y1)])));
+  right.appendChild(cvTable(['Spread (bp)','Now','1d','1w','1m','1y','State'],(d.spreads||[]).map(s=>[s.label,cvB(s.bp),cvB(s.d1),cvB(s.w1),cvB(s.m1),cvB(s.y1),s.bp==null?'–':(s.inv?'inverted':'')+(s.inv&&s.state?' · ':'')+(s.state||'')]),'cvs'));
+  right.appendChild(cvMk('div','cvnote','Changes in basis points (100 bp = 1 percentage point). State: a spread that rose 5 bp or more over a month is steepening, fell 5 bp or more is compressing, otherwise flat.'));
+  root.appendChild(left);root.appendChild(right);
+  const f=cvMk('div','cvf');
+  f.appendChild(cvMk('span','','Official Treasury par yield curve · close of '+new Date(d.asof+'T12:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})));
+  if(d.age_days>4)f.appendChild(cvMk('span','cvw','Data is '+d.age_days+' days old'));
+  if(d.check&&d.check.status==='differs')f.appendChild(cvMk('span','cvw','FRED T10Y2Y differs by '+Math.abs(d.check.diffBp)+' bp: check treasury.gov'));
+  if(d.partial)f.appendChild(cvMk('span','cvw',d.partial));
+  if(CV.bad)f.appendChild(cvMk('span','cvw','Refresh failed, showing the last data'));
+  const bt=cvMk('button','cvb','How to read this');bt.onclick=()=>cvExplain();f.appendChild(bt);
+  root.appendChild(f);
+  b.textContent='';b.appendChild(root);
+}
+function cvShow(){
+  const c=C.curve,b=c&&c.el&&$('.body',c.el);if(!b)return;
+  try{
+    if(CV.d)cvPaint(b,CV.d);else note(b,CV.bad?'No data: the Worker did not answer.':'Loading…');
+  }catch(e){note(b,'This card failed to draw.')}
+  if(!CV.ro&&window.ResizeObserver){ /* the chart is drawn at the card's pixel width, so it is redrawn when the card is resized (expand, collapse, rotate) */
+    CV.ro=new ResizeObserver(()=>{clearTimeout(CV.rt);CV.rt=setTimeout(()=>{const bb=C.curve.el&&$('.body',C.curve.el);if(CV.d&&bb&&Math.abs(bb.clientWidth-CV.w)>3&&bb.clientWidth>0)cvShow()},150)});
+    CV.ro.observe(b);
+  }
+}
+async function cvLoad(fresh){
+  if(CV.busy||Date.now()-CV.at<5000)return;
+  if(!fresh&&CV.d&&Date.now()-CV.at<20*60000)return; /* the close changes once a day; the Worker keeps its own copy for 15 min */
+  CV.busy=true;
+  try{
+    const r=await fetch(CRV_URL,{cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();if(!d.hist||!d.asof)throw new Error('bad payload');
+    CV.d=d;CV.bad=false;LS.s(CV.key,JSON.stringify(d));
+  }catch(e){CV.bad=true}
+  finally{CV.busy=false;CV.at=Date.now();cvShow()}
+}
+function cvExplain(){
+  const d=CV.d;if(!d)return;
+  const y=k=>(d.yields||[]).find(x=>x.k===k),s=id=>(d.spreads||[]).find(x=>x.id===id)||{},sp=s('10s2s');
+  const lv=k=>y(k)?cvY(y(k).v)+'%':'n/a';
+  const head=sp.bp==null?'Treasury yield curve':sp.inv?'The curve is inverted: the 2-year yields '+Math.abs(sp.bp)+' bp more than the 10-year':'10Y−2Y is '+cvB(sp.bp)+' bp: longer yields are above shorter ones';
+  const move=(()=>{const a=y('2Y'),b=y('10Y');if(!a||!b||a.m1==null||b.m1==null)return '';
+    const big=Math.abs(a.m1)>=Math.abs(b.m1)?'2-year':'10-year';
+    return 'Over the past month the 2-year moved '+cvB(a.m1)+' bp and the 10-year '+cvB(b.m1)+' bp, so 10Y−2Y changed '+cvB(sp.m1)+' bp ('+(sp.state||'n/a')+'); the bigger move was in the '+big+'.'})();
+  const sl=(d.spreads||[]).filter(x=>x.bp!=null).map(x=>'<li><b>'+esc(x.label)+'</b> '+esc(cvB(x.bp))+' bp'+(x.inv?' (inverted)':'')+', '+esc(x.state||'n/a')+' over the month ('+esc(cvB(x.m1))+' bp)</li>').join('');
+  relShell('Treasury yield curve',
+    '<h3>'+esc(head)+'</h3><div class="relt">Official Treasury par yield curve, close of '+esc(fmtIso(d.asof))+' · 2Y '+esc(lv('2Y'))+' · 10Y '+esc(lv('10Y'))+' · 30Y '+esc(lv('30Y'))+'</div>'
+    +(move?'<p>'+esc(move)+'</p>':'')
+    +'<h4>What the curve is</h4><p>A Treasury yield is what the US government pays to borrow for a fixed time, from one month to 30 years. Plotted by maturity, the yields form the yield curve. These are the official end-of-day figures published by the US Treasury, not live prices, so they can differ from the delayed 2Y, 10Y and 30Y on the tape above.</p>'
+    +'<h4>The 2Y, 10Y and 30Y</h4><p><b>2-year:</b> driven mostly by what the market expects the Fed to do with its policy rate over the next two years. <b>10-year:</b> the benchmark long rate; it sets the tone for mortgage rates and for the rate used to value company earnings. <b>30-year:</b> the long end, shaped by inflation expectations, government borrowing and the extra yield investors ask for tying money up for decades.</p>'
+    +'<h4>The spreads</h4><p>A spread is one yield minus another, in basis points (100 bp = 1 percentage point). <b>10Y−2Y</b> is the most quoted slope of the curve. <b>10Y−3M</b> compares the 10-year with the shortest bill, close to the Fed’s policy rate, and is also a widely used recession signal. <b>30Y−10Y</b> and <b>30Y−5Y</b> show how much extra the long end pays.</p><ul class="cvul">'+sl+'</ul>'
+    +'<h4>How to read it</h4><p><b>Steepening</b> means the gap between long and short yields widened: short yields fell (often rate-cut expectations) or long yields rose (often growth, inflation or supply worries). <b>Compressing</b> (also called flattening) means the gap narrowed: short yields rose (often a Fed that stays tight) or long yields fell. <b>Flat</b> means it moved less than 5 bp over the month. <b>Inversion</b> means a shorter yield is above a longer one, a negative spread. Inversions of 10Y−2Y and 10Y−3M have often come before recessions, with a long and uneven lag; it is a signal that has been wrong in timing, not a forecast.</p>'
+    +'<p class="relf">The 5 bp over one month threshold for the state words is this dashboard’s own rule, not an industry standard. Spreads are computed from the Treasury close and checked against FRED’s T10Y2Y. Not financial advice.</p>');
+}
+const LIVE={sect:liveCard('sect',SEC_URL,secPaint),wko:liveCard('wko',WKO_URL,wkoPaint),curve:{render(){cvShow();cvLoad(false)},load:cvLoad,show:cvShow}};
+function liveKick(){for(const k in LIVE)if(C[k]&&C[k].el&&!C[k].el.classList.contains('closed'))LIVE[k].load(false)}
+setInterval(()=>{if(!document.hidden&&tab==='tech')liveKick()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab==='tech')liveKick()});
+
 /* ---- cards ---- */
 const C={
+  sect:{page:'tech',t:'sector etfs',cls:'hy',sp:12,fit:true,noexp:true,noopen:true,src:{
+    s:{l:'Sectors',r:()=>LIVE.sect.render()}}},
+  wko:{page:'tech',t:'week open',sp:12,fit:true,noexp:true,noopen:true,src:{
+    w:{l:'Week open',r:()=>LIVE.wko.render()}}},
   gex:{page:'tech',t:'nq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:326,ifhm:326,src:{
     zg:{l:'ZeroGEX',r:gex('NQ')}}},
   gexq:{page:'tech',t:'qqq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:310,ifhm:286,src:{
@@ -1175,6 +1433,9 @@ const C={
   look:{page:'tech',t:'ticker lookup',sp:8,h:460,hm:780,full:600,fullm:900,tb:true,stretch:true,noexp:true,src:{
     ov:{l:'Overview',r:overview},
     ta:{l:'Technicals',r:technicals}}},
+  curve:{page:'tech',t:'yield curve',sp:12,fit:true,noexp:true,noopen:true,src:{
+    h:{l:'History',r:()=>{CV.view='hist';LIVE.curve.render()}},
+    c:{l:'Curve',r:()=>{CV.view='curve';LIVE.curve.render()}}}},
   heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,full:900,fullm:800,src:{
     all:{l:'All stocks',r:finviz('sec_all','d34rloj8')},
     tvall:{l:'All stocks \u00b7 TV',r:tvwc('tv-heatmap',{'heatmap-type':'stock','data-source':'AllUSA',grouping:'sector','block-size':'market_cap_basic','block-color':'change'},'TradingView heatmap')},
@@ -1193,7 +1454,7 @@ function stackFor(c){
 }
 for(const k in C){
   const c=C[k],s=document.createElement('section');
-  s.className='card'+(c.fit?' fit':'')+(c.stretch?' stretch':'');s.id=k;if(c.ifh)s.style.setProperty('--ifh',c.ifh+'px');if(c.ifhm)s.style.setProperty('--ifhm',c.ifhm+'px');s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
+  s.className='card'+(c.fit?' fit':'')+(c.stretch?' stretch':'')+(c.cls?' '+c.cls:'');s.id=k;if(c.ifh)s.style.setProperty('--ifh',c.ifh+'px');if(c.ifhm)s.style.setProperty('--ifhm',c.ifhm+'px');s.style.setProperty('--sp',c.sp);s.style.setProperty('--h',c.h+'px');s.style.setProperty('--hm',c.hm+'px');s.style.setProperty('--full',c.full+'px');s.style.setProperty('--fullm',c.fullm+'px');
   const keys=Object.keys(c.src);
   s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
@@ -1218,6 +1479,7 @@ function showPage(p){
   for(const i in PAGES)PAGES[i].hidden=i!==p;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
   for(const k in C)if(C[k].page===p&&C[k].th!==dark()&&!C[k].el.classList.contains('closed'))draw(k);
+  if(p==='tech')liveKick();
 }
 $('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(b)showPage(b.dataset.p)});
 function paintCard(k){
@@ -1241,7 +1503,7 @@ document.addEventListener('click',e=>{
   if(sb){c.cur=sb.dataset.s;LS.s(KEY+'src_'+k,c.cur);draw(k)}
   if(!ab)return;
   const a=ab.dataset.a;
-  if(a==='r')draw(k);
+  if(a==='r'){if(LIVE[k])LIVE[k].load(true);draw(k)}
   if(a==='al')setAlert(c.alert,!(ALERT[c.alert]&&ALERT[c.alert].get&&ALERT[c.alert].get()));
   if(a==='f')setTall(k,!card.classList.contains('tall'));
   if(a==='c')setClosed(k,!card.classList.contains('closed'));
