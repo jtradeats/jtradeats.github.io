@@ -8,6 +8,7 @@ import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
 import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, applyOfficial } from './official.js';
+import { SYNC_KEY, runBls, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
@@ -410,10 +411,89 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
   const { match, rows, ...rest } = v;
   return [k, { ...rest, rows: (rows || []).map(({ match: m, ...r }) => r) }];
 }));
-const schedCache = { events: null, aud: null, at: 0 };
+// ---- schedule sync (plan P2 and P3, D76 to D96) ----
+// schedule.json is the baseline. What the nightly sync found is kept in KV ("schedule:synced") and merged over it on every load (schedule_sync.js, mergeSchedule),
+// so a failed run changes nothing. Three daily Cron Triggers, one per source, so each run has its own 10 ms CPU budget (the strings must match wrangler.toml):
+//   bls = the BLS release pages (CPI, jobs report, PPI, JOLTS), treasury = TreasuryDirect plus Treasury's tentative auction schedule, provider = the calendar feeds' look-ahead.
+// Lazy safety net (D77): a source that is overdue (never run, or not refreshed for 36 h) is started in the background by the next /calendar request, one source at a time.
+// GET /sync shows the state (read only; no way to start a run from outside).
+const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
+const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
+const syncState = { rec: null, at: 0, running: false, tried: {}, last: null };
+const nyDate = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });   // YYYY-MM-DD in New York
+
+async function loadSync(env, force) {
+  const now = Date.now();
+  if (!force && syncState.at && now - syncState.at < SYNC_RELOAD) return syncState.rec;
+  syncState.at = now;
+  if (env && env.MARKET_KV) {
+    try { const r = await env.MARKET_KV.get(SYNC_KEY, 'json'); if (r && r.src && (!syncState.rec || r.at >= syncState.rec.at)) syncState.rec = r; } catch (e) { /* KV unavailable: carry on with what is in memory */ }
+  }
+  return syncState.rec;
+}
+
+// Fair Economy (two weeks) and, with the FMP_KEY secret, FMP (35 days), lowest priority first. A provider that fails is reported, never thrown.
+async function gatherProvider(env) {
+  const feeds = [], clean = e => String(e.message).replace(/apikey=[^&\s]*/gi, 'apikey=***').slice(0, 100);
+  try { feeds.push({ name: 'Fair Economy', rows: (await loadFeed()).events }); } catch (e) { feeds.push({ name: 'Fair Economy', rows: [], err: clean(e) }); }
+  if (env && env.FMP_KEY) { try { feeds.push({ name: 'FMP', rows: await loadFmp(env) }); } catch (e) { feeds.push({ name: 'FMP', rows: [], err: clean(e) }); } }
+  return feeds;
+}
+
+async function runSyncSource(name, env) {
+  const now = Date.now(), today = nyDate(now);
+  const old = (await loadSync(env, true)) || { v: 1, at: 0, src: {}, changes: [] };
+  const prev = old.src[name] || null;
+  let out;
+  try {
+    if (name === 'bls') out = await runBls({ get: u => get(u, {}, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+    else if (name === 'treasury') out = await runTreasury({ get: u => get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+    else if (name === 'provider') out = runProvider({ feeds: await gatherProvider(env), base: SCHEDULE.releases, IND: INDICATORS, now, prev });
+    else return null;
+  } catch (e) {
+    out = { ...(prev || { k: {} }), at: now, ok: false, err: String(e.message).slice(0, 200) };   // keep the last good lines
+  }
+  const next = { ...old, v: 1, at: now, src: { ...old.src, [name]: out } };
+  let diff = [];
+  try { diff = diffSchedules(mergeSchedule(SCHEDULE, old, INDICATORS, today), mergeSchedule(SCHEDULE, next, INDICATORS, today), INDICATORS, today); } catch (e) { /* the change log is a nicety */ }
+  next.changes = [...diff.map(c => ({ ...c, at: now, src: name })), ...(old.changes || [])].slice(0, 40);
+  syncState.rec = next; syncState.at = now;
+  let saved = !!(env && env.MARKET_KV);
+  if (saved) { try { await env.MARKET_KV.put(SYNC_KEY, JSON.stringify(next)); } catch (e) { saved = false; } }
+  syncState.last = { name, at: now, ok: !!out.ok, err: out.err || null, changes: diff.length, saved };
+  return syncState.last;
+}
+
+function syncLazy(env, ctx, now) {
+  if (syncState.running) return;
+  const rec = syncState.rec, due = dueSources(rec, now, !!(env && env.FMP_KEY));
+  const name = due.find(n => now - (syncState.tried[n] || 0) > (rec && rec.src && rec.src[n] ? LAZY_GAP : LAZY_GAP_NEVER));
+  if (!name) return;
+  syncState.tried[name] = now; syncState.running = true;
+  const p = runSyncSource(name, env).catch(() => {}).finally(() => { syncState.running = false; });
+  if (ctx) ctx.waitUntil(p);
+}
+
+function syncHealth() {
+  const r = syncState.rec, now = Date.now();
+  if (!r) return { loaded: false, running: syncState.running };
+  return { loaded: true, running: syncState.running, sources: Object.fromEntries(Object.entries(r.src || {}).map(([n, s]) => [n, { ok: !!s.ok, age_s: s.at ? Math.round((now - s.at) / 1000) : null, error: s.err ? String(s.err).slice(0, 80) : null }])) };
+}
+
+// The effective schedule = schedule.json + the sync overlay. Rebuilt when the overlay changes or the New York date turns; the audit (about 3 ms) never runs in the
+// same request as a rebuild unless it is the very first one, so a cold start stays well under the CPU limit.
+const schedCache = { events: null, aud: null, at: 0, sig: null, day: null, eff: null, merged: null, checked: null, audStale: false };
 function schedule(now) {
-  if (!schedCache.events) schedCache.events = expand(SCHEDULE, INDICATORS);
-  if (!schedCache.aud || now - schedCache.at > 10 * 60000) { schedCache.aud = audit(SCHEDULE, INDICATORS, now); schedCache.at = now; }
+  const sig = syncState.rec ? syncState.rec.at : 0, day = nyDate(now);
+  let rebuilt = false;
+  if (!schedCache.events || schedCache.sig !== sig || schedCache.day !== day) {
+    const m = mergeSchedule(SCHEDULE, syncState.rec, INDICATORS, day);
+    schedCache.eff = { ...SCHEDULE, releases: m.releases, checked: m.checked };
+    schedCache.events = expand(schedCache.eff, INDICATORS);
+    schedCache.merged = m; schedCache.checked = m.checked; schedCache.sig = sig; schedCache.day = day;
+    rebuilt = true; schedCache.audStale = true;
+  }
+  if (!schedCache.aud || (!rebuilt && (schedCache.audStale || now - schedCache.at > 10 * 60000))) { schedCache.aud = audit(schedCache.eff, INDICATORS, now); schedCache.at = now; schedCache.audStale = false; }
   return schedCache;
 }
 
@@ -421,7 +501,9 @@ let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
   if (calMemo && calMemo.debug === debug && now - calMemo.at < 10000) return calMemo.body;
+  await loadSync(env);
   const sch = schedule(now);
+  syncLazy(env, ctx, now);   // an overdue sync source starts in the background (D77)
   const p = Promise.all([feedRefresh(env, ctx), fmpRefresh(env, ctx, sch), offRefresh(ctx, sch)]);
   if (!feedState.events && !fmpState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
@@ -434,6 +516,7 @@ async function getCalendar(env, ctx, opts = {}) {
   const nRes = applyResults(o.events, RESULTS);
   const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now) : { n: 0, issues: [] };   // fills blanks, flags disagreements
   o.issues.push(...off.issues);
+  o.issues.push(...sch.merged.issues, ...syncIssues(syncState.rec, now, INDICATORS, !!(env && env.FMP_KEY)));   // schedule sync: failures, overdue sources, dates that moved overnight
   chainPrevious(o.events);
 
   let fstat = feedState.status;
@@ -450,11 +533,12 @@ async function getCalendar(env, ctx, opts = {}) {
     updated: new Date(now).toISOString().replace(/\.\d+Z$/, 'Z'),
     now,                                                  // the page compares this with its own clock
     src: 'official release schedule',
-    sources: SCHEDULE.sources, checked: SCHEDULE.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop: INDICATORS.backdrop,   // what the page needs to explain each release
+    sources: SCHEDULE.sources, checked: sch.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop: INDICATORS.backdrop,   // what the page needs to explain each release
     feed: { status: fstat, at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
     official: { status: ostat, at: offState.at || null, n: off.n, error: ostat === 'ok' ? null : offState.err },
     results: { asof: RESULTS.asof || null, n: nRes },
+    sync: { ...syncSummary(syncState.rec), tiers: sch.merged.tiers, stats: sch.merged.stats },   // what the schedule check shows
     audit: { status, nIssues: a.nIssues + o.issues.length, counts: a.counts, total: a.total, first: a.first, horizon: a.horizon,
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
@@ -573,6 +657,7 @@ export default {
     const { pathname } = new URL(req.url);
     const json = { ...cors, 'Content-Type': 'application/json' };
     if (pathname === '/health') {
+      await loadSync(env);
       return new Response(JSON.stringify({
         ok: true, kv: !!(env && env.MARKET_KV),
         memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
@@ -582,6 +667,7 @@ export default {
           official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null },
         sectors: sectors.health(), weekly: weekly.health(),
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
+        sync: syncHealth(),
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
     }
@@ -615,6 +701,14 @@ export default {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
     }
+    if (pathname === '/sync') {   // read only: the state of the schedule sync (add ?debug=1 for the samples kept when a source could not be read)
+      await loadSync(env, true);
+      const now = Date.now(), rec = syncState.rec, m = schedule(now).merged;
+      const body = { now, crons: SYNC_CRONS, running: syncState.running, lastRun: syncState.last, ...syncSummary(rec), tiers: m.tiers, stats: m.stats,
+        issues: syncIssues(rec, now, INDICATORS, !!(env && env.FMP_KEY)).concat(m.issues) };
+      if (new URL(req.url).searchParams.has('debug') && rec) body.debug = Object.fromEntries(Object.entries(rec.src || {}).filter(([, s]) => s.debug).map(([n, s]) => [n, s.debug]));
+      return new Response(JSON.stringify(body), { headers: { ...json, 'Cache-Control': 'no-store' } });
+    }
     if (pathname === '/feed') {
       try {
         const q = new URL(req.url).searchParams;
@@ -630,5 +724,9 @@ export default {
       }
     }
     return new Response('{"error":"not found"}', { status: 404, headers: json });
+  },
+  async scheduled(event, env, ctx) {   // Cron Triggers (wrangler.toml): the nightly schedule sync, one source per trigger
+    const name = SYNC_CRONS[event.cron];
+    if (name) ctx.waitUntil(runSyncSource(name, env).catch(() => {}));
   },
 };
