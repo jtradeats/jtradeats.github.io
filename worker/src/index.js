@@ -7,6 +7,7 @@ import SCHEDULE from '../config/schedule.json';
 import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
 import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
+import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, applyOfficial } from './official.js';
 import { getFeed, feedHealth } from './feed.js';   // DeItaone wire via the Telegram mirror (plan 1.5)
 
 const ALLOWED = [
@@ -323,6 +324,39 @@ function fmpRefresh(env, ctx, sch) {
   return fmpState.inflight;
 }
 
+// ---- official actuals (plan 3.5, first slice): claims, jobs report and CPI computed from FRED series, no key ----
+// Polls every 30 min, and every 60 s from 90 min before to 2 min after a release it covers, so the actual lands as soon as FRED has it.
+// FRED's lag behind BLS and DOL is unmeasured: check /calendar?debug=1 on the first release. Memory only (no KV): about 7 requests a poll.
+const OFF_SLOW = 30 * 60000, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;
+const offState = { M: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null };
+async function loadOfficial() {
+  const since = new Date(Date.now() - 460 * 864e5).toISOString().slice(0, 10);   // 13+ months: year-on-year needs it
+  const M = {}, errs = [];
+  await Promise.all(OFF_SERIES.map(async s => {
+    try { M[s] = parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`)); if (!M[s].size) throw new Error('no rows'); }
+    catch (e) { delete M[s]; errs.push(`${s}: ${e.message}`); }
+  }));
+  if (!Object.keys(M).length) throw new Error(errs.join(' | '));
+  return { M, errs };
+}
+async function refreshOfficial(sch) {
+  const now = Date.now();
+  const near = sch.events.some(e => OFF_SPEC[e.k + '|' + e.r] && e.t > now - 90 * 60000 && e.t < now + 120000);
+  if (offState.M && now - offState.at < (near ? OFF_FAST : OFF_SLOW)) return;
+  if (offState.failAt && now - offState.failAt < OFF_RETRY) return;
+  try {
+    const o = await loadOfficial();
+    offState.M = o.M; offState.at = Date.now(); offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 200) : null; offState.status = 'ok';
+  } catch (e) { offState.failAt = Date.now(); offState.err = String(e.message).slice(0, 200); offState.status = 'unavailable'; }
+}
+function offRefresh(ctx, sch) {
+  if (!offState.inflight) {
+    offState.inflight = refreshOfficial(sch).finally(() => { offState.inflight = null; });
+    if (ctx) ctx.waitUntil(offState.inflight);
+  }
+  return offState.inflight;
+}
+
 // The expanded schedule and its audit are cheap but not free (10 ms CPU limit): keep them for a while
 // kinds without the provider-title patterns (those are only for the Worker's matching)
 const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k, v]) => {
@@ -341,8 +375,8 @@ async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
   if (calMemo && calMemo.debug === debug && now - calMemo.at < 10000) return calMemo.body;
   const sch = schedule(now);
-  const p = Promise.all([feedRefresh(env, ctx), fmpRefresh(env, ctx, sch)]);
-  if (!feedState.events && !fmpState.events) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
+  const p = Promise.all([feedRefresh(env, ctx), fmpRefresh(env, ctx, sch), offRefresh(ctx, sch)]);
+  if (!feedState.events && !fmpState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
   const [lo, hi] = CAL_WINDOW;
   const base = sch.events.filter(e => e.t >= now + lo && e.t <= now + hi);
@@ -351,6 +385,8 @@ async function getCalendar(env, ctx, opts = {}) {
   if (fmpState.events && now - fmpState.at < CAL_USE_MAX) feeds.push({ name: 'FMP', rows: fmpState.events });
   const o = overlay(base, feeds, INDICATORS, now);
   const nRes = applyResults(o.events, RESULTS);
+  const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now) : { n: 0, issues: [] };   // fills blanks, flags disagreements
+  o.issues.push(...off.issues);
   chainPrevious(o.events);
 
   let fstat = feedState.status;
@@ -359,6 +395,8 @@ async function getCalendar(env, ctx, opts = {}) {
   let mstat = fmpState.status;
   if (mstat === 'ok' && now - fmpState.at > FMP_SLOW * 2) mstat = 'stale';
 
+  let ostat = offState.status;
+  if (ostat === 'ok' && now - offState.at > OFF_SLOW * 2) ostat = 'stale';
   const a = sch.aud, all = o.issues.concat(a.issues);
   const status = a.status === 'error' || o.issues.some(i => i.lvl === 'error') ? 'error' : (a.status === 'check' || o.issues.length) ? 'check' : 'ok';
   const out = {
@@ -368,13 +406,15 @@ async function getCalendar(env, ctx, opts = {}) {
     sources: SCHEDULE.sources, checked: SCHEDULE.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop: INDICATORS.backdrop,   // what the page needs to explain each release
     feed: { status: fstat, at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
+    official: { status: ostat, at: offState.at || null, n: off.n, error: ostat === 'ok' ? null : offState.err },
     results: { asof: RESULTS.asof || null, n: nRes },
     audit: { status, nIssues: a.nIssues + o.issues.length, counts: a.counts, total: a.total, first: a.first, horizon: a.horizon,
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
   };
   if (debug) out.debug = { fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
-    fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct }, unmatched: o.unmatched };
+    fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
+    official: { error: offState.err, series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched };
   const body = JSON.stringify(out);
   calMemo = { at: now, debug, body };
   return body;
@@ -491,7 +531,8 @@ export default {
         memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
         cached_items: itemCache.size,
         calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null,
-          fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null },
+          fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
+          official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null },
         wire: feedHealth(),
       }), { headers: json });
     }
