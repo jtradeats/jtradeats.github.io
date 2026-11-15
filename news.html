@@ -183,6 +183,7 @@ html.mobile .sct.w6{grid-template-columns:repeat(2,minmax(0,1fr))}
 .cvt td:first-child{font-weight:600}.cvt td:first-child svg{vertical-align:middle;margin-right:2px}
 .cvt.cvs td:last-child,.cvt.cvs th:last-child{text-align:left;color:var(--t2)}
 .cvnote{font-size:var(--fxs);color:var(--t3);line-height:1.45}
+.cvread{font-size:var(--fsm);color:var(--t2);line-height:1.5;margin:0 0 8px}.cvread b{color:var(--t);font-weight:600}
 .cvf{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;font-size:var(--fxs);color:var(--t3);padding:2px 0 8px}
 .cvw{color:#C98A2E}
 .cvb{margin-left:auto;font:inherit;color:var(--t2);background:none;border:.5px solid var(--bdm);border-radius:var(--rad);padding:2px 9px;cursor:pointer}.cvb:hover{color:var(--t)}
@@ -1351,7 +1352,9 @@ function cvPaint(b,d){
   const ys=(d.yields||[]).filter(y=>['2Y','10Y','30Y'].includes(y.k));
   right.appendChild(cvTable(['Yield','Close','1d','1w','1m','1y'],ys.map(y=>[CV.view==='hist'?{k:CVH.find(s=>s[0]===y.k)[2],t:y.k}:y.k,cvY(y.v)+'%',cvB(y.d1),cvB(y.w1),cvB(y.m1),cvB(y.y1)])));
   right.appendChild(cvTable(['Spread (bp)','Now','1d','1w','1m','1y','State'],(d.spreads||[]).map(s=>[s.label,cvB(s.bp),cvB(s.d1),cvB(s.w1),cvB(s.m1),cvB(s.y1),s.bp==null?'–':(s.inv?'inverted':'')+(s.inv&&s.state?' · ':'')+(s.state||'')]),'cvs'));
-  right.appendChild(cvMk('div','cvnote','Changes in basis points (100 bp = 1 percentage point). State: a spread that rose 5 bp or more over a month is steepening, fell 5 bp or more is compressing, otherwise flat.'));
+  let rd=null;try{rd=cvRead(d)}catch(e){}
+  if(rd&&rd.card){const re=cvMk('div','cvread');re.appendChild(cvMk('b','',rd.head+'. '));re.appendChild(document.createTextNode(rd.card));right.appendChild(re)}
+  right.appendChild(cvMk('div','cvnote',rd&&rd.card?'Changes in bp (100 bp = 1 percentage point). “How to read this” has the full read: Fed, economy, stocks, bonds and risks.':'Changes in basis points (100 bp = 1 percentage point). State: a spread that rose 5 bp or more over a month is steepening, fell 5 bp or more is compressing, otherwise flat.'));
   root.appendChild(left);root.appendChild(right);
   const f=cvMk('div','cvf');
   f.appendChild(cvMk('span','','Official Treasury par yield curve · close of '+new Date(d.asof+'T12:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})));
@@ -1385,23 +1388,152 @@ async function cvLoad(fresh){
   }catch(e){CV.bad=true}
   finally{CV.busy=false;CV.at=Date.now();cvShow()}
 }
+/* What the curve is telling us (D98). Rules and hand-written text only, no AI: the numbers on the card pick which text shows.
+   The text says what a move usually means, never why it happened this month (that needs the events and an AI step, plan L1).
+   A move counts at 5 bp or more over the month, the same rule as the State column. */
+const CVT=5;
+const CVR={
+  par_up:{h:'Rates are rising together',
+    card:'Lenders want more yield at every maturity, so the whole curve moved up. Markets usually read this as fewer or later Fed cuts, which pressures stocks and bond prices.',
+    say:'Lenders are demanding more yield on short, medium and long loans alike, so the curve shifted up without changing shape. The curve alone cannot say why: stronger data, stickier inflation, a Fed seen cutting less, or heavier government borrowing can all do this.',
+    fed:'Markets usually read a broad rise as less easing (fewer or later cuts), or more tightening, being priced in.',
+    eco:'Mortgage, company and government borrowing costs go up, which tends to slow growth with a delay.',
+    stk:'Higher yields reduce what future earnings are worth today, so growth and other long-duration stocks tend to be hit hardest, along with rate-sensitive areas such as real estate and utilities. When stocks fall as yields rise, the bond market is driving.',
+    bnd:'Bond prices fall, and longer maturities fall further. Stocks and bonds can fall together, which weakens the usual diversification.',
+    risk:['A fast rise matters more than a slow one: sharp moves in the 10-year are what tend to unsettle stocks.','If it persists, higher long yields tighten financial conditions on their own, with or without the Fed.']},
+  par_dn:{h:'Rates are falling together',
+    card:'Lenders accept less yield at every maturity. That is good if inflation is easing and cuts are coming, and a warning if it is a growth scare; stocks and credit show which.',
+    say:'Yields fell on short, medium and long maturities alike, so the curve shifted down without changing shape. The curve alone cannot say whether this is good news (inflation cooling, cuts expected) or bad (a growth scare or a rush to safety).',
+    fed:'Markets usually read a broad fall as more or earlier cuts being priced in.',
+    eco:'Cheaper borrowing helps if the economy is healthy; if the fall is a reaction to weak jobs or spending data, it is a warning, not a gift.',
+    stk:'The reason decides it. Stocks rising as yields fall is the benign version; stocks falling with them, and high-yield credit (the HYG tile on the tape) weakening, is the growth-scare version.',
+    bnd:'Bond prices rise, and longer maturities gain most.',
+    risk:['If the fall comes from weak data rather than lower inflation, earnings expectations are the next thing at risk.','Rate-cut hopes can reverse quickly if inflation data comes in hot.']},
+  bear_steep:{h:'Long yields are leading rates higher (bear steepening)',
+    card:'Long-term yields are rising faster than short-term ones. The Fed mostly steers the short end; the long end is the market’s own call, and it is charging more to lend for years.',
+    say:'Long-term yields are rising faster than short-term ones. The Fed mostly steers the short end, while the long end is set by the market, which is now asking for more to lend for years. Common reasons are inflation worries, heavy government borrowing or supply, and doubts about the long-run debt outlook; a stronger growth outlook can also lift long yields. The curve alone cannot say which.',
+    fed:'Markets usually read this as doubt that inflation is under control, or that the Fed’s cuts will reach longer rates.',
+    eco:'Mortgage and corporate borrowing rates follow the long end, so costs can rise even if the Fed is not hiking.',
+    stk:'Valuation pressure, mostly on long-duration growth stocks.',
+    bnd:'Long bonds fall most; the 30-year and long-duration funds such as TLT are the most exposed.',
+    risk:['This is the “bond market pushing back” pattern; if it persists it can tighten financial conditions without any Fed move.']},
+  bull_steep:{h:'Short yields are leading rates lower (bull steepening)',
+    card:'Short-term yields are falling faster than long-term ones. Markets usually read this as rate cuts being priced in sooner or deeper; whether that is good depends on why.',
+    say:'Short-term yields are falling faster than long-term ones, which usually means the market is pricing rate cuts sooner or deeper, often because data is softening or the Fed is sounding more dovish.',
+    fed:'Markets usually read this as a Fed expected to cut, or one that has started cutting.',
+    eco:'The reason matters: cuts because inflation is cooling are benign; cuts because jobs or growth are weakening are a warning. When an inverted curve steepens this way it has often happened close to the start of past downturns, with poor timing, so it is not an all-clear.',
+    stk:'Lower yields help valuations, but stocks tend to follow the reason: they do better when cuts reflect cooling inflation and struggle when they reflect weakening growth.',
+    bnd:'Short and medium maturities (the 2-year, the 5-year) gain most.',
+    risk:['If the cuts being priced are about weaker growth, earnings expectations are the next thing at risk.']},
+  bear_flat:{h:'Short yields are leading rates higher (bear flattening)',
+    card:'Short-term yields are rising faster than long-term ones. Markets usually read this as a Fed staying tighter for longer, a late-cycle pattern that pressures stocks.',
+    say:'Short-term yields are rising faster than long-term ones. The market is pricing a Fed that stays tighter for longer, or hikes, usually after firm inflation or strong jobs data. Long yields rise less because investors expect tight policy to cool growth and inflation eventually.',
+    fed:'Markets usually read this as fewer cuts, or hikes, being priced over the next year or two.',
+    eco:'Tight policy squeezes borrowers and tends to slow the economy with a delay. Flattening toward inversion is the late-cycle pattern: a warning sign with a long, uneven lag, not a forecast.',
+    stk:'Pressure on valuations and on rate-sensitive areas; this is the “Fed is the problem” backdrop.',
+    bnd:'Short bonds and bills sell off most, and cash pays more.',
+    risk:['The flatter or more inverted it gets, the more the bond market is betting that tight policy will eventually cause a slowdown.']},
+  bull_flat:{h:'Long yields are leading rates lower (bull flattening)',
+    card:'Long-term yields are falling faster than short-term ones. It can be benign (inflation expectations easing) or a growth scare; stocks and credit show which.',
+    say:'Long-term yields are falling faster than short-term ones: investors are buying long bonds and marking down the long-run outlook for inflation or growth, while near-term rates have moved less. The curve alone cannot say whether that is calm or fear.',
+    fed:'Short yields held up better, so markets are not pricing sharply lower policy rates; the repricing is in the long-term outlook.',
+    eco:'It can be benign (inflation expectations easing) or a growth scare; a rush to safety pulls long yields down quickly.',
+    stk:'Lower long yields support valuations, and defensive sectors tend to lead if fear is the cause.',
+    bnd:'Long maturities (the 30-year, long-duration funds such as TLT) gain most.',
+    risk:['If it comes with falling stocks and weaker credit (HYG), read it as a growth scare rather than good news.']},
+  twist_steep:{h:'Short yields falling while long yields rise (steepening)',
+    card:'The market expects cuts soon but is not convinced inflation or borrowing will stay low over the long run, so easier policy may not reach long-term rates.',
+    say:'Short-term yields are falling while long-term yields rise. The market expects rate cuts soon but is not convinced that inflation or government borrowing will stay contained over the long run.',
+    fed:'Markets usually read this as cuts expected at the short end that may not pull longer-term rates down.',
+    eco:'Easier policy on paper, but tighter conditions where most borrowing is priced: mortgages and company bonds follow the long end.',
+    stk:'Mixed: the cuts help, the long-end rise hurts long-duration growth stocks.',
+    bnd:'Short bonds gain; long bonds lose.',
+    risk:['The curve cannot say whether the long-end rise is about inflation or government borrowing; the news has to answer that.']},
+  twist_flat:{h:'Short yields rising while long yields fall (flattening)',
+    card:'The market expects tight policy for now but doubts it will last because it will slow the economy; a late-cycle pattern.',
+    say:'Short-term yields are rising while long-term yields fall. The market expects tight policy for now but doubts it will last, because it expects it to slow the economy.',
+    fed:'Markets usually read this as a Fed expected to stay tight until it starts to hurt.',
+    eco:'Late-cycle pattern: tight policy now, slowdown worries later. A recession signal has long and uneven lags and is not a forecast.',
+    stk:'Pressure from both sides, high near-term rates and growth worries; defensive sectors tend to hold up better.',
+    bnd:'Long bonds gain; short bonds lose.',
+    risk:['If it carries 10Y−2Y or 10Y−3M deeper into inversion, the recession signal gets stronger.']},
+  quiet:{h:'Little change over the month',
+    card:'The curve barely moved in a month, so the bond market is not sending a new signal; the shape it sits in still matters.',
+    say:'The curve changed little over the month (the 2-year and 10-year together moved less than 5 bp), so the bond market is not sending a new signal. What it is saying is in the shape below.',
+    risk:[]}
+};
+const CV_LIMITS='The curve shows what yields did and what such moves usually mean. It does not show why this month’s move happened: a data surprise, a Fed speech, government borrowing and a rush to safety can all look alike on the curve. It is not a forecast. To find the cause, check the economic calendar and the news; stocks and credit (the HYG tile on the tape) are the quickest confirmation of whether the move is calm or fearful.';
+function cvRead(d){
+  const y=k=>(d.yields||[]).find(x=>x.k===k),sps=d.spreads||[],sp=sps.find(x=>x.id==='10s2s')||{},
+    s3=sps.find(x=>/10Y.*3M/.test(x.label||'')),s30=sps.find(x=>/30Y.*10Y/.test(x.label||'')),
+    a=y('2Y'),b=y('10Y'),c=y('30Y'),
+    mv=[['2-year',a],['10-year',b],['30-year',c]].filter(x=>x[1]&&x[1].m1!=null);
+  const spm=sp.m1!=null?sp.m1:(a&&b&&a.m1!=null&&b.m1!=null?b.m1-a.m1:null);
+  let reg=null;
+  if(a&&b&&a.m1!=null&&b.m1!=null&&spm!=null){
+    const A=a.m1,B=b.m1,shortLed=Math.abs(A)>=Math.abs(B);
+    if(spm>=CVT)reg=A<0&&shortLed?(B<=0?'bull_steep':'twist_steep'):'bear_steep';
+    else if(spm<=-CVT)reg=A>0&&shortLed?(B>=0?'bear_flat':'twist_flat'):'bull_flat';
+    else{const av=(A+B)/2;reg=av>=CVT?'par_up':av<=-CVT?'par_dn':'quiet'}
+  }
+  const facts=[];
+  if(reg){
+    const vals=mv.map(x=>x[1].m1),mx=Math.max(...vals),mn=Math.min(...vals),same=mn>=CVT||mx<=-CVT;
+    const dir=mn>=CVT?'rising at every maturity shown':mx<=-CVT?'falling at every maturity shown':mx>=CVT&&mn<=-CVT?'mixed, some maturities up and some down':mx>=CVT?'rising at some maturities and little changed at the rest':mn<=-CVT?'falling at some maturities and little changed at the rest':'little changed everywhere (all within '+CVT+' bp)';
+    let tog='';
+    if(same){
+      if(mx-mn<CVT)tog=', about equally (within '+CVT+' bp of each other), so the curve shifted rather than changed shape';
+      else{const bg=mv.slice().sort((p,q)=>Math.abs(q[1].m1)-Math.abs(p[1].m1)),f=bg[0],l=bg[bg.length-1];tog=', but unevenly: the '+f[0]+' moved most ('+cvB(f[1].m1)+' bp) and the '+l[0]+' least ('+cvB(l[1].m1)+' bp)'}
+    }
+    facts.push('Over the past month the '+mv.map(x=>x[0]+' moved '+cvB(x[1].m1)+' bp').join(', the ')+'.');
+    facts.push('Rates are '+dir+tog+'.');
+    const st=spm>=CVT?'steepening':spm<=-CVT?'compressing':'flat';
+    facts.push('10Y−2Y changed '+cvB(spm)+' bp, so the curve is '+st+'.');
+    if(a.w1!=null&&b.w1!=null){
+      let w='In the latest week the 2-year moved '+cvB(a.w1)+' bp and the 10-year '+cvB(b.w1)+' bp.';
+      const wm=(a.w1+b.w1)/2,mm=(a.m1+b.m1)/2;
+      if(Math.abs(wm)>=CVT&&Math.abs(mm)>=CVT&&Math.sign(wm)!==Math.sign(mm))w+=' That is the opposite direction to the month, so the month’s story may be fading.';
+      facts.push(w);
+    }
+  }else facts.push('The 2-year or 10-year change over the month is missing, so no read of direction or shape is shown. The levels and spreads below are still the official close.');
+  const level=[];
+  if(sp.bp!=null){
+    if(sp.inv)level.push(['10Y−2Y is inverted ('+cvB(sp.bp)+' bp)','The 2-year pays more than the 10-year. The bond market is saying short-term rates are higher than it expects them to stay, which usually means it expects the Fed to cut or growth to slow. Inversions of this spread have often come before recessions, with a long, uneven lag and some false alarms.']);
+    else if(Math.abs(sp.bp)<10)level.push(['10Y−2Y is close to flat ('+cvB(sp.bp)+' bp)','Longer maturities pay about the same as short ones, so the market sees little difference between the near and the long term. The signal is weak either way.']);
+    else level.push(['10Y−2Y is positive ('+cvB(sp.bp)+' bp)','Longer maturities pay more than short ones, the normal shape, and this spread is not giving the warning it gives when inverted.']);
+  }
+  if(s3&&s3.bp!=null){
+    if(s3.inv)level.push(['10Y−3M is inverted ('+cvB(s3.bp)+' bp)','The 3-month bill, close to the Fed’s policy rate, pays more than the 10-year. This is a widely used recession signal, with the same long, uneven lag.']);
+    else level.push(['10Y−3M is positive ('+cvB(s3.bp)+' bp)','The 10-year pays more than the 3-month bill, which is close to the Fed’s policy rate.']);
+    if(sp.bp!=null&&!!s3.inv!==!!sp.inv)level.push(['The two measures disagree',s3.inv?'The 3-month bill pays more than the 10-year, but the 2-year pays less than the 10-year: markets expect short-term rates to come down over the next couple of years while longer rates stay higher.':'The 3-month bill pays less than the 10-year, but the 2-year pays more than the 10-year: the curve rises at the front and falls after, which fits a market expecting policy rates to stay high or rise for now and ease later.']);
+  }
+  if(s30&&s30.bp!=null)level.push(['30Y−10Y is '+cvB(s30.bp)+' bp',s30.bp>=0?'The extra the market asks for tying money up for decades instead of ten years. A widening gap usually reflects inflation, borrowing or supply worries at the long end.':'The 30-year pays less than the 10-year, an unusual shape at the very long end.']);
+  const R=CVR[reg]||null;
+  return {reg,head:R?R.h:'Treasury yield curve',card:R?R.card:'',say:R?R.say:'',
+    lines:R&&R.fed?[['Fed and rates',R.fed],['Economy',R.eco],['Stocks',R.stk],['Bonds',R.bnd]]:[],risks:R?R.risk:[],facts,level};
+}
 function cvExplain(){
   const d=CV.d;if(!d)return;
   const y=k=>(d.yields||[]).find(x=>x.k===k),s=id=>(d.spreads||[]).find(x=>x.id===id)||{},sp=s('10s2s');
   const lv=k=>y(k)?cvY(y(k).v)+'%':'n/a';
-  const head=sp.bp==null?'Treasury yield curve':sp.inv?'The curve is inverted: the 2-year yields '+Math.abs(sp.bp)+' bp more than the 10-year':'10Y−2Y is '+cvB(sp.bp)+' bp: longer yields are above shorter ones';
-  const move=(()=>{const a=y('2Y'),b=y('10Y');if(!a||!b||a.m1==null||b.m1==null)return '';
-    const big=Math.abs(a.m1)>=Math.abs(b.m1)?'2-year':'10-year';
-    return 'Over the past month the 2-year moved '+cvB(a.m1)+' bp and the 10-year '+cvB(b.m1)+' bp, so 10Y−2Y changed '+cvB(sp.m1)+' bp ('+(sp.state||'n/a')+'); the bigger move was in the '+big+'.'})();
+  let r=null;try{r=cvRead(d)}catch(e){}
+  const li=a=>a.map(x=>'<li><b>'+esc(x[0])+':</b> '+esc(x[1])+'</li>').join('');
+  const head=r&&r.reg?r.head:sp.bp==null?'Treasury yield curve':sp.inv?'The curve is inverted: the 2-year yields '+Math.abs(sp.bp)+' bp more than the 10-year':'10Y−2Y is '+cvB(sp.bp)+' bp: longer yields are above shorter ones';
   const sl=(d.spreads||[]).filter(x=>x.bp!=null).map(x=>'<li><b>'+esc(x.label)+'</b> '+esc(cvB(x.bp))+' bp'+(x.inv?' (inverted)':'')+', '+esc(x.state||'n/a')+' over the month ('+esc(cvB(x.m1))+' bp)</li>').join('');
+  const read=r?'<h4>What moved</h4><p>'+esc(r.facts.join(' '))+'</p>'
+    +(r.say?'<h4>What the bond market is saying</h4><p>'+esc(r.say)+'</p>':'')
+    +(r.lines.length?'<ul class="cvul">'+li(r.lines)+'</ul>':'')
+    +(r.level.length?'<h4>Where the curve sits now</h4><ul class="cvul">'+li(r.level)+'</ul>':'')
+    +(r.risks.length?'<h4>Risks to watch</h4><ul class="cvul">'+r.risks.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'')
+    +'<h4>What this cannot tell you</h4><p>'+esc(CV_LIMITS)+'</p>':'';
   relShell('Treasury yield curve',
     '<h3>'+esc(head)+'</h3><div class="relt">Official Treasury par yield curve, close of '+esc(fmtIso(d.asof))+' · 2Y '+esc(lv('2Y'))+' · 10Y '+esc(lv('10Y'))+' · 30Y '+esc(lv('30Y'))+'</div>'
-    +(move?'<p>'+esc(move)+'</p>':'')
-    +'<h4>What the curve is</h4><p>A Treasury yield is what the US government pays to borrow for a fixed time, from one month to 30 years. Plotted by maturity, the yields form the yield curve. These are the official end-of-day figures published by the US Treasury, not live prices, so they can differ from the delayed 2Y, 10Y and 30Y on the tape above.</p>'
-    +'<h4>The 2Y, 10Y and 30Y</h4><p><b>2-year:</b> driven mostly by what the market expects the Fed to do with its policy rate over the next two years. <b>10-year:</b> the benchmark long rate; it sets the tone for mortgage rates and for the rate used to value company earnings. <b>30-year:</b> the long end, shaped by inflation expectations, government borrowing and the extra yield investors ask for tying money up for decades.</p>'
-    +'<h4>The spreads</h4><p>A spread is one yield minus another, in basis points (100 bp = 1 percentage point). <b>10Y−2Y</b> is the most quoted slope of the curve. <b>10Y−3M</b> compares the 10-year with the shortest bill, close to the Fed’s policy rate, and is also a widely used recession signal. <b>30Y−10Y</b> and <b>30Y−5Y</b> show how much extra the long end pays.</p><ul class="cvul">'+sl+'</ul>'
-    +'<h4>How to read it</h4><p><b>Steepening</b> means the gap between long and short yields widened: short yields fell (often rate-cut expectations) or long yields rose (often growth, inflation or supply worries). <b>Compressing</b> (also called flattening) means the gap narrowed: short yields rose (often a Fed that stays tight) or long yields fell. <b>Flat</b> means it moved less than 5 bp over the month. <b>Inversion</b> means a shorter yield is above a longer one, a negative spread. Inversions of 10Y−2Y and 10Y−3M have often come before recessions, with a long and uneven lag; it is a signal that has been wrong in timing, not a forecast.</p>'
-    +'<p class="relf">The 5 bp over one month threshold for the state words is this dashboard’s own rule, not an industry standard. Spreads are computed from the Treasury close and checked against FRED’s T10Y2Y. Not financial advice.</p>');
+    +read
+    +'<h4>The basics</h4><p>A Treasury yield is what the US government pays to borrow for a fixed time, from one month to 30 years. Plotted by maturity, the yields form the yield curve. These are the official end-of-day figures published by the US Treasury, not live prices, so they can differ from the delayed 2Y, 10Y and 30Y on the tape above.</p>'
+    +'<p><b>2-year:</b> driven mostly by what the market expects the Fed to do with its policy rate over the next two years. <b>10-year:</b> the benchmark long rate; it sets the tone for mortgage rates and for the rate used to value company earnings. <b>30-year:</b> the long end, shaped by inflation expectations, government borrowing and the extra yield investors ask for tying money up for decades.</p>'
+    +'<p>A spread is one yield minus another, in basis points (100 bp = 1 percentage point). <b>10Y−2Y</b> is the most quoted slope of the curve. <b>10Y−3M</b> compares the 10-year with the shortest bill, close to the Fed’s policy rate. <b>30Y−10Y</b> and <b>30Y−5Y</b> show how much extra the long end pays.</p><ul class="cvul">'+sl+'</ul>'
+    +'<h4>The words</h4><p><b>Steepening</b> means the gap between long and short yields widened; <b>compressing</b> (also called flattening) means it narrowed; <b>flat</b> means it moved less than 5 bp over the month. <b>Bull</b> and <b>bear</b> describe bond prices: a bull move is yields falling (prices up), a bear move is yields rising (prices down). So <b>bear flattening</b> is yields rising with the short end rising faster. <b>Inversion</b> means a shorter yield is above a longer one, a negative spread.</p>'
+    +'<p class="relf">This read is built from rules and hand-written text, not AI. The 5 bp over one month threshold, and the 10 bp “close to flat” band, are this dashboard’s own rules, not industry standards. Spreads are computed from the Treasury close and checked against FRED’s T10Y2Y. Not financial advice.</p>');
 }
 const LIVE={sect:liveCard('sect',SEC_URL,secPaint),wko:liveCard('wko',WKO_URL,wkoPaint),curve:{render(){cvShow();cvLoad(false)},load:cvLoad,show:cvShow}};
 function liveKick(){for(const k in LIVE)if(C[k]&&C[k].el&&!C[k].el.classList.contains('closed'))LIVE[k].load(false)}
