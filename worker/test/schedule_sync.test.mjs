@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { expand, audit, etToMs, normFmp } from '../src/schedule.js';
 import {
-  parseBls, runBls, parseTreasuryJson, parseTentative, runTreasury, classifyTreasury, parseDateLoose, refundingQuarter, tentUrl,
+  parseBls, runBls, runFred, parseFredDates, FRED_URL, parseTreasuryJson, parseTentative, runTreasury, classifyTreasury, parseDateLoose, refundingQuarter, tentUrl,
   providerLines, runProvider, lineKey, refYM, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources, rank, checkLine,
 } from '../src/schedule_sync.js';
 
@@ -313,4 +313,54 @@ test('the real schedule file plus a full sync passes its own audit with no error
   assert.ok(a.counts.tent >= 6 && a.counts.official >= 70);
   const before = audit(SCHED, IND, NOW);
   assert.ok(a.issues.filter(i => i.code === 'unconfirmed').length < before.issues.filter(i => i.code === 'unconfirmed').length, 'fewer dates in doubt after the sync');
+});
+
+
+// ---- FRED stand-in for the BLS pages ----
+const FRED_NM = { cpi: 'Consumer Price Index', ppi: 'Producer Price Index', nfp: 'Employment Situation', jolts: 'Job Openings and Labor Turnover Survey' };
+const fredJson = (move = {}) => JSON.stringify({ release_dates: [
+  ...Object.keys(FRED_NM).flatMap(k => baseOf(k).filter(r => r.d >= TODAY).map(r => ({ release_id: 1, release_name: FRED_NM[k], date: move[r.k + '|' + r.d] || r.d }))),
+  { release_id: 9, release_name: 'Advance Monthly Sales for Retail and Food Services', date: '2026-12-16' },
+  { release_id: 10, release_name: 'Consumer Price Index (data not included in press release)', date: '2026-12-10' },
+] });
+const fredGet = (body, status = 200) => async u => { if (status !== 200) throw new Error(`HTTP ${status} from api.stlouisfed.org`); return typeof body === 'function' ? body(u) : body; };
+const KINDS = ['cpi', 'ppi', 'nfp', 'jolts'];
+
+test('FRED: dates that agree with the file change nothing and the key stays out of the URL logs', async () => {
+  const seen = [];
+  const f = await runFred({ get: async u => { seen.push(u); return fredJson(); }, key: 'SECRETKEY', kinds: KINDS, IND, base: SCHED.releases, now: NOW, prev: null });
+  assert.equal(f.err, null); assert.ok(KINDS.every(k => f.k[k].ok && f.k[k].n > 0 && f.k[k].via === 'fred'));
+  assert.match(seen[0], /api_key=SECRETKEY/); assert.match(seen[0], /include_release_dates_with_no_data=true/);
+  const m = eff(rec({ bls: { at: NOW, day: TODAY, ok: true, err: null, k: f.k } }));
+  assert.deepEqual(diffSchedules(eff(null), m, IND, TODAY), []);
+  assert.equal(m.stats.added, 0);
+});
+
+test('FRED moves a date by a day: the schedule follows it, with a note that names FRED', async () => {
+  const f = await runFred({ get: fredGet(fredJson({ 'cpi|2026-12-10': '2026-12-11' })), key: 'k', kinds: ['cpi'], IND, base: SCHED.releases, now: NOW, prev: null });
+  const m = eff(rec({ bls: { at: NOW, day: TODAY, ok: true, err: null, k: f.k } }));
+  const l = line(m, 'cpi', 'Nov');
+  assert.equal(l.d, '2026-12-11'); assert.equal(l.t, '08:30'); assert.match(l.n, /changed from 2026-12-10.*FRED release calendar/);
+  assert.equal(m.releases.filter(r => r.k === 'cpi' && r.p === 'Nov' && r.d.startsWith('2026-12')).length, 1);   // the Nov 2027 line is a different release
+});
+
+test('FRED: a move of more than a week, a weekend date, and a missing release are reported and never applied', async () => {
+  const far = await runFred({ get: fredGet(fredJson({ 'cpi|2026-12-10': '2026-12-18' })), key: 'k', kinds: ['cpi'], IND, base: SCHED.releases, now: NOW, prev: null });
+  assert.equal(far.k.cpi.rejected.length, 1); assert.match(far.k.cpi.rejected[0].why, /too far apart/);
+  assert.equal(line(eff(rec({ bls: { at: NOW, day: TODAY, ok: true, err: null, k: far.k } })), 'cpi', 'Nov').d, '2026-12-10');
+  const wk = await runFred({ get: fredGet(fredJson({ 'cpi|2026-12-10': '2026-12-12' })), key: 'k', kinds: ['cpi'], IND, base: SCHED.releases, now: NOW, prev: null });
+  assert.match(wk.k.cpi.rejected[0].why, /a weekend/);
+  const none = await runFred({ get: fredGet(JSON.stringify({ release_dates: [{ release_name: 'Something else', date: '2026-12-10' }] })), key: 'k', kinds: ['cpi'], IND, base: SCHED.releases, now: NOW, prev: null });
+  assert.equal(none.k.cpi.ok, false); assert.match(none.err, /no upcoming dates/);
+});
+
+test('FRED: a failed request (bad key, blocked, not JSON) fails every kind without touching the calendar and without leaking the key', async () => {
+  for (const get of [fredGet('', 520), fredGet('<html>nope</html>'), async () => { throw new Error('boom api_key=SECRETKEY'); }]) {
+    const f = await runFred({ get, key: 'SECRETKEY', kinds: KINDS, IND, base: SCHED.releases, now: NOW, prev: null });
+    assert.ok(KINDS.every(k => f.k[k].ok === false)); assert.ok(!JSON.stringify(f).includes('SECRETKEY'));
+    const m = eff(rec({ bls: { at: NOW, day: TODAY, ok: false, err: f.err, k: f.k } }));
+    assert.deepEqual(diffSchedules(eff(null), m, IND, TODAY), []);
+  }
+  assert.equal(parseFredDates({}).length, 0);
+  assert.match(FRED_URL('a b', '2026-11-15'), /api_key=a%20b/);
 });
