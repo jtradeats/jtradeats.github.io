@@ -27,6 +27,7 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --a1:#4F7691;--a2:#A15B78;--a3:#6F8A4A;--a4:#B7803A;--a5:#6E6AA8;--a6:#3F8F8A;
   --pc1:#E8794A;--pc2:#DD5B7A;--pc3:#D4483F; /* next-event card: peach to coral-pink, hotter under an hour */
   --hd:rgba(232,121,74,.17);--hdt:#B8532B; /* calendar header strip: tint of the countdown card's peach */
+  --hot:rgba(201,120,120,.13); /* FinancialJuice red-alert rows (posts that start with the red ❗): pastel red tint */
   --s-off:#E5484D; /* session dot when closed */
   --s-tokyo:#7FB6EE;--s-london:#E9D25F;--s-ny:#EE8B8B; /* session tints: light blue, pale yellow, light red (ORB colours): change here */
   --rad:8px;--radl:12px;
@@ -47,6 +48,7 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --a1:#A9C6DE;--a2:#E0AFC2;--a3:#B9CC8E;--a4:#E8C07A;--a5:#B7B3E6;--a6:#8FD0C9;
   --pc1:#FFB08C;--pc2:#FF8A9A;--pc3:#FF7A7A;
   --hd:rgba(255,176,140,.16);--hdt:#FFB08C;
+  --hot:rgba(230,154,154,.12);
 }
 body{font-family:var(--sans);background:var(--bg);color:var(--t);min-height:100vh;font-size:var(--fbase)}
 #app{max-width:1152px;margin:0 auto;padding:2rem 1.25rem 4rem}
@@ -91,6 +93,8 @@ h1{font-size:var(--fh1);font-weight:600;letter-spacing:-.5px}
 .btn svg{width:12px;height:12px}
 .tb .btn:last-child{margin-left:auto;color:var(--t2)}
 .body{flex:1;min-height:0;position:relative;overflow:auto}
+.wc{position:absolute;inset:0}
+.wc>*{display:block;width:100%;height:100%}
 .body iframe,.card iframe{width:100%;height:100%;border:0;display:block;color-scheme:normal}
 .body .tradingview-widget-container,.body .tradingview-widget-container__widget{height:100%;width:100%}
 .stk{display:flex;flex-direction:column;height:100%}
@@ -109,8 +113,6 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .gx .pw{min-height:36px}
 .xw{flex:1;min-height:0;overflow:auto}
 .card.fit{height:auto;align-self:stretch}
-#financialjuice-news-widget-container{height:100%;width:100%}
-#financialjuice-news-widget-container>*,#financialjuice-news-widget-container iframe{height:100%!important;width:100%!important}
 .note{padding:16px;color:var(--t3);font-size:var(--fsm);line-height:1.5}
 .card.closed{height:auto}.card.closed .body,.card.closed .tb{display:none}.card.closed .ch{border-bottom:none}
 .card.tall{height:var(--full,var(--h))}
@@ -160,6 +162,9 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 @media (prefers-reduced-motion:reduce){.spin svg{animation:none}}
 .wp{padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .wp.new{background:var(--pbselbg)}
+.wp.hot{background:var(--hot)}
+.wp.hot.new{background:linear-gradient(var(--hot),var(--hot)),var(--pbselbg)} /* a new red row keeps both tints */
+.wh .wk{color:var(--r);font-weight:600}
 .wh{display:flex;gap:8px;align-items:baseline;font-size:var(--fxs);color:var(--t3);font-variant-numeric:tabular-nums}
 .wh .wa{margin-right:auto}
 .wh a{color:var(--t2)}
@@ -698,6 +703,23 @@ const tv=(name,cfg)=>el=>{
   s.text=JSON.stringify({width:'100%',height:'100%',locale:'en',isTransparent:true,colorTheme:dark()?'dark':'light',...(typeof cfg=='function'?cfg():cfg)});
   el.firstChild.appendChild(s);
 };
+/* TradingView web components (plan P7, D88, D89, R59): tv-news-feed and tv-heatmap. One module script per component, loaded once from
+   widgets.tradingview-widget.com. The element fills the card body (TradingView sizes these widgets from their container, so the container is
+   absolutely positioned inside .body, which has a real height at every card size). No `theme` attribute: the widget follows the page's color-scheme,
+   which :root sets per theme, and a theme toggle redraws the card anyway. A script that fails or never defines the element shows a plain note. */
+const wcLoad=src=>once[src]||(once[src]=new Promise((ok,no)=>{const s=document.createElement('script');s.type='module';s.src=src;s.onload=ok;s.onerror=()=>{delete once[src];no(new Error('load'))};document.head.appendChild(s)}));
+const tvwc=(name,attrs,what)=>el=>{
+  el.innerHTML='<div class="wc"></div>';
+  const box=el.firstChild,src='https://widgets.tradingview-widget.com/w/en/'+name+'.js';
+  const bad=()=>{if(box.isConnected)note(el,what+' did not load. Try another source.')};
+  const timeout=new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),10000));
+  Promise.race([wcLoad(src).then(()=>customElements.whenDefined(name)),timeout]).then(()=>{
+    if(!box.isConnected)return;
+    const n=document.createElement(name);
+    for(const k in attrs)n.setAttribute(k,attrs[k]);
+    box.appendChild(n);
+  }).catch(bad);
+};
 /* iframe + visible credit line. Third-party frames only (no third-party scripts), so they cannot reach the journal's localStorage. */
 const embed=(el,src,title,credit,cls)=>{
   el.innerHTML='<div class="emb '+(cls||'')+'"><iframe title="'+title+'" loading="lazy"></iframe><div class="pw">'+credit+'</div></div>';
@@ -709,81 +731,118 @@ const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1
   '<a href="https://finviz.com/map?t='+t+'&st=d1&utm_source=finviz_widget&utm_medium=widget&utm_campaign=map&utm_content='+wid+'" target="_blank" rel="noopener">Market map by FINVIZ</a>');
 const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
   n+' gamma levels by <a href="https://zerogex.io/'+n.toLowerCase()+'-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session')+')','gx');
-/* DeItaone wire card (plan 1.5, D46 to D49). Source: the public Telegram mirror, read by the Worker's /feed (unofficial, unconfirmed).
-   Display only. Every post is built with textContent, never innerHTML, because the text comes from a third party (R32).
-   Polls only while the card is on screen: news tab, card open, page visible. Health comes from the poll, never from post age:
-   gaps of an hour or more are normal on this wire, so an old newest post is "quiet", while a failed poll is "broken". */
+/* Telegram wire cards (plan P1; D46 to D49, D78 to D81). Two wires, read by the Worker's /feed from the public Telegram preview: Walter Bloomberg
+   (DeItaone) and FinancialJuice. One request serves both. Walter Bloomberg alerts on every new post (a digest); FinancialJuice alerts only on posts
+   that start with the red ❗ (the Worker marks them hot:true) and those rows are tinted pastel red (--hot). Display only. Every post is built with
+   textContent, never innerHTML, because the text comes from a third party (R32). No link to the source (D80); no status text unless something fails (D81).
+   Polls only while a card is on screen (news tab, card open, source shown, page visible) unless its alerts are on. Health comes from the poll,
+   never from post age: gaps of an hour or more are normal, so a quiet wire shows nothing, while a failed poll is flagged. */
 const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
-let alWire=LS.g(KEY+'al_wire','0')==='1'; /* new-post alerts for the DeItaone wire: off until switched on */
-const WIRE={d:null,err:null,at:0,busy:false,maxId:0,fresh:new Map(),open:new Set(),el:null};
-const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280;
-const wireVisible=()=>!document.hidden&&tab==='news'&&WIRE.el&&WIRE.el.isConnected&&!WIRE.el.closest('.card.closed');
-async function wireLoad(){
-  if(WIRE.busy)return;WIRE.busy=true;
+const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280,GROUP_MS=120000,GROUP_SIM=0.6;
+const mkWire=cfg=>({...cfg,al:LS.g(KEY+cfg.ls,'0')==='1',d:null,err:null,at:0,maxId:0,fresh:new Map(),open:new Set(),el:null,recent:[]}); /* al: alerts are off until switched on, remembered per browser */
+const WIRE=mkWire({key:'dm',ls:'al_wire',blk:a=>a,name:'Walter Bloomberg',pick:p=>true});
+const FJW=mkWire({key:'fj',ls:'al_fj',blk:a=>a.fj,name:'FinancialJuice',hot:true,pick:p=>p.hot===true}); /* only posts the channel marks with the red ❗ */
+const WIRES=[WIRE,FJW];
+/* FinancialJuice posts one story several times within a minute or two. For alerts only (the card shows every post): posts within GROUP_MS of
+   each other whose words overlap by GROUP_SIM or more are one story; a story already toasted is not toasted again. */
+const wtok=s=>new Set(String(s||'').toLowerCase().replace(/[^a-z0-9.%$ ]+/g,' ').split(/\s+/).filter(x=>x.length>2));
+const wsim=(a,b)=>{let i=0;for(const x of a)if(b.has(x))i++;const u=a.size+b.size-i;return u?i/u:0};
+function wireGroup(nw,recent,now){ /* nw newest first -> [{p: newest post of the story, n: posts in it, t, tk}] newest first */
+  const out=[];
+  for(const p of nw.slice().reverse()){
+    const t=p.t||now,tk=wtok(p.text);
+    const done=recent.find(r=>Math.abs(t-r.t)<=GROUP_MS&&wsim(tk,r.tk)>=GROUP_SIM);
+    if(done){done.t=Math.max(done.t,t);continue}
+    const g=out.find(g=>Math.abs(t-g.t)<=GROUP_MS&&wsim(tk,g.tk)>=GROUP_SIM);
+    if(g){g.p=p;g.n++;g.t=t}else out.push({p,n:1,t,tk});
+  }
+  return out.reverse();
+}
+const wireRoot=w=>w.el&&w.el.isConnected?$('[data-wire="'+w.key+'"]',w.el):null; /* the news card body is shared with TradingView: only paint while this wire is the one shown */
+const wireVisible=w=>!document.hidden&&tab==='news'&&!!wireRoot(w)&&!w.el.closest('.card.closed');
+let feedBusy=false;
+async function feedLoad(){ /* one request, both wires */
+  if(feedBusy)return;feedBusy=true;
+  let all=null,err=null;
   try{
     const r=await fetch(FEED_URL,{cache:'no-store'});
     if(!r.ok)throw new Error('Worker /feed answered '+r.status);
-    const d=await r.json();
-    if(!Array.isArray(d.posts))throw new Error(d.error||'bad payload');
-    const first=!WIRE.d,prevMax=WIRE.maxId;
-    if(WIRE.d)d.posts.forEach(p=>{if(p.id>WIRE.maxId)WIRE.fresh.set(p.id,Date.now())}); /* highlight only what arrives after the first load */
-    if(d.posts.length&&d.posts[0].id>WIRE.maxId)WIRE.maxId=d.posts[0].id;
-    WIRE.d=d;WIRE.err=null;
-    if(!first&&alWire){const nw=d.posts.filter(p=>p.id>prevMax);if(nw.length)wireAlert(nw)} /* never on the first load, so opening the page does not alert for old posts */
-  }catch(e){WIRE.err=String(e.message||e)}
-  finally{WIRE.busy=false;WIRE.at=Date.now();wirePaint()}
+    all=await r.json();
+    if(!Array.isArray(all.posts))throw new Error(all.error||'bad payload');
+  }catch(e){err=String(e.message||e)}
+  for(const w of WIRES){
+    try{
+      if(err)throw new Error(err);
+      const d=w.blk(all);
+      /* a Worker that predates this feature has no fj block (or answers a single feed): never show another wire in its place */
+      if(!d||!Array.isArray(d.posts))throw new Error('this feed needs the updated Worker (deploy worker/src/feed.js and index.js)');
+      if(w.hot&&d.channel!==w.name)throw new Error('unexpected channel '+d.channel);
+      wireIngest(w,d);
+    }catch(e){w.err=String(e.message||e)}
+    w.at=Date.now();wirePaint(w);
+  }
+  feedBusy=false;
 }
-function wireAlert(nw){ /* nw is newest first; a burst becomes one alert (plan 4.4: a digest, not one toast per post) */
-  const p=nw[0],line=(p.text||(p.media?'[media post]':'[empty post]')).split('\n')[0].slice(0,160);
-  toast({src:'DeItaone wire \u00b7 Telegram mirror',tag:nw.length>1?nw.length+' NEW POSTS':'NEW POST',h:line,s:nw.length>1?'Newest of '+nw.length+' new posts since the last check.':'Ultrafast mirror, unconfirmed.',u:typeof p.url==='string'&&p.url.indexOf('https://t.me/')===0?p.url:null,ms:20000});
-  notify('DeItaone wire',line);
+function wireIngest(w,d){
+  const first=!w.d,prevMax=w.maxId;
+  if(w.d)d.posts.forEach(p=>{if(p.id>w.maxId)w.fresh.set(p.id,Date.now())}); /* highlight only what arrives after the first load */
+  if(d.posts.length&&d.posts[0].id>w.maxId)w.maxId=d.posts[0].id;
+  w.d=d;w.err=null;
+  if(!first&&w.al){const nw=d.posts.filter(p=>p.id>prevMax&&w.pick(p));if(nw.length)wireAlert(w,nw)} /* never on the first load, so opening the page does not alert for old posts */
 }
-function wirePaint(){
-  const el=WIRE.el;if(!el||!el.isConnected)return;
-  const box=$('.xw',el),st=$('.pw',el);if(!box||!st)return;
-  const d=WIRE.d,now=NOW(),mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+function wireAlert(w,nw){ /* nw is newest first; a burst is one toast (plan 4.4: a digest, not one toast per post) */
+  const line=p=>(p.text||(p.media?'[media post]':'[empty post]')).split('\n')[0].slice(0,160);
+  if(!w.hot){
+    toast({src:w.name,tag:nw.length>1?nw.length+' NEW POSTS':'NEW POST',h:line(nw[0]),s:nw.length>1?'Newest of '+nw.length+' new posts since the last check.':'',ms:20000});
+    notify(w.name,line(nw[0]));return;
+  }
+  const now=Date.now();w.recent=w.recent.filter(r=>now-r.t<=GROUP_MS*3);
+  const gs=wireGroup(nw,w.recent,now);if(!gs.length)return; /* every post was a repeat of a story already toasted */
+  gs.forEach(g=>w.recent.push({t:g.t,tk:g.tk}));
+  const g=gs[0],extra=gs.reduce((a,x)=>a+x.n-1,0);
+  toast({src:w.name,tag:gs.length>1?gs.length+' ❗ ALERTS':'❗ ALERT',h:line(g.p),
+    s:gs.length>1?'Newest of '+gs.length+' stories'+(extra?' (+'+extra+' similar)':'')+'.':g.n>1?'+'+(g.n-1)+' similar':'',ms:20000});
+  notify(w.name,line(g.p));
+}
+function wirePaint(w){
+  const root=wireRoot(w);if(!root)return;
+  const box=$('.xw',root);if(!box)return;
+  const d=w.d,now=NOW(),mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
   const oldTop=box.scrollTop,oldH=box.scrollHeight;
   box.textContent='';
-  for(const [id,at] of WIRE.fresh)if(Date.now()-at>=WIRE_NEW_MS)WIRE.fresh.delete(id);
-  if(!d){box.appendChild(mk('div','wnote'+(WIRE.err?' bad':''),WIRE.err?'Wire unavailable: '+WIRE.err:'loading…'))}
+  for(const [id,at] of w.fresh)if(Date.now()-at>=WIRE_NEW_MS)w.fresh.delete(id);
+  const last=d&&(d.health&&d.health.okAt||w.at),bad=(txt)=>{const n=mk('div','wnote bad',txt);if(w.err)n.title=w.err;box.appendChild(n)};
+  if(!d)box.appendChild(mk('div','wnote'+(w.err?' bad':''),w.err?'Feed unavailable: '+w.err:'loading…'));
   else{
-    if(WIRE.err)box.appendChild(mk('div','wnote bad','Could not reach the Worker ('+WIRE.err+'). Showing the last response from '+asOf(WIRE.at)+'.'));
-    if(d.status==='broken')box.appendChild(mk('div','wnote bad','Telegram feed broken'+(d.error?': '+d.error:'')+'. Showing the last known posts: do not rely on this card until it recovers.'));
-    else if(d.status==='stale')box.appendChild(mk('div','wnote warn','Feed stale: the last good poll was '+ago(now-(d.health.okAt||0))+'.'));
+    /* failure only (D81): a healthy or quiet feed shows no status at all */
+    if(w.err)bad('Feed unavailable · last update '+ago(now-last));
+    else if(d.status==='broken')bad('Feed unavailable · last update '+(d.health&&d.health.okAt?ago(now-d.health.okAt):'not yet'));
+    else if(d.status==='stale')box.appendChild(mk('div','wnote warn','Feed delayed · last update '+ago(now-(d.health.okAt||0))));
     if(!d.posts.length)box.appendChild(mk('div','wnote','No posts yet.'));
     for(const p of d.posts){
-      const row=mk('div','wp'+(WIRE.fresh.has(p.id)?' new':'')),h=mk('div','wh');
+      const hot=w.hot&&p.hot===true,row=mk('div','wp'+(w.fresh.has(p.id)?' new':'')+(hot?' hot':'')),h=mk('div','wh');
+      if(hot)h.appendChild(mk('span','wk','❗'));
       h.appendChild(mk('span','',p.t?asOf(p.t):'no time'));
       h.appendChild(mk('span','wa',p.t?fmtAge(now-p.t)+' ago':''));
-      if(typeof p.url==='string'&&p.url.indexOf('https://t.me/')===0){const a=mk('a','','open on Telegram');a.href=p.url;a.target='_blank';a.rel='noopener';h.appendChild(a)}
       row.appendChild(h);
-      const full=p.text||'',long=full.length>WIRE_CUT&&!WIRE.open.has(p.id);
-      const t=mk('div','wt'+(!full?' media':''),!full?(p.media?'[media post: open on Telegram]':'[empty post]'):long?full.slice(0,WIRE_CUT).replace(/\s+$/,'')+'…':full);
-      if(full.length>WIRE_CUT){const b=mk('button','wmore',long?'more':'less');b.onclick=()=>{WIRE.open.has(p.id)?WIRE.open.delete(p.id):WIRE.open.add(p.id);wirePaint()};t.appendChild(b)}
+      const full=p.text||'',long=full.length>WIRE_CUT&&!w.open.has(p.id);
+      const t=mk('div','wt'+(!full?' media':''),!full?(p.media?'[media post]':'[empty post]'):long?full.slice(0,WIRE_CUT).replace(/\s+$/,'')+'…':full);
+      if(full.length>WIRE_CUT){const b=mk('button','wmore',long?'more':'less');b.onclick=()=>{w.open.has(p.id)?w.open.delete(p.id):w.open.add(p.id);wirePaint(w)};t.appendChild(b)}
       row.appendChild(t);box.appendChild(row);
     }
+    if(d.gap)box.appendChild(mk('div','wnote','Older posts may be missing.'));
   }
   box.scrollTop=oldTop>8?oldTop+(box.scrollHeight-oldH):0; /* reading lower down: new posts above must not push the text away */
-  st.textContent='';
-  const nw=d&&d.posts[0]&&d.posts[0].t?now-d.posts[0].t:null;
-  st.appendChild(document.createTextNode('DeItaone wire via Telegram mirror · ultrafast, unconfirmed'+(d?' · poll '+d.status+(d.status!=='broken'&&nw!=null&&nw>36e5?' · quiet, newest post '+fmtAge(nw)+' old':''):'')+' · '));
-  const a=mk('a','','open channel');a.href='https://t.me/s/WalterBloomberg';a.target='_blank';a.rel='noopener';st.appendChild(a);
 }
-const wire=el=>{
-  WIRE.el=el;
-  el.innerHTML='<div class="emb"><div class="xw"></div><div class="pw"></div></div>';
-  wirePaint();wireLoad();
+const wireCard=w=>el=>{
+  w.el=el;
+  el.innerHTML='<div class="emb" data-wire="'+w.key+'"><div class="xw"></div></div>';
+  wirePaint(w);feedLoad();
 };
-setInterval(()=>{if(wireVisible()||alWire)wireLoad()},WIRE_POLL); /* with alerts on it keeps polling in a background tab (the browser slows it) */
-setInterval(()=>{if(wireVisible())wirePaint()},15000); /* keeps the ages moving between polls */
-document.addEventListener('visibilitychange',()=>{if(wireVisible())wireLoad()});
-const fj=el=>{
-  el.innerHTML='<div id="financialjuice-news-widget-container"></div>';
-  load('https://feed.financialjuice.com/widgets/widgets.js?r='+Math.floor(Math.random()*9999),'fj','FJ-Widgets').then(()=>{
-    const d=dark();
-    new window.FJWidgets.createWidget({container:'financialjuice-news-widget-container',mode:d?'Dark':'Light',width:'100%',height:el.clientHeight+'px',backColor:d?'1c1c1f':'f3f2ef',fontColor:d?'b7b5ad':'615f5a',widgetType:'NEWS'});
-  }).catch(()=>note(el,'FinancialJuice did not load. Try another source.'));
-};
+const wire=wireCard(WIRE),fjwire=wireCard(FJW);
+setInterval(()=>{if(WIRES.some(w=>wireVisible(w)||w.al))feedLoad()},WIRE_POLL); /* with alerts on it keeps polling in a background tab (the browser slows it) */
+setInterval(()=>{for(const w of WIRES)if(wireVisible(w))wirePaint(w)},15000); /* keeps the ages moving between polls */
+document.addEventListener('visibilitychange',()=>{if(WIRES.some(wireVisible))feedLoad()});
 const pair=(left,cls)=>el=>{
   el.innerHTML='<div class="stk"><div class="s1 '+cls+'"></div><div class="s2"></div></div>';
   left($('.s1',el));
@@ -969,15 +1028,17 @@ const REM=[15,5,0],REM_WINDOW=150000;
 let remOn=LS.g(KEY+'rem_on','1')==='1',fired=[];
 try{fired=JSON.parse(LS.g(KEY+'rem_fired','[]'))||[]}catch(e){}
 /* ---- alert switches: one per card that can alert, all in the same header slot (refresh, alert, open, expand, collapse) ----
-   cal: calendar reminders and release alerts (the same switch as the bell in the countdown card). wire: new DeItaone posts.
-   news: not available, because the FinancialJuice and TradingView news widgets are third-party frames that cannot be read (plan 4.3). */
+   cal: calendar reminders and release alerts (the same switch as the bell in the countdown card). wire: new Walter Bloomberg posts.
+   news: FinancialJuice posts that start with the red \u2757 only (plan 4.3, D78); the TradingView news source cannot be read and never alerts. */
 const ALERT={
   cal:{get:()=>remOn,set:v=>{remOn=v;LS.s(KEY+'rem_on',v?'1':'0')},
     on:'Alerts on: reminders 15 and 5 min before a high-impact release, then actual vs forecast vs previous when it prints (this page must be open). Click to turn off',
     off:'Alerts off. Click to turn on reminders and release alerts'},
-  wire:{get:()=>alWire,set:v=>{alWire=v;LS.s(KEY+'al_wire',v?'1':'0');if(v)wireLoad()},
-    on:'Alerts on: a toast for new DeItaone posts, bursts grouped (this page must be open). Click to turn off',off:'Alerts off. Click to turn on new-post alerts'},
-  news:{na:true,tip:'Not available yet: the news widgets cannot be read, so headline alerts need a permitted FinancialJuice feed (plan 4.3)'}
+  wire:{get:()=>WIRE.al,set:v=>{WIRE.al=v;LS.s(KEY+WIRE.ls,v?'1':'0');if(v)feedLoad()},
+    on:'Alerts on: a toast for new Walter Bloomberg posts, bursts grouped (this page must be open). Click to turn off',off:'Alerts off. Click to turn on new-post alerts'},
+  news:{get:()=>FJW.al,set:v=>{FJW.al=v;LS.s(KEY+FJW.ls,v?'1':'0');if(v)feedLoad()},
+    on:'Alerts on: a toast only for FinancialJuice posts marked with the red \u2757, bursts grouped (this page must be open). Click to turn off',
+    off:'Alerts off. Click to turn on toasts for FinancialJuice posts marked \u2757 (all other posts stay silent)'}
 };
 function paintAlert(k){
   const c=C[k];if(!c||!c.alert)return;
@@ -1090,10 +1151,10 @@ const C={
     mql:{l:'MQL5',u:'https://www.tradays.com/en/economic-calendar',r:mql},
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
   news:{page:'news',col:true,t:'news',alert:'news',noopen:true,sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
-    fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
-    tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
-  wire:{page:'news',col:true,t:'deitaone wire \u00b7 telegram mirror',alert:'wire',noopen:true,sp:5,h:320,hm:420,full:900,fullm:900,src:{
-    tg:{l:'Telegram',u:'https://t.me/s/WalterBloomberg',r:wire}}},
+    fj:{l:'FinancialJuice',r:fjwire},
+    tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tvwc('tv-news-feed',{'news-type':'all',transparent:''},'TradingView news')}}},
+  wire:{page:'news',col:true,t:'walter bloomberg',alert:'wire',noopen:true,sp:5,h:320,hm:420,full:900,fullm:900,src:{
+    tg:{l:'Walter Bloomberg',r:wire}}},
   earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
   look:{page:'tech',t:'ticker lookup',sp:8,h:460,hm:780,full:600,fullm:900,tb:true,stretch:true,noexp:true,src:{
@@ -1101,6 +1162,7 @@ const C={
     ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:technicals}}},
   heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,full:900,fullm:800,src:{
     all:{l:'All stocks',u:'https://finviz.com/map?t=sec_all&st=d1',r:finviz('sec_all','d34rloj8')},
+    tvall:{l:'All stocks \u00b7 TV',u:'https://www.tradingview.com/heatmap/stock/',r:tvwc('tv-heatmap',{'heatmap-type':'stock','data-source':'AllUSA',grouping:'sector','block-size':'market_cap_basic','block-color':'change'},'TradingView heatmap')},
     sp:{l:'S&P 500',u:'https://finviz.com/map?t=sec&st=d1',r:finviz('sec','j43bn5fy')},
     nq:{l:'Nasdaq 100',u:'https://finviz.com/map?t=sec_ndx&st=d1',r:finviz('sec_ndx','usevk757')},
     fut:{l:'Futures',u:'https://finviz.com/map?t=futures&st=d1',r:finviz('futures','9ed4jtmk')},
@@ -1157,7 +1219,6 @@ function setClosed(k,closed){
 function setTall(k,tall){
   const c=C[k];if(tall&&c.el.classList.contains('closed'))setClosed(k,false);
   c.el.classList.toggle('tall',tall);paintCard(k);
-  if(c.cur==='fj')draw(k);
   if(tall&&c.el.scrollIntoView)c.el.scrollIntoView({block:'start',behavior:'smooth'});
 }
 document.addEventListener('click',e=>{
@@ -1208,7 +1269,7 @@ $('.tb').addEventListener('submit',e=>{
 const TOAST_MS=15000,TOAST_MAX=3;
 const MOCKS=[
   {src:'X \u00b7 @DeItaone',tag:'NEW POST DETECTED',h:'Sample post headline appears here',s:'Test alert only. Live X alerts need a permitted free feed (plan 4.4).',u:'https://x.com/DeItaone'},
-  {src:'FinancialJuice',tag:'HIGH-IMPACT HEADLINE',h:'Sample high-impact headline',s:'MNQ: uncertain \u00b7 MGC: uncertain. Test alert only.',u:'https://www.financialjuice.com/home'},
+  {src:'FinancialJuice',tag:'\u2757 ALERT',h:'US JOLTS JOB OPENINGS ACTUAL 7.523M (FORECAST 7.164M, PREVIOUS 7.079M) $MACRO',s:'Test alert only.'},
   {src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 RELEASE IN 5 MIN',h:'Initial Jobless Claims',s:'Forecast 194K \u00b7 previous 191K. Test alert only.',rel:true}
 ];
 let mockI=0;
