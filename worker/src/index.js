@@ -446,7 +446,11 @@ async function runSyncSource(name, env) {
   const prev = old.src[name] || null;
   let out;
   try {
-    if (name === 'bls') out = await runBls({ get: u => get(u, {}, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+    if (name === 'bls') {
+      // bls.gov answered 403 to the browser-style User-Agent (15 Nov). BLS asks automated clients to say who they are, so when BLS_CONTACT (an e-mail) is set it is sent in the User-Agent.
+      const h = env && env.BLS_CONTACT ? { 'User-Agent': `market-dashboard/1.0 (schedule check; ${env.BLS_CONTACT})`, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' } : {};
+      out = await runBls({ get: u => get(u, h, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+    }
     else if (name === 'treasury') out = await runTreasury({ get: u => get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
     else if (name === 'provider') out = runProvider({ feeds: await gatherProvider(env), base: SCHEDULE.releases, IND: INDICATORS, now, prev });
     else return null;
