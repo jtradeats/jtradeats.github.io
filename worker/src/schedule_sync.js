@@ -185,8 +185,10 @@ const looksDate = v => parseDateLoose(v) != null;
 export function parseTreasuryJson(arr, today) {
   const out = [];
   for (const o of Array.isArray(arr) ? arr : []) {
-    const k = classifyTreasury(`${o.securityType || ''} ${o.securityTerm || ''}`), d = parseDateLoose(o.auctionDate);
-    if (k && d && d >= today) out.push({ k, d });
+    // TIPS reopenings carry the term "9-Year 11-Month", which looks like a 10-year note: the flags and every text field are checked for them
+    const flagged = [o.tips, o.inflationIndexSecurity, o.floatingRate].some(v => /^(yes|y|true)$/i.test(String(v ?? ''))) || Object.values(o).some(v => typeof v === 'string' && /TIPS|Inflation|Floating|\bFRN\b/i.test(v));
+    const k = flagged ? null : classifyTreasury(`${o.securityType || ''} ${o.securityTerm || ''}`), d = parseDateLoose(o.auctionDate);
+    if (k && d && d >= today) out.push({ k, d, s: `${o.securityType || ''} ${o.securityTerm || ''}`.trim() });
   }
   return out;
 }
@@ -282,15 +284,19 @@ export async function runTreasury({ get, IND, now, prev }) {
   await readQ(tryOrder[0]);
   await readQ(tryOrder[1]);
   if (!got) await readQ(prevQuarter(cur));
-  if (sample) out.debug = { tentativeSample: sample };
+  out.debug = { ...(sample ? { tentativeSample: sample } : {}), announced: ann.map(r => `${r.d} ${r.k} (${r.s || '?'})`).slice(0, 12) };
   for (const [k, ind] of kinds) {
     const old = (prev && prev.k && prev.k[k]) || { lines: [] }, byKey = new Map();
     // tentative first, announced over it; if a part failed, its previous lines stay (tentative ones are never dropped on a failed download)
     const tl = tentOk ? tent.filter(r => r.k === k) : (old.lines || []).filter(l => l.v === 'tent');
-    for (const r of tl) { const l = { d: r.d, t: ind.time, k, v: 'tent', n: 'Tentative date from Treasury’s refunding schedule. Treasury confirms it about a week ahead.' }; byKey.set(lineKey(l, IND), l); }
+    const lines = [], rejected = [], seen = [], clash = new Set();
+    // there is one 10-year and one 30-year auction a month: two different dates in one month from the same list cannot both be right, so neither is applied (and it is reported)
+    const put = (l, tag) => { const key = lineKey(l, IND), cur = byKey.get(key); if (cur && cur.tag === tag && cur.d !== l.d) { clash.add(key); rejected.push({ d: l.d, why: `Treasury lists two ${ind.name || k} dates in one month (${cur.d} and ${l.d}); neither is applied` }); return; } byKey.set(key, { ...l, tag }); };
+    for (const r of tl) put({ d: r.d, t: ind.time, k, v: 'tent', n: 'Tentative date from Treasury’s refunding schedule. Treasury confirms it about a week ahead.' }, 't');
     const al = annOk ? ann.filter(r => r.k === k) : (old.lines || []).filter(l => !l.v && l.d >= today);
-    for (const r of al) { const l = { d: r.d, t: ind.time, k }; byKey.set(lineKey(l, IND), l); }
-    const lines = [], rejected = [], seen = [];
+    for (const r of al) put({ d: r.d, t: ind.time, k }, 'a');
+    for (const key of clash) byKey.delete(key);
+    for (const v of byKey.values()) delete v.tag;
     for (const l of byKey.values()) { seen.push(lineKey(l, IND)); const why = checkLine(l, IND); if (why) rejected.push({ d: l.d, why }); else lines.push(l); }
     lines.sort((a, b) => (a.d < b.d ? -1 : 1));
     const td = tl.map(r => r.d).sort();
@@ -382,6 +388,7 @@ export function mergeSchedule(SCHED, rec, IND, today) {
         const key = lineKey(l, IND), i = index.get(key);
         if (i == null) { base.push({ ...l }); index.set(key, base.length - 1); res.stats.added++; continue; }
         const cur = base[i];
+        if (cur.d < today && l.d !== cur.d) continue;   // that release already happened: a later date in the same month is another release (e.g. a TIPS auction), not a move
         if (rank(l.v) < rank(cur.v)) { if (cur.d === l.d) res.stats.confirmed++; continue; }
         if (cur.d === l.d && cur.t === l.t && rank(l.v) === rank(cur.v)) continue;
         if (l.v === 'prov' && Math.abs(daysBetween(l.d, cur.d)) > 7) {   // a provider is allowed to correct a derived date, not to move it by weeks
