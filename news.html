@@ -206,16 +206,15 @@ html.mobile .card.stretch{height:var(--hm,440px);align-self:auto;min-height:0}
 html.mobile .card.stretch.closed{height:auto}
 html.mobile .card.stretch .stk{position:static;height:100%}
 .cal{display:flex;flex-direction:column;height:100%}
+.topicon.muted{color:var(--r);width:auto;padding:0 8px;display:inline-flex;align-items:center;gap:4px}.topicon .mb{font-size:var(--fxs);font-weight:600}
 .calbar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
-.calnote{margin-left:auto;font-size:var(--fxs);color:var(--t3);text-align:right}
-.audit{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
+.audit{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
 .audit:hover{border-color:var(--bdm);color:var(--t)}
 .audit i{width:7px;height:7px;border-radius:50%;background:var(--g);flex:none}
 .audit.check i{background:#E0A24A}.audit.error i{background:var(--r)}.audit.unk i{background:var(--t3)}
 .sel{appearance:none;-webkit-appearance:none;font-family:var(--sans);font-size:var(--fsm);font-weight:600;color:var(--pbsel);background:var(--pbselbg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8a83' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 7px center;background-size:10px;border:.5px solid var(--pbselbd);border-radius:calc(var(--rad) - 1px);padding:3px 24px 3px 9px;cursor:pointer}
 .sel option{color:var(--t);background:var(--surface);font-weight:400}
 .topicon.al.on{color:var(--pc1)}
-.topicon.al.na{opacity:.4}
 .scs{display:grid;gap:8px;margin:6px 0}
 .sc{border:.5px solid var(--bd);border-radius:8px;padding:8px 10px;background:var(--s2)}
 .sc.hit{border-color:var(--pbselbd);background:var(--pbselbg)}
@@ -352,8 +351,8 @@ html.mobile .tu b{font-size:22px}
   <div class="topbar">
     <div><p class="brand">J.</p><h1>dashboard</h1></div>
     <div class="topbaracts">
-      <button class="topicon" id="test" onclick="testAlert()"></button>
-      <button class="topicon" id="reset" onclick="resetPrefs()"></button>
+      <button class="topicon" id="refreshall" onclick="refreshAll()"></button>
+      <button class="topicon" id="master"></button>
       <button class="topicon" id="layout" onclick="toggleLayout()"></button>
       <button class="topicon themetoggle" id="theme" onclick="toggleTheme()"></button>
     </div>
@@ -399,9 +398,10 @@ const DATA_URL='https://raw.githubusercontent.com/jtradeats/jtradeats.github.io/
 /* Each card has h (normal height) and full (height of the expand button), in px; fullm is the same on mobile.
    Third-party embeds cannot be measured from here, so adjust full to taste. */
 /* Defaults used on any browser that has no saved choice. Picking a tab on a card is remembered per browser
-   (the reset icon in the header clears those and brings these back). */
+   (saved choices carry a version, PREFS_VER: raising it on a deploy drops choices that no longer fit). */
 const DEFAULTS={econ:'cal',news:'fj',earn:'eh',look:'ov',heat:'all',tab:'news',ticker:'QQQ'};
-const KEY='wss_dash2_';
+const KEY='wss_dash2_',PREFS_VER='1';
+try{const v=localStorage.getItem(KEY+'ver');if(v&&v!==PREFS_VER)Object.keys(localStorage).filter(k=>k.indexOf(KEY)===0).forEach(k=>localStorage.removeItem(k));localStorage.setItem(KEY+'ver',PREFS_VER)}catch(e){}
 try{localStorage.removeItem('wss_gh_token')}catch(e){} /* one-click workflow token is no longer used */
 
 const LS={g(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
@@ -413,7 +413,6 @@ const I={
   moon:ico('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
   monitor:ico('<rect x="3" y="4" width="18" height="13" rx="2.5"/><line x1="3" y1="13.5" x2="21" y2="13.5"/><path d="M10 17v3h4v-3"/><line x1="8" y1="20" x2="16" y2="20"/>'),
   phone:ico('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><line x1="6.5" y1="6" x2="17.5" y2="6"/><line x1="6.5" y1="17" x2="17.5" y2="17"/><circle cx="12" cy="19.3" r=".5" fill="currentColor"/>'),
-  reset:ico('<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>'),
   refresh:ico('<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
   open:ico('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
   expand:ico('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
@@ -424,8 +423,7 @@ const I={
   play:ico('<polygon points="6 3 20 12 6 21 6 3"/>')
 };
 $('#mrefresh').innerHTML=I.refresh;
-{const b=$('#test');b.innerHTML=I.bell;b.setAttribute('aria-label','send a test alert');b.setAttribute('data-tt','send a test alert (mock)');}
-{const b=$('#reset');b.innerHTML=I.reset;b.setAttribute('aria-label','reset to defaults');b.setAttribute('data-tt','reset to defaults');}
+{const b=$('#refreshall');b.innerHTML=I.refresh;b.setAttribute('aria-label','refresh everything');b.setAttribute('data-tt','refresh every card');}
 
 /* ---- theme + layout (same storage keys as the journal, so both pages stay in sync) ---- */
 const dark=()=>root.getAttribute('data-theme')==='dark';
@@ -715,8 +713,8 @@ const tvwc=(name,attrs,what)=>el=>{
   const timeout=new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),10000));
   Promise.race([wcLoad(src).then(()=>customElements.whenDefined(name)),timeout]).then(()=>{
     if(!box.isConnected)return;
-    const n=document.createElement(name);
-    for(const k in attrs)n.setAttribute(k,attrs[k]);
+    const n=document.createElement(name),at=typeof attrs=='function'?attrs():attrs;
+    for(const k in at)n.setAttribute(k,at[k]);
     box.appendChild(n);
   }).catch(bad);
 };
@@ -730,7 +728,7 @@ const mql=el=>embed(el,'https://www.tradays.com/en/economic-calendar/widget?mode
 const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1&wid='+wid,'Finviz market map',
   '<a href="https://finviz.com/map?t='+t+'&st=d1&utm_source=finviz_widget&utm_medium=widget&utm_campaign=map&utm_content='+wid+'" target="_blank" rel="noopener">Market map by FINVIZ</a>');
 const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
-  n+' gamma levels by <a href="https://zerogex.io/'+n.toLowerCase()+'-gamma-levels" target="_blank" rel="noopener">ZeroGEX</a> (third party, 15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session')+')','gx');
+  '15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session'),'gx');
 /* Telegram wire cards (plan P1; D46 to D49, D78 to D81). Two wires, read by the Worker's /feed from the public Telegram preview: Walter Bloomberg
    (DeItaone) and FinancialJuice. One request serves both. Walter Bloomberg alerts on every new post (a digest); FinancialJuice alerts only on posts
    that start with the red ❗ (the Worker marks them hot:true) and those rows are tinted pastel red (--hot). Display only. Every post is built with
@@ -843,13 +841,30 @@ const wire=wireCard(WIRE),fjwire=wireCard(FJW);
 setInterval(()=>{if(WIRES.some(w=>wireVisible(w)||w.al))feedLoad()},WIRE_POLL); /* with alerts on it keeps polling in a background tab (the browser slows it) */
 setInterval(()=>{for(const w of WIRES)if(wireVisible(w))wirePaint(w)},15000); /* keeps the ages moving between polls */
 document.addEventListener('visibilitychange',()=>{if(WIRES.some(wireVisible))feedLoad()});
+/* Symbol overview (area chart + 50 MA), options as supplied by J. Only the symbol follows the lookup box; transparent so it takes the card colour
+   in both themes (the supplied #0F0F0F would show as a darker box on the dark card); font and grid colours switch with the theme. */
+const symChart=tv('symbol-overview',()=>{const d=dark();return{
+  lineWidth:2,lineType:0,chartType:'area',
+  fontColor:d?'rgb(106, 109, 120)':'rgb(86, 90, 102)',
+  gridLineColor:d?'rgba(242, 242, 242, 0.06)':'rgba(46, 46, 46, 0.08)',
+  volumeUpColor:'rgba(34, 171, 148, 0.5)',volumeDownColor:'rgba(247, 82, 95, 0.5)',
+  widgetFontColor:d?'#DBDBDB':'#131722',
+  upColor:'#22ab94',downColor:'#f7525f',borderUpColor:'#22ab94',borderDownColor:'#f7525f',wickUpColor:'#22ab94',wickDownColor:'#f7525f',
+  chartOnly:false,scalePosition:'right',scaleMode:'Normal',
+  fontFamily:'-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
+  valuesTracking:'1',changeMode:'price-and-percent',
+  symbols:[[sym+'|1D']],
+  dateRanges:['1d|1','1m|30','3m|60','12m|1D','60m|1W','all|1M'],
+  fontSize:'10',headerFontSize:'small',autosize:true,
+  noTimeScale:false,hideDateRanges:false,showMA:true,maLength:'50',maLineColor:'#2962FF',maLineWidth:1,
+  hideMarketStatus:false,hideSymbolLogo:false}});
 const pair=(left,cls)=>el=>{
   el.innerHTML='<div class="stk"><div class="s1 '+cls+'"></div><div class="s2"></div></div>';
   left($('.s1',el));
-  tv('mini-symbol-overview',()=>({symbol:sym,dateRange:'3M',autosize:true,largeChartUrl:''}))($('.s2',el));
+  symChart($('.s2',el));
 };
 const overview=pair(tv('symbol-info',()=>({symbol:sym})),'ov');
-const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',showIntervalTabs:true})),'ta');
+const technicals=pair(tvwc('tv-technical-analysis',()=>({symbol:sym,'ratings-display-mode':'gauge-and-stats','ratings-mode':'multiple',transparent:''}),'TradingView technicals'),'ta');
 
 
 /* ---- schedule-first economic calendar ----
@@ -859,8 +874,8 @@ const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',sho
    never depends on the forecast feed. */
 const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
 const STATIC_BASE='worker/config/'; /* relative to this page: assumes the repo root is what GitHub Pages serves */
-let calData=null,calAt=0,calMed=LS.g(KEY+'cal_med','0')==='1',calRng=LS.g(KEY+'cal_rng','week');
-const RNG=[['yest','yesterday'],['today','today'],['week','this week'],['next','next week'],['month','this month']];
+let calData=null,calAt=0,calRng=LS.g(KEY+'cal_rng','week');
+const RNG=[['last','last week'],['yest','yesterday'],['today','today'],['week','this week'],['next','next week'],['month','this month']];
 if(!RNG.some(x=>x[0]===calRng))calRng='week'; /* saved choices from the old today/upcoming buttons: 'week' still means this week, anything else falls back to it */
 const CALP={fn:null,el:null}; /* the open calendar card, so new data repaints it */
 let clkOff=0; /* Worker clock minus this device's clock, ms. Countdown, reminders and sessions use NOW() so a wrong device clock cannot skew them */
@@ -949,6 +964,7 @@ const provTxt=d=>{
 /* range -> [first, last] New York date. Weeks run Monday to Sunday. */
 function rngBounds(r,todayIso){
   const D=864e5,d=new Date(todayIso+'T00:00:00Z'),t=+d,iso=x=>new Date(x).toISOString().slice(0,10),mon=t-((d.getUTCDay()+6)%7)*D;
+  if(r==='last')return[iso(mon-7*D),iso(mon-D)];
   if(r==='yest')return[iso(t-D),iso(t-D)];
   if(r==='today')return[todayIso,todayIso];
   if(r==='next')return[iso(mon+7*D),iso(mon+13*D)];
@@ -956,11 +972,11 @@ function rngBounds(r,todayIso){
   return[iso(mon),iso(mon+6*D)];
 }
 const cal=el=>{
-  el.innerHTML='<div class="cal"><div class="calbar"><select class="sel" data-ck="rng" aria-label="date range">'+RNG.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select><button class="pbtn" data-ck="med">+ medium</button><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading…</p></div></div>';
+  el.innerHTML='<div class="cal"><div class="calbar"><select class="sel" data-ck="rng" aria-label="date range">'+RNG.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button></div><div class="calscroll"><p class="note">loading…</p></div></div>';
   const bar=$('.calbar',el),box=$('.calscroll',el);let shown=[];
   const paint=d=>{
     const now=NOW(),today=etP(now).iso,[lo,hi]=rngBounds(calRng,today),st=box.scrollTop;
-    const ev=d.events.filter(e=>e.d>=lo&&e.d<=hi&&(e.hol||e.imp===3||(calMed&&e.imp>=2)));
+    const ev=d.events.filter(e=>e.d>=lo&&e.d<=hi&&(e.hol||e.imp===3));
     const nx=ev.find(e=>e.t>now&&e.src!=='feed'&&!e.hol);let h='',last='';shown=[];
     ev.forEach(e=>{
       if(e.d!==last){last=e.d;h+='<tr class="day"><td colspan="6">'+esc(etDayL(e.t))+(e.d===today?'<small>today</small>':'')+'</td></tr>'}
@@ -968,20 +984,18 @@ const cal=el=>{
       const i=shown.push(e)-1,has=e.ac||e.fc||e.pv;
       h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):e===nx?'next':'')+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>':'')+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
     });
-    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th class="ev">Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
+    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th class="ev">Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No high-impact USD events in this range.</p>';
     box.scrollTop=st;
-    bar.querySelectorAll('.pbtn').forEach(b=>b.classList.toggle('on',b.dataset.ck==='med'&&calMed));
     const sel=$('.sel',bar);if(sel.value!==calRng)sel.value=calRng;
     const a=d.audit||{},ab=$('.audit',bar),stt=a.status||'unk';
     ab.className='audit '+stt;
     $('span',ab).textContent=stt==='ok'?'schedule checked '+fmtIso(a.checked):stt==='unk'?'schedule not audited':'schedule: '+a.nIssues+' note'+(a.nIssues===1?'':'s');
-    ab.title='Open the schedule check';
-    $('.calnote',el).textContent=['click a row to explain',provTxt(d),skewTxt()].filter(Boolean).join(' · ');
+    ab.title=[provTxt(d),skewTxt()].filter(Boolean).join(' · ')||'Open the schedule check';
   };
   CALP.fn=paint;CALP.el=el;
   bar.onclick=e=>{const b=e.target.closest('button[data-ck]');if(!b||!calData)return;const k=b.dataset.ck;
     if(k==='audit'){showAudit(calData);return}
-    if(k==='med'){calMed=!calMed;LS.s(KEY+'cal_med',calMed?'1':'0')}paint(calData)};
+    paint(calData)};
   bar.onchange=e=>{const sl=e.target.closest('select[data-ck]');if(!sl||!calData)return;calRng=sl.value;LS.s(KEY+'cal_rng',calRng);paint(calData)};
   const open=e=>{const tr=e.target.closest('tr[data-i]');if(tr&&shown[+tr.dataset.i])showRelease(shown[+tr.dataset.i])};
   box.onclick=open;
@@ -1027,9 +1041,10 @@ function lclkPaint(){const el=$('#lclk');if(el)el.textContent='CME '+(futClosed(
 const REM=[15,5,0],REM_WINDOW=150000;
 let remOn=LS.g(KEY+'rem_on','1')==='1',fired=[];
 try{fired=JSON.parse(LS.g(KEY+'rem_fired','[]'))||[]}catch(e){}
-/* ---- alert switches: one per card that can alert, all in the same header slot (refresh, alert, open, expand, collapse) ----
+/* ---- alert switches: one per card that can alert, all in the same header slot (refresh, alert, expand, collapse); the master button in the page header mutes all of them ----
    cal: calendar reminders and release alerts (the same switch as the bell in the countdown card). wire: new Walter Bloomberg posts.
    news: FinancialJuice posts that start with the red \u2757 only (plan 4.3, D78); the TradingView news source cannot be read and never alerts. */
+let masterOn=LS.g(KEY+'master','1')==='1'; /* master off mutes every alert: toasts, reminders, release alerts, browser notifications. Muted alerts are dropped, not queued */
 const ALERT={
   cal:{get:()=>remOn,set:v=>{remOn=v;LS.s(KEY+'rem_on',v?'1':'0')},
     on:'Alerts on: reminders 15 and 5 min before a high-impact release, then actual vs forecast vs previous when it prints (this page must be open). Click to turn off',
@@ -1043,9 +1058,9 @@ const ALERT={
 function paintAlert(k){
   const c=C[k];if(!c||!c.alert)return;
   const b=$('[data-a="al"]',c.el),A=ALERT[c.alert];if(!b||!A)return;
-  const on=!A.na&&A.get(),t=A.na?A.tip:on?A.on:A.off;
-  b.innerHTML=on?I.bell:I.belloff;b.classList.toggle('on',on);b.classList.toggle('na',!!A.na);
-  b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);b.setAttribute('aria-pressed',A.na?'false':String(on));
+  const on=A.get(),t=on?A.on:A.off;
+  b.innerHTML=on?I.bell:I.belloff;b.classList.toggle('on',on);
+  b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);b.setAttribute('aria-pressed',String(on));
 }
 function paintRem(){
   const b=$('#remb');
@@ -1054,12 +1069,11 @@ function paintRem(){
 }
 function setAlert(key,on){
   const A=ALERT[key];if(!A)return;
-  if(A.na){toast({src:'Alerts',tag:'NOT AVAILABLE',h:'Headline alerts for this card',s:A.tip,ms:9000});return}
   A.set(on);paintRem();
   if(on&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}} /* lets an alert reach you while this tab is in the background */
 }
 function toggleRem(){setAlert('cal',!remOn)}
-function notify(title,body){try{if(document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body:body})}catch(e){}}
+function notify(title,body){if(!masterOn)return;try{if(document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body:body})}catch(e){}}
 /* release alerts: the first time an actual appears for a high-impact release (within 45 min of the print), one alert per release with
    actual vs forecast vs previous and a line on what it usually means. A report with several rows (jobs, CPI) is one alert. */
 let relFired=[];try{relFired=JSON.parse(LS.g(KEY+'rel_fired','[]'))||[]}catch(e){}
@@ -1143,30 +1157,30 @@ setInterval(()=>{if(!document.hidden||remOn)nxtLoad()},15000); /* calGet itself 
 /* ---- cards ---- */
 const C={
   gex:{page:'tech',t:'nq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:326,ifhm:326,src:{
-    zg:{l:'ZeroGEX',u:'https://zerogex.io/nq-gamma-levels',r:gex('NQ')}}},
+    zg:{l:'ZeroGEX',r:gex('NQ')}}},
   gexq:{page:'tech',t:'qqq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:310,ifhm:286,src:{
-    zg:{l:'ZeroGEX',u:'https://zerogex.io/qqq-gamma-levels',r:gex('QQQ')}}},
+    zg:{l:'ZeroGEX',r:gex('QQQ')}}},
   econ:{page:'news',t:'economic calendar',alert:'cal',noexp:true,sp:7,h:640,hm:460,full:1100,fullm:1000,src:{
-    cal:{l:'Calendar',u:'https://www.forexfactory.com/calendar',r:cal},
-    mql:{l:'MQL5',u:'https://www.tradays.com/en/economic-calendar',r:mql},
-    tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
-  news:{page:'news',col:true,t:'news',alert:'news',noopen:true,sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
+    cal:{l:'Calendar',r:cal},
+    mql:{l:'MQL5',r:mql},
+    tv:{l:'TradingView',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
+  news:{page:'news',col:true,t:'news',alert:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',r:fjwire},
-    tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tvwc('tv-news-feed',{'news-type':'all',transparent:''},'TradingView news')}}},
-  wire:{page:'news',col:true,t:'walter bloomberg',alert:'wire',noopen:true,sp:5,h:320,hm:420,full:900,fullm:900,src:{
+    tv:{l:'TradingView',r:tvwc('tv-news-feed',{'news-type':'all',transparent:''},'TradingView news')}}},
+  wire:{page:'news',col:true,t:'walter bloomberg',alert:'wire',sp:5,h:320,hm:420,full:900,fullm:900,src:{
     tg:{l:'Walter Bloomberg',r:wire}}},
   earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
-    eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
+    eh:{l:'Earnings Hub',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
   look:{page:'tech',t:'ticker lookup',sp:8,h:460,hm:780,full:600,fullm:900,tb:true,stretch:true,noexp:true,src:{
-    ov:{l:'Overview',u:()=>'https://www.tradingview.com/symbols/'+sym+'/',r:overview},
-    ta:{l:'Technicals',u:()=>'https://www.tradingview.com/symbols/'+sym+'/technicals/',r:technicals}}},
+    ov:{l:'Overview',r:overview},
+    ta:{l:'Technicals',r:technicals}}},
   heat:{page:'heat',t:'market heatmap',sp:12,h:680,hm:560,full:900,fullm:800,src:{
-    all:{l:'All stocks',u:'https://finviz.com/map?t=sec_all&st=d1',r:finviz('sec_all','d34rloj8')},
-    tvall:{l:'All stocks \u00b7 TV',u:'https://www.tradingview.com/heatmap/stock/',r:tvwc('tv-heatmap',{'heatmap-type':'stock','data-source':'AllUSA',grouping:'sector','block-size':'market_cap_basic','block-color':'change'},'TradingView heatmap')},
-    sp:{l:'S&P 500',u:'https://finviz.com/map?t=sec&st=d1',r:finviz('sec','j43bn5fy')},
-    nq:{l:'Nasdaq 100',u:'https://finviz.com/map?t=sec_ndx&st=d1',r:finviz('sec_ndx','usevk757')},
-    fut:{l:'Futures',u:'https://finviz.com/map?t=futures&st=d1',r:finviz('futures','9ed4jtmk')},
-    th:{l:'Themes',u:'https://finviz.com/map?t=themes&st=d1',r:finviz('themes','6ide5n4x')}}}
+    all:{l:'All stocks',r:finviz('sec_all','d34rloj8')},
+    tvall:{l:'All stocks \u00b7 TV',r:tvwc('tv-heatmap',{'heatmap-type':'stock','data-source':'AllUSA',grouping:'sector','block-size':'market_cap_basic','block-color':'change'},'TradingView heatmap')},
+    sp:{l:'S&P 500',r:finviz('sec','j43bn5fy')},
+    nq:{l:'Nasdaq 100',r:finviz('sec_ndx','usevk757')},
+    fut:{l:'Futures',r:finviz('futures','9ed4jtmk')},
+    th:{l:'Themes',r:finviz('themes','6ide5n4x')}}}
 };
 const PAGES={news:$('#p-news'),tech:$('#p-tech'),earn:$('#p-earn'),heat:$('#p-heat')};
 const estUrl=()=>'https://www.estimize.com/'+encodeURIComponent(sym.toLowerCase());
@@ -1184,7 +1198,6 @@ for(const k in C){
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
     +'<div class="acts"><button class="topicon" data-a="r" aria-label="refresh" data-tt="refresh">'+I.refresh+'</button>'
     +(c.alert?'<button class="topicon al" data-a="al" aria-label="alerts" aria-pressed="false">'+I.belloff+'</button>':'')
-    +(c.noopen?'':'<button class="topicon" data-a="o" aria-label="open source" data-tt="open source">'+I.open+'</button>')
     +(c.noexp?'':'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand to full height">'+I.expand+'</button>')+'<button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse (or double-click the header)">'+I.fold+'</button></div></div>'
     +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button><a class="btn" id="est" target="_blank" rel="noopener" href="'+estUrl()+'">estimize '+I.open+'</a></form>':'')
     +'<div class="body"></div>';
@@ -1229,7 +1242,6 @@ document.addEventListener('click',e=>{
   const a=ab.dataset.a;
   if(a==='r')draw(k);
   if(a==='al')setAlert(c.alert,!(ALERT[c.alert]&&ALERT[c.alert].get&&ALERT[c.alert].get()));
-  if(a==='o'){const u=c.src[c.cur].u;window.open(typeof u=='function'?u():u,'_blank','noopener')}
   if(a==='f')setTall(k,!card.classList.contains('tall'));
   if(a==='c')setClosed(k,!card.classList.contains('closed'));
 });
@@ -1238,9 +1250,11 @@ document.addEventListener('dblclick',e=>{
   const b=e.target.closest('button,input,a');if(b&&!b.matches('[data-a="f"]'))return;
   setClosed(card.id,!card.classList.contains('closed'));
 });
-function resetPrefs(){
-  try{Object.keys(localStorage).filter(k=>k.indexOf(KEY)===0).forEach(k=>localStorage.removeItem(k))}catch(e){}
-  location.reload();
+let lastRefresh=0;
+function refreshAll(){ /* master refresh: re-requests every Worker-fed card; at most once per 5 s; never touches alert settings */
+  if(Date.now()-lastRefresh<5000)return;lastRefresh=Date.now();
+  calAt=0;calFailAt=0;loadMarket();nxtLoad();feedLoad();
+  for(const k in C)if(k==='cal'||k==='econ')draw(k);
 }
 
 /* ---- tooltips: one floating element on top of everything, mouse only, never on touch or mobile layout ---- */
@@ -1265,18 +1279,19 @@ $('.tb').addEventListener('submit',e=>{
   if(!v)return;sym=v;i.value=v;LS.s(KEY+'sym',v);$('#est').href=estUrl();draw('look');
 });
 
-/* ---- alert toasts + release card: MOCKS only (plan 4.1 and 3.10). Real alerts will come from the Worker. ---- */
+/* ---- alert toasts + release card. MOCKS feed only the long-press test on the master alerts button. ---- */
 const TOAST_MS=15000,TOAST_MAX=3;
 const MOCKS=[
-  {src:'X \u00b7 @DeItaone',tag:'NEW POST DETECTED',h:'Sample post headline appears here',s:'Test alert only. Live X alerts need a permitted free feed (plan 4.4).',u:'https://x.com/DeItaone'},
+  {src:'Walter Bloomberg',tag:'NEW POST',h:'Sample post headline appears here',s:'Test alert only.'},
   {src:'FinancialJuice',tag:'\u2757 ALERT',h:'US JOLTS JOB OPENINGS ACTUAL 7.523M (FORECAST 7.164M, PREVIOUS 7.079M) $MACRO',s:'Test alert only.'},
   {src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 RELEASE IN 5 MIN',h:'Initial Jobless Claims',s:'Forecast 194K \u00b7 previous 191K. Test alert only.',rel:true}
 ];
 let mockI=0;
 const toastBox=document.createElement('div');toastBox.id='toasts';document.body.appendChild(toastBox);
 function toast(a){
+  if(!masterOn&&!a.force)return;
   const el=document.createElement('div');el.className='toast';
-  el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><b class="src">'+esc(a.src)+'</b><div class="tag">'+esc(a.tag)+'</div><b>'+esc(a.h)+'</b><p>'+esc(a.s)+'</p>'+(a.rel?'<button class="rd">Read</button>':a.u?'<a href="'+esc(a.u)+'" target="_blank" rel="noopener">Read</a>':'');
+  el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><b class="src">'+esc(a.src)+'</b><div class="tag">'+esc(a.tag)+'</div><b>'+esc(a.h)+'</b><p>'+esc(a.s)+'</p>'+(a.rel?'<button class="rd">Read</button>':'');
   let t;const kill=()=>{clearTimeout(t);el.remove()};
   t=setTimeout(kill,a.ms||TOAST_MS);
   $('.x',el).onclick=kill;
@@ -1284,7 +1299,19 @@ function toast(a){
   toastBox.appendChild(el);
   while(toastBox.children.length>TOAST_MAX)toastBox.firstChild.remove();
 }
-function testAlert(){const m={...MOCKS[mockI++%MOCKS.length]};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
+function testAlert(){const m={...MOCKS[mockI++%MOCKS.length],force:1};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
+function paintMaster(){
+  const b=$('#master');if(!b)return;
+  const t=masterOn?'Alerts on. Click to mute every alert. Long-press to send a test alert':'ALERTS MUTED, nothing will pop up. Click to unmute';
+  b.innerHTML=(masterOn?I.bell:I.belloff)+(masterOn?'':'<span class="mb">muted</span>');
+  b.classList.toggle('muted',!masterOn);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
+}
+{const b=$('#master');let t=null,lp=false;
+  b.addEventListener('pointerdown',()=>{lp=false;clearTimeout(t);t=setTimeout(()=>{lp=true;testAlert()},600)});
+  ['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>clearTimeout(t)));
+  b.addEventListener('click',()=>{if(lp){lp=false;return}masterOn=!masterOn;LS.s(KEY+'master',masterOn?'1':'0');paintMaster();
+    if(masterOn&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}}});
+  b.addEventListener('contextmenu',e=>e.preventDefault());}
 const relBox=document.createElement('div');relBox.id='rel';relBox.hidden=true;document.body.appendChild(relBox);
 const closeRel=()=>{relBox.hidden=true};
 /* which scenario came true: 0 above forecast, 1 in line, 2 below. Rows with no forecast (auctions) compare with the previous figure. -1 until an actual exists. */
@@ -1323,16 +1350,11 @@ function showRelease(e){
   const loc=new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});
   const sib=(d.events||[]).filter(x=>x.k===e.k&&x.d===e.d&&x.src!=='feed'&&!x.hol);if(!sib.includes(e))sib.unshift(e);
   const rows=sib.map(x=>'<tr><td class="num">'+esc(x.title)+'</td><td class="num"><b class="'+acCls(x)+'">'+cell(x.ac)+'</b></td><td class="num">'+cell(x.fc)+'</td><td class="num">'+pvCell(x)+'</td></tr>').join('');
-  const ck=d.checked&&d.checked[e.k],srcUrl=d.sources&&d.sources[e.k];
-  let src;
+  let src='';
   if(e.src==='feed')src='<div class="src w">This event is only in the unofficial feed. It is not part of the official schedule and does not drive the countdown or reminders.</div>';
   else if(e.v==='rule')src='<div class="src w">Date derived from the usual pattern for '+esc(e.agency||'the agency')+'; the agency has not published this one yet. '+esc(e.n||'')+'</div>';
   else if(e.v==='check')src='<div class="src w">Date in doubt. '+esc(e.n||'')+'</div>';
-  else if(e.v==='ref')src='<div class="src">Date and time from the reference calendar you supplied (14 Nov), not yet compared with the '+esc(e.agency||'agency')+' page.'+(srcUrl?' <a href="'+esc(srcUrl)+'" target="_blank" rel="noopener">source</a>':'')+(e.n?' '+esc(e.n):'')+'</div>';
-  else src='<div class="src">Date and time from the official '+esc(e.agency||'')+' schedule'+(ck?', checked '+esc(fmtIso(ck)):'')+'.'+(srcUrl?' <a href="'+esc(srcUrl)+'" target="_blank" rel="noopener">source</a>':'')+(e.n?' '+esc(e.n):'')+'</div>';
   const flag=e.flag?'<div class="src w">The provider disagrees: '+esc(e.flag)+'. The schedule above is what the countdown uses. Check the agency page.</div>':'';
-  const used=[...new Set(sib.flatMap(x=>Object.values(x.sr||{})))].map(x=>SRN[x]||x);
-  const nums='<div class="src">'+(used.length?'Numbers from: '+esc(used.join(', '))+'.':'No forecast or actual is connected for this event yet.')+'</div>';
   let sc='';
   if(fam){
     const hit=scenIdx(e),lbl=fam.lbl||['If above forecast','If in line','If below forecast'];
@@ -1346,15 +1368,16 @@ function showRelease(e){
     '<h3 class="'+hd.c+'">'+esc(hd.h)+'</h3><div class="relt">'+esc(etDayL(e.t))+', '+etClock(e.t)+' ET · '+esc(loc)+' (your time)'+(e.pd&&k&&k.np?' · '+esc(e.pd):'')+'</div>'+got
     +'<table><tr><th>Event</th><th>Actual</th><th>Forecast</th><th>Previous</th></tr>'+rows+'</table>'
     +(k?'<h4>What it is</h4><p>'+esc(k.what)+'</p><h4>Why it matters</h4><p>'+esc(k.why)+'</p>':'')
-    +sc+(k?'<h4>What to watch</h4><p>'+esc(k.watch)+'</p>':'')+bk+nums+src+flag
-    +'<p class="relf">The explanations are typical reactions written by hand, not predictions and not AI. Real moves depend on positioning and the details of the report. Green and red follow the reference calendar: green above forecast, red below, reversed for claims, unemployment and crude stocks.</p>');
+    +sc+(k?'<h4>What to watch</h4><p>'+esc(k.watch)+'</p>':'')+bk+src+flag
+    +'<p class="relf">Not financial advice.</p>');
 }
 function showAudit(d){
   const a=d.audit||{},c=a.counts,iss=(a.issues||[]).map(i=>'<li class="'+esc(i.lvl)+'">'+esc(i.msg)+'</li>').join('');
-  const src=Object.entries(d.sources||{}).filter(([k],i,arr)=>arr.findIndex(x=>x[1]===d.sources[k])===i).map(([k,u])=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(u.replace(/^https?:\/\/(www\.)?/,'').split('/')[0])+'</a>').join(' · ');
+  const src=Object.entries(d.sources||{}).filter(([k],i,arr)=>arr.findIndex(x=>x[1]===d.sources[k])===i).map(([k,u])=>esc(u.replace(/^https?:\/\/(www\.)?/,'').split('/')[0])).join(' · ');
   relShell('Schedule check',
     '<h3 class="'+(a.status==='ok'?'g':a.status==='error'?'b':'')+'">'+(a.status==='ok'?'No problems found':a.status==='unk'?'Not audited (the Worker was not reached)':a.nIssues+' note'+(a.nIssues===1?'':'s')+(a.status==='error'?', including errors':''))+'</h3>'
     +'<div class="relt">'+(a.total||0)+' scheduled releases, '+fmtIso(a.first)+' to '+fmtIso(a.horizon)+(a.checked?' · oldest check '+fmtIso(a.checked):'')+'</div>'
+    +'<h4>Status</h4><p>'+esc([provTxt(d),skewTxt()].filter(Boolean).join(' · ')||'No notes.')+'</p><p class="relf">Actual colours: green above forecast, red below; reversed for claims, unemployment and crude stocks. Cell tooltips show where each number came from.</p>'
     +(c?'<p>'+c.official+' dates read from agency pages · '+(c.ref||0)+' from the reference calendar · '+c.rule+' derived from the agency’s usual pattern · '+c.check+' in doubt.</p>':'')
     +(iss?'<ul class="iss">'+iss+'</ul>':'')
     +'<h4>What is checked</h4><p>On every load the Worker re-checks the file: no weekend or federal-holiday dates, the right time for each release type, no missing or doubled weeks and months, FOMC spacing, minutes three weeks after each decision, how long ago each type was checked, and how far ahead the file runs. When the unofficial feed answers, its dates and times are compared with the schedule too. A device-clock check runs against the Worker’s clock'+(Math.abs(clkOff)>2000?' (yours is off by '+(Math.abs(clkOff)/1000).toFixed(0)+' s and is corrected)':' (yours agrees to within 2 s)')+'.</p>'
@@ -1364,7 +1387,7 @@ function showAudit(d){
 relBox.addEventListener('click',e=>{if(e.target===relBox)closeRel()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRel()});
 
-paintTheme();applyLayout();paintCached();showPage(tab);for(const k in C)paintCard(k);loadMarket();nxtLoad();nxtPaint();clkPaint();lclkPaint();paintRem();paintFreeze();
+paintTheme();applyLayout();paintCached();showPage(tab);for(const k in C)paintCard(k);loadMarket();nxtLoad();nxtPaint();clkPaint();lclkPaint();paintRem();paintMaster();paintFreeze();
 </script>
 </body>
 </html>
