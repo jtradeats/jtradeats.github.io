@@ -159,8 +159,8 @@ test('dates in the formats Treasury uses', () => {
 });
 
 test('TreasuryDirect announced list: only 10-year notes and 30-year bonds still to come', () => {
-  assert.deepEqual(parseTreasuryJson(TD_NOTE, TODAY), [{ k: 'auc10', d: '2026-12-08' }]);
-  assert.deepEqual(parseTreasuryJson(TD_BOND, TODAY), [{ k: 'auc30', d: '2026-12-10' }]);
+  assert.deepEqual(parseTreasuryJson(TD_NOTE, TODAY).map(({ k, d }) => ({ k, d })), [{ k: 'auc10', d: '2026-12-08' }]);
+  assert.deepEqual(parseTreasuryJson(TD_BOND, TODAY).map(({ k, d }) => ({ k, d })), [{ k: 'auc30', d: '2026-12-10' }]);
   assert.deepEqual(parseTreasuryJson({ error: 'x' }, TODAY), []);
 });
 
@@ -363,4 +363,34 @@ test('FRED: a failed request (bad key, blocked, not JSON) fails every kind witho
   }
   assert.equal(parseFredDates({}).length, 0);
   assert.match(FRED_URL('a b', '2026-11-15'), /api_key=a%20b/);
+});
+
+
+// ---- Treasury false positives: a TIPS reopening ("9-Year 11-Month") must never read as the 10-year note ----
+test('Treasury: TIPS and floating-rate auctions are ignored whatever the field that says so, and two dates in one month are not applied', () => {
+  const rows = [
+    { securityType: 'Note', securityTerm: '10-Year', auctionDate: '2026-12-08T00:00:00' },
+    { securityType: 'Note', securityTerm: '9-Year 11-Month', tips: 'Yes', auctionDate: '2026-11-19T00:00:00' },
+    { securityType: 'Note', securityTerm: '9-Year 11-Month', inflationIndexSecurity: 'Yes', auctionDate: '2026-12-17T00:00:00' },
+    { securityType: 'TIPS', securityTerm: '9-Year 11-Month', auctionDate: '2026-12-18T00:00:00' },
+    { securityType: 'Bond', securityTerm: '30-Year', auctionDate: '2026-12-10T00:00:00' },
+  ];
+  const r = parseTreasuryJson(rows, '2026-11-16');
+  assert.deepEqual(r.map(x => [x.k, x.d]), [['auc10', '2026-12-08'], ['auc30', '2026-12-10']]);
+});
+
+test('Treasury: a second 10-year date in the same month (an unflagged TIPS reopening) is reported and neither date is applied', async () => {
+  const get = async u => (/type=Note/.test(u) ? JSON.stringify([
+    { securityType: 'Note', securityTerm: '10-Year', auctionDate: '2026-12-08' }, { securityType: 'Note', securityTerm: '9-Year 11-Month', auctionDate: '2026-12-17' }]) : /type=Bond/.test(u) ? '[]' : (() => { throw new Error('HTTP 404 from home.treasury.gov'); })());
+  const o = await runTreasury({ get, IND, now: NOW, prev: null });
+  assert.ok(o.k.auc10.rejected.some(x => /two .* dates in one month/.test(x.why)));
+  assert.ok(!o.k.auc10.lines.some(l => l.d.startsWith('2026-12')));
+  assert.ok(o.debug.announced.length === 2);
+});
+
+test('a release that already happened is never moved: a later date in the same month is a different release', () => {
+  const treasury = { at: NOW, day: '2026-11-16', ok: true, err: null, k: { auc10: { at: NOW, ok: true, n: 1, lines: [{ d: '2026-11-19', t: '13:00', k: 'auc10' }], seen: [], rejected: [], prune: null } } };
+  const m = eff(rec({ treasury }), '2026-11-16');
+  assert.equal(line(m, 'auc10', undefined) && m.releases.find(r => r.k === 'auc10' && r.d.startsWith('2026-11')).d, '2026-11-10');
+  assert.equal(m.stats.updated, 0);
 });
