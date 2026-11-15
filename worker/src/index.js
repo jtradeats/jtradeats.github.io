@@ -8,7 +8,7 @@ import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
 import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, applyOfficial } from './official.js';
-import { SYNC_KEY, runBls, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
+import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
@@ -450,6 +450,14 @@ async function runSyncSource(name, env) {
       // bls.gov answered 403 to the browser-style User-Agent (15 Nov). BLS asks automated clients to say who they are, so when BLS_CONTACT (an e-mail) is set it is sent in the User-Agent.
       const h = env && env.BLS_CONTACT ? { 'User-Agent': `market-dashboard/1.0 (schedule check; ${env.BLS_CONTACT})`, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' } : {};
       out = await runBls({ get: u => get(u, h, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+      // Fallback: where the BLS page could not be read, the dates come from the FRED release calendar (needs the secret FRED_KEY; see runFred).
+      const bad = Object.entries(out.k).filter(([, x]) => !(x.ok && x.at === now)).map(([kind]) => kind);
+      if (bad.length && env && env.FRED_KEY) {
+        const f = await runFred({ get: u => get(u, { Accept: 'application/json' }, SYNC_TIMEOUT), key: env.FRED_KEY, kinds: bad, IND: INDICATORS, base: SCHEDULE.releases, now, prev });
+        Object.assign(out.k, f.k);
+        out.ok = Object.values(out.k).some(x => x.ok && x.at === now);
+        out.err = Object.values(out.k).filter(x => !(x.ok && x.at === now)).length ? [out.err, f.err].filter(Boolean).join(' || ').slice(0, 300) : null;
+      }
     }
     else if (name === 'treasury') out = await runTreasury({ get: u => get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
     else if (name === 'provider') out = runProvider({ feeds: await gatherProvider(env), base: SCHEDULE.releases, IND: INDICATORS, now, prev });
