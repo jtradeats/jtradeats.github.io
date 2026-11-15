@@ -64,24 +64,25 @@ function holidaySet(from, to) {
   return m;
 }
 
-const eventTitle = (ind, r) => {
-  const p = r.p ? (/^Q\d/.test(r.p) ? ' ' + r.p : ' (' + r.p + ')') : '';
-  return (ind ? ind.name : r.k) + p;
-};
-
-// Schedule lines -> events, sorted. Lines with an unknown kind or a bad date/time are skipped here and reported by audit().
+// Schedule lines -> events (one per row of the kind), sorted. Lines with an unknown kind or a bad date/time are skipped here and reported by audit().
+// A line for the jobs report expands into payrolls, unemployment and earnings; a rate decision into decision, statement and press conference.
 export function expand(SCHED, IND) {
-  const out = [];
-  for (const r of SCHED.releases || []) {
-    const ind = IND.kinds[r.k], t = etToMs(`${r.d}T${r.t}`);
-    if (!ind || t == null) continue;
-    out.push({
-      t, k: r.k, title: eventTitle(ind, r), imp: r.i || ind.imp, agency: ind.agency,
-      v: r.v || 'official', n: r.n || null, pd: r.p || null, d: r.d, src: 'schedule',
-      fc: null, pv: null, ac: null,
+  const out = [], order = Object.keys(IND.kinds);
+  (SCHED.releases || []).forEach((r, li) => {
+    const ind = IND.kinds[r.k], t0 = etToMs(`${r.d}T${r.t}`);
+    if (!ind || t0 == null) return;
+    (ind.rows || [{ id: 'main', t: ind.name, u: '' }]).forEach((row, ri) => {
+      const title = r.ti || (row.t + (ind.np || !r.p ? '' : (/^Q\d$/.test(r.p) ? ' (' + r.p + ')' : ' (' + r.p + ')')));
+      out.push({
+        id: `${r.k}|${r.d}|${row.id}`, t: t0 + (row.off || 0) * 60000, k: r.k, r: row.id, title, imp: r.i ?? row.imp ?? ind.imp, agency: ind.agency,
+        v: r.v || 'official', n: r.n || null, pd: r.p || null, d: r.d, src: 'schedule', fc: null, pv: null, ac: null,
+        u: row.u || '', dir: row.dir || ind.dir || 'none', fam: row.fam || ind.fam || null, ic: row.ic || null,
+        pre: r.pre ? 1 : 0, ad: r.ad || 0, hol: ind.hol ? 1 : 0, _o: order.indexOf(r.k) * 100 + ri, _l: li,
+      });
     });
-  }
-  out.sort((a, b) => a.t - b.t || a.title.localeCompare(b.title));
+  });
+  out.sort((a, b) => a.t - b.t || a._o - b._o || a._l - b._l);
+  for (const e of out) { delete e._o; delete e._l; }
   return out;
 }
 
@@ -112,11 +113,14 @@ export function audit(SCHED, IND, nowMs) {
     seen.add(key);
     (byKind[r.k] = byKind[r.k] || []).push(r);
     const w = dowOf(r.d);
-    if (w === 0 || w === 6) add('error', 'weekend', `${id} falls on a ${DOW[w]}.`, { k: r.k, d: r.d });
-    if (hol.has(r.d)) add('error', 'holiday', `${id} falls on a federal holiday (${hol.get(r.d)}).`, { k: r.k, d: r.d });
-    if (r.t !== ind.time) add('error', 'time', `${id}: time is ${r.t} ET but ${r.k} normally releases at ${ind.time} ET.`, { k: r.k, d: r.d });
-    if (ind.dow && !ind.dow.includes(w)) add('warn', 'dow', `${id} is a ${DOW[w]}; ${r.k} is normally ${ind.dow.map(x => DOW[x]).join(' or ')}.`, { k: r.k, d: r.d });
-    if (r.k === 'claims' && w !== 4 && !hol.has(addDays(r.d, 1))) add('warn', 'claims_day', `${id}: claims are released on Thursday unless Thursday is a federal holiday.`, { k: r.k, d: r.d });
+    if (!ind.free) {   // speeches, holidays and strategy meetings have no fixed time or weekday pattern
+      if (w === 0 || w === 6) add('error', 'weekend', `${id} falls on a ${DOW[w]}.`, { k: r.k, d: r.d });
+      if (hol.has(r.d)) add('error', 'holiday', `${id} falls on a federal holiday (${hol.get(r.d)}).`, { k: r.k, d: r.d });
+      const okTimes = [ind.time].concat(ind.alt || []);
+      if (!okTimes.includes(r.t)) add('error', 'time', `${id}: time is ${r.t} ET but ${r.k} normally releases at ${ind.time} ET.`, { k: r.k, d: r.d });
+      if (ind.dow && !ind.dow.includes(w)) add('warn', 'dow', `${id} is a ${DOW[w]}; ${r.k} is normally ${ind.dow.map(x => DOW[x]).join(' or ')}.`, { k: r.k, d: r.d });
+      if (r.k === 'claims' && w !== 4 && !hol.has(addDays(r.d, 1))) add('warn', 'claims_day', `${id}: claims are released on Thursday unless Thursday is a federal holiday.`, { k: r.k, d: r.d });
+    }
     if (r.v === 'check') add('warn', 'unconfirmed', `${id}: ${r.n || 'marked as doubtful in schedule.json.'}`, { k: r.k, d: r.d });
     else if (r.v === 'rule' && r.d >= today && daysBetween(today, r.d) <= 14) add('warn', 'rule_soon', `${id} is only derived from the agency's usual pattern and is within 14 days. Confirm it on the agency's page.`, { k: r.k, d: r.d });
   }
@@ -155,7 +159,7 @@ export function audit(SCHED, IND, nowMs) {
     }
   }
   // minutes follow the decision by three weeks
-  const fomcDays = new Set((byKind.fomc || []).map(r => r.d));
+  const fomcDays = new Set((byKind.fomc || []).concat(byKind.fomc_s || []).map(r => r.d));
   for (const r of byKind.minutes || []) {
     const dec = addDays(r.d, -21);
     if (!fomcDays.has(dec) && dec >= first) add('warn', 'minutes', `minutes ${r.d}: no FOMC decision listed on ${dec}, three weeks earlier.`, { k: 'minutes', d: r.d });
@@ -164,10 +168,10 @@ export function audit(SCHED, IND, nowMs) {
   // 4. freshness and horizon per kind
   for (const k of Object.keys(IND.kinds)) {
     const list = byKind[k] || [], checked = (SCHED.checked || {})[k];
-    if (!list.length) { add('error', 'empty', `${k}: nothing in schedule.json.`, { k }); continue; }
+    if (!list.length) { if (!IND.kinds[k].free) add('error', 'empty', `${k}: nothing in schedule.json.`, { k }); continue; }
     const ahead = list.filter(r => r.d >= today).map(r => r.d).sort();
-    if (!ahead.length) add('error', 'ended', `${k}: no future release left in schedule.json. Refresh the file.`, { k });
-    else if (daysBetween(today, ahead[ahead.length - 1]) < 45) add('warn', 'horizon', `${k}: schedule runs out on ${ahead[ahead.length - 1]}. Refresh the file soon.`, { k });
+    if (!ahead.length) { if (!IND.kinds[k].free) add('error', 'ended', `${k}: no future release left in schedule.json. Refresh the file.`, { k }); }
+    else if (!IND.kinds[k].free && daysBetween(today, ahead[ahead.length - 1]) < (IND.kinds[k].hz || 45)) add('warn', 'horizon', `${k}: schedule runs out on ${ahead[ahead.length - 1]}. Refresh the file soon.`, { k });
     if (!checked) add('warn', 'unchecked', `${k}: no "checked" date, so nobody has confirmed it against the agency page.`, { k });
     else {
       const age = daysBetween(checked, today);
@@ -176,8 +180,8 @@ export function audit(SCHED, IND, nowMs) {
     }
   }
 
-  const counts = { official: 0, rule: 0, check: 0 };
-  rel.forEach(r => { counts[r.v === 'rule' ? 'rule' : r.v === 'check' ? 'check' : 'official']++; });
+  const counts = { official: 0, ref: 0, rule: 0, check: 0 };
+  rel.forEach(r => { counts[r.v === 'rule' ? 'rule' : r.v === 'check' ? 'check' : r.v === 'ref' ? 'ref' : 'official']++; });
   const order = { error: 0, warn: 1, info: 2 };
   issues.sort((a, b) => order[a.lvl] - order[b.lvl]);
   const status = issues.some(i => i.lvl === 'error') ? 'error' : issues.some(i => i.lvl === 'warn') ? 'check' : 'ok';
@@ -186,57 +190,131 @@ export function audit(SCHED, IND, nowMs) {
     checked: checkedDates[0] || null, checkedNewest: checkedDates[checkedDates.length - 1] || null };
 }
 
-// ---- optional feed (Fair Economy / Forex Factory): forecast and previous, plus an independent check on dates and times ----
-const rx = (IND, k) => (IND.kinds[k].match || []).map(s => new RegExp(s, 'i'));
-export function feedKind(IND, title) {   // -> [kind, priority] or null
-  for (const k of Object.keys(IND.kinds)) {
-    const list = rx(IND, k);
-    for (let i = 0; i < list.length; i++) if (list[i].test(title)) return [k, i];
+// ---- optional providers: forecast, previous and (where the provider has them) actual values, plus an independent check on dates and times ----
+// Providers are unofficial or licensed third parties. Their rows are normalised to { t, title, imp, fc, pv, ac } and tied to a schedule row by title.
+const RXC = new WeakMap();
+function rowRx(IND) {
+  let c = RXC.get(IND);
+  if (!c) {
+    c = [];
+    for (const [k, ind] of Object.entries(IND.kinds)) for (const row of ind.rows || []) for (const m of row.match || []) c.push({ k, r: row.id, rx: new RegExp(m, 'i') });
+    RXC.set(IND, c);
   }
-  return null;
+  return c;
+}
+export function candidates(IND, title) { return rowRx(IND).filter(x => x.rx.test(title)).map(x => ({ k: x.k, r: x.r })); }
+
+// Fair Economy / Forex Factory weekly JSON (no key, no actuals, rate-limits shared Cloudflare IPs)
+export function normFair(rows) {
+  const out = [];
+  for (const r of rows || []) {
+    const t = Date.parse(r.date);
+    if (r.country !== 'USD' || !t || (r.impact !== 'High' && r.impact !== 'Medium')) continue;
+    out.push({ t, title: String(r.title).slice(0, 80), imp: r.impact === 'High' ? 3 : 2, fc: r.forecast || null, pv: r.previous || null, ac: r.actual || null });
+  }
+  return out.sort((a, b) => a.t - b.t);
 }
 
-// feed: [{t, title, imp, fc, pv, ac}] (USD high+medium). Returns { events, issues, matched }. Never throws on odd rows.
-export function overlay(events, feed, IND, nowMs) {
-  const evs = events.map(e => ({ ...e })), issues = [];
+// Financial Modeling Prep /stable/economic-calendar (free key). Documented fields: date (UTC, "YYYY-MM-DD HH:MM:SS"), country, event, previous, estimate, actual, impact, unit.
+// The mapping is tolerant of other common names so that a similar provider can be swapped in; check /calendar?debug=1 after connecting.
+export function normFmp(rows) {
+  const out = [];
+  const num = v => (v === null || v === undefined || v === '' ? null : v);
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const c = String(r.country || '').toUpperCase();
+    if (c && c !== 'US' && c !== 'USD') continue;
+    const ds = String(r.date || r.datetime || '');
+    const t = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(ds) ? ds.replace(' ', 'T') : ds.replace(' ', 'T') + 'Z');
+    const title = String(r.event || r.title || r.name || '').slice(0, 80);
+    if (!Number.isFinite(t) || !title) continue;
+    const im = String(r.impact ?? r.importance ?? '').toLowerCase();
+    out.push({ t, title, imp: im === 'high' || im === '3' ? 3 : im === 'medium' || im === '2' ? 2 : 1,
+      fc: num(r.estimate ?? r.forecast ?? r.consensus), pv: num(r.previous), ac: num(r.actual), unit: r.unit || null });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+const trim = (x, dp) => String(+x.toFixed(dp));
+// a provider number -> the text the calendar shows ("0.4%", "189K", "-0.865M"), using the row's unit
+export function fmtVal(v, u) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'string') return v.trim() || null;
+  if (!Number.isFinite(v)) return null;
+  if (u === '%') return trim(v, 3) + '%';
+  if (u === 'K') return (Math.abs(v) >= 10000 ? trim(v / 1000, 1) : trim(v, 1)) + 'K';
+  if (u === 'M') return (Math.abs(v) >= 100000 ? trim(v / 1e6, 3) : trim(v, 3)) + 'M';
+  return trim(v, 3);
+}
+
+// feeds: [{ name, rows }] lowest priority first (a later feed overwrites a field only when it has a value).
+// events: schedule events inside the window. Returns { events, issues, matched, extras, unmatched }. Never throws on odd rows.
+export function overlay(events, feeds, IND, nowMs) {
+  const evs = events.map(e => ({ ...e })), issues = [], unmatched = [];
   const today = etParts(nowMs).iso, lim = addDays(today, 21);
-  const byKey = new Map();   // kind|ET date -> schedule event
-  for (const e of evs) byKey.set(`${e.k}|${e.d}`, e);
-  const hits = new Map();    // schedule event -> [{pri, row}]
-  const extras = [];
-  for (const row of feed || []) {
-    if (!row || !Number.isFinite(row.t)) continue;
-    const p = etParts(row.t), kk = feedKind(IND, row.title || '');
-    if (!kk) {
-      if (p.iso >= today && p.iso <= lim && row.t > nowMs - 36e5) extras.push({ t: row.t, k: 'feed', title: row.title, imp: row.imp, agency: null, v: 'feed', n: 'Only in the unofficial feed. Not part of the official schedule, so it does not drive the countdown.',
-        pd: null, d: p.iso, src: 'feed', fc: row.fc || null, pv: row.pv || null, ac: row.ac || null });
-      continue;
-    }
-    const [k, pri] = kk, ev = byKey.get(`${k}|${p.iso}`);
-    if (!ev) {
-      // the feed has this release on a day the schedule does not: either the schedule moved or the feed is wrong
-      if (p.iso >= today && p.iso <= lim && row.imp === 3) {
-        const near = evs.find(e => e.k === k && e.t >= nowMs - DAY && Math.abs(daysBetween(e.d, p.iso)) <= 3);
-        issues.push({ lvl: 'warn', code: 'feed_date', k, d: p.iso,
-          msg: `Feed lists "${row.title}" on ${p.iso} ${p.hm} ET${near ? `, schedule has ${near.d} ${near.title}` : ', schedule has nothing near that date'}. One of them is wrong: check the agency page.` });
-        if (near) near.flag = `feed says ${p.iso} ${p.hm} ET`;
+  const byId = new Map(evs.map(e => [e.id, e]));
+  const extras = [], hit = new Set(), seenX = new Set();
+  for (const feed of feeds || []) {
+    for (const row of feed.rows || []) {
+      if (!row || !Number.isFinite(row.t)) continue;
+      const p = etParts(row.t), title = row.title || '', cands = candidates(IND, title);
+      const c = cands.find(x => byId.has(`${x.k}|${p.iso}|${x.r}`));
+      if (!c) {
+        if (cands.length) {
+          // the provider has this release on a day the schedule does not: either the schedule moved or the provider is wrong
+          if (p.iso >= today && p.iso <= lim && row.imp === 3 && !seenX.has('d' + title + p.iso)) {
+            seenX.add('d' + title + p.iso);
+            const near = evs.find(e => e.k === cands[0].k && e.t >= nowMs - DAY && Math.abs(daysBetween(e.d, p.iso)) <= 3);
+            issues.push({ lvl: 'warn', code: 'feed_date', k: cands[0].k, d: p.iso,
+              msg: `${feed.name} lists "${title}" on ${p.iso} ${p.hm} ET${near ? `, schedule has ${near.d} ${near.title}` : ', schedule has nothing near that date'}. One of them is wrong: check the agency page.` });
+            if (near) near.flag = `${feed.name} says ${p.iso} ${p.hm} ET`;
+          }
+        } else {
+          if (row.imp === 3) unmatched.push(title);
+          if (p.iso >= today && p.iso <= lim && row.imp === 3 && row.t > nowMs - 36e5 && !seenX.has('x' + title + row.t)) {
+            seenX.add('x' + title + row.t);
+            extras.push({ id: `feed|${row.t}|${title}`, t: row.t, k: 'feed', r: 'x', title, imp: 3, agency: null, v: 'feed', pd: null, d: p.iso, src: 'feed', u: '', dir: 'none', fam: null, ic: null, pre: 0, ad: 0, hol: 0,
+              n: `Only in ${feed.name}. Not part of the official schedule, so it does not drive the countdown.`, fc: fmtVal(row.fc, ''), pv: fmtVal(row.pv, ''), ac: fmtVal(row.ac, '') });
+          }
+        }
+        continue;
       }
-      continue;
-    }
-    (hits.get(ev) || hits.set(ev, []).get(ev)).push({ pri, row, p });
-  }
-  let matched = 0;
-  for (const [ev, list] of hits) {
-    list.sort((a, b) => a.pri - b.pri);
-    const top = list[0];
-    ev.fc = top.row.fc || null; ev.pv = top.row.pv || null; ev.ac = top.row.ac || null;
-    ev.sub = list.slice(1, 5).map(x => ({ title: x.row.title, fc: x.row.fc || null, pv: x.row.pv || null, ac: x.row.ac || null }));
-    matched++;
-    const dt = Math.round((top.row.t - ev.t) / 60000);
-    if (dt !== 0 && Math.abs(dt) < 24 * 60) {
-      ev.flag = `feed says ${top.p.hm} ET, schedule says ${etParts(ev.t).hm} ET`;
-      issues.push({ lvl: 'warn', code: 'feed_time', k: ev.k, d: ev.d, msg: `${ev.title} on ${ev.d}: feed says ${top.p.hm} ET but the schedule says ${etParts(ev.t).hm} ET. Check the agency page.` });
+      const ev = byId.get(`${c.k}|${p.iso}|${c.r}`);
+      hit.add(ev.id);
+      for (const f of ['fc', 'pv', 'ac']) {
+        const v = fmtVal(row[f], ev.u);
+        if (v !== null) { ev[f] = v; (ev.sr = ev.sr || {})[f] = feed.name; }
+      }
+      const dt = Math.round((row.t - ev.t) / 60000);
+      if (dt !== 0 && Math.abs(dt) < 24 * 60 && !ev.ad && !(IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).off) {
+        ev.flag = `${feed.name} says ${p.hm} ET, schedule says ${etParts(ev.t).hm} ET`;
+        issues.push({ lvl: 'warn', code: 'feed_time', k: ev.k, d: ev.d, msg: `${ev.title} on ${ev.d}: ${feed.name} says ${p.hm} ET but the schedule says ${etParts(ev.t).hm} ET. Check the agency page.` });
+      }
     }
   }
-  return { events: evs.concat(extras).sort((a, b) => a.t - b.t), issues, matched, extras: extras.length };
+  return { events: evs.concat(extras).sort((a, b) => a.t - b.t), issues, matched: hit.size, extras: extras.length, unmatched: [...new Set(unmatched)].slice(0, 20) };
+}
+
+// hand-typed numbers (worker/config/results.json) win over the providers for the fields they define
+export function applyResults(events, RES) {
+  const rows = (RES && RES.rows) || {};
+  let n = 0;
+  for (const e of events) {
+    const x = rows[e.id];
+    if (!x) continue;
+    n++;
+    for (const f of ['fc', 'pv', 'ac']) if (x[f] != null && x[f] !== '') { e[f] = x[f]; (e.sr = e.sr || {})[f] = 'ref'; }
+    if (x.pvc) e.pvc = x.pvc;
+  }
+  return n;
+}
+
+// "previous" with nothing better: the actual of the release before it (not revised, so labelled as carried over)
+export function chainPrevious(events) {
+  const last = new Map();
+  for (const e of events) {
+    if (e.hol || e.src === 'feed') continue;
+    const key = e.k + '|' + e.r, prev = last.get(key);
+    if (e.pv == null && prev && prev.ac != null) { e.pv = prev.ac; (e.sr = e.sr || {}).pv = 'last release'; }
+    last.set(key, e);
+  }
 }
