@@ -9,3 +9,5 @@ id = "101bd0442c804018a9880d7d4685621d"
 # Phase 3 and 4 (one dispatcher, not yet used):
 # [triggers]
 # crons = ["* * * * *"]
+# Secrets (not stored in this file): add FMP_KEY in the Cloudflare dashboard (Settings > Variables and Secrets > Secret).
+# It enables actual/forecast/previous from Financial Modeling Prep. Without it the calendar still works (schedule + results.json).
