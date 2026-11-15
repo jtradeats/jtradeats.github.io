@@ -180,8 +180,8 @@ export function audit(SCHED, IND, nowMs) {
     }
   }
 
-  const counts = { official: 0, ref: 0, rule: 0, check: 0 };
-  rel.forEach(r => { counts[r.v === 'rule' ? 'rule' : r.v === 'check' ? 'check' : r.v === 'ref' ? 'ref' : 'official']++; });
+  const counts = { official: 0, ref: 0, rule: 0, check: 0, tent: 0, prov: 0 };   // tent = tentative date published by the agency (Treasury); prov = date from a calendar provider
+  rel.forEach(r => { counts[r.v === 'rule' ? 'rule' : r.v === 'check' ? 'check' : r.v === 'ref' ? 'ref' : r.v === 'tent' ? 'tent' : r.v === 'prov' ? 'prov' : 'official']++; });
   const order = { error: 0, warn: 1, info: 2 };
   issues.sort((a, b) => order[a.lvl] - order[b.lvl]);
   const status = issues.some(i => i.lvl === 'error') ? 'error' : issues.some(i => i.lvl === 'warn') ? 'check' : 'ok';
