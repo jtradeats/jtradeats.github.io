@@ -22,3 +22,12 @@ Imports from `../config/` stay inside `worker/` so the build works whichever way
 - `GET /calendar?debug=1` shows each provider's raw sample and `unmatched` titles. `/health` shows `calendar.fmp`.
 - Tests: `node --test worker/test/calendar.test.mjs`.
 - KV writes (worst case a day): market 480, calendar feed 48, DeItaone snapshot 96, FinancialJuice snapshot 96, FMP at most 144: about 864 of 1,000. (Plan D79's 5-minute market snapshot, not built yet, would take market to 288.)
+
+## Schedule sync (plan P2, P3)
+- `src/schedule_sync.js`: pure code for the nightly sync (parsers, merge, change log, status). `test/schedule_sync.test.mjs` tests it: `node --test test/schedule_sync.test.mjs`.
+- Three daily Cron Triggers (`wrangler.toml`, UTC 09:20 / 09:30 / 09:40): **BLS** release pages (CPI, jobs report, PPI, JOLTS), **Treasury** (TreasuryDirect announced auctions plus Treasury's tentative auction schedule), **provider** look-ahead (FMP and Fair Economy dates for PMIs, ADP, retail sales and similar). Each source is its own run, so each has its own CPU budget.
+- The result lives in KV (`schedule:synced`) and is merged over `config/schedule.json` on every load. `schedule.json` stays the baseline and the fallback; nothing is written back to it.
+- Lines carry a tier in `v`: omitted = agency page, `tent` = agency, tentative (Treasury), `prov` = calendar provider, `ref`, `rule`, `check` as before. A synced line replaces a line of equal or lower tier (check < rule < ref = prov < tent < agency).
+- `config/indicators.json`: each kind has a `sync` setting (`bls`, `treasury`, `provider`). Kinds without it (Fed meetings, minutes, speeches, GDP, holidays) stay file-driven.
+- `GET /sync` shows the state (read only); `/sync?debug=1` adds the samples kept when a source could not be read. `/health.sync` and `/calendar` carry a short status too. If a source is overdue (36 h) the next `/calendar` request starts it in the background.
+- No new secret. `FMP_KEY` (already described above) switches the provider look-ahead on beyond the Fair Economy files.
