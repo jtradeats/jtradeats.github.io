@@ -1,5 +1,5 @@
 {
- "_note": "What each release kind is. kinds[k].rows lists the rows the calendar shows for one schedule line (t = title, u = unit, dir = how to colour and read a surprise: grow, infl (both green when above forecast), inv (claims and unemployment: above forecast shows red), oil (crude: above forecast shows red), none; fam = which scenario family explains it; match = regular expressions that tie a provider event to the row; ic = icon (doc, mic); off = minutes after the schedule line's time). Kind fields: name, title, agency, imp (3 high, 2 medium, 0 holiday), time = usual New York time (alt = other times that are fine), per = m monthly, w weekly, q8 eight a year, none = not audited for cadence, hz = days of schedule left before the audit warns (default 45), np = leave the period out of the title, free = no time/day checks. fams holds the hand-written 'what to expect' text for each family. The text fields are fixed plain-English explainers written by hand: not generated and not live. They describe typical reactions, not predictions.",
+ "_note": "What each release kind is. kinds[k].rows lists the rows the calendar shows for one schedule line (t = title, u = unit, dir = how to colour and read a surprise: grow, infl (both green when above forecast), inv (claims and unemployment: above forecast shows red), oil (crude: above forecast shows red), none; fam = which scenario family explains it; match = regular expressions that tie a provider event to the row; ic = icon (doc, mic); off = minutes after the schedule line's time). Kind fields: name, title, agency, imp (3 high, 2 medium, 0 holiday), time = usual New York time (alt = other times that are fine), per = m monthly, w weekly, q8 eight a year, none = not audited for cadence, hz = days of schedule left before the audit warns (default 45), np = leave the period out of the title, free = no time/day checks. fams holds the hand-written 'what to expect' text for each family. The text fields are fixed plain-English explainers written by hand: not generated and not live. They describe typical reactions, not predictions. sync = how the nightly schedule sync keeps this kind current without anyone typing dates: src bls (page = the BLS schedule page name), treasury (TreasuryDirect announced list plus Treasury tentative schedule), or provider (the calendar feeds; ref = months between the release month and the month it covers, used when a feed title carries no period). Kinds without sync (Fed meetings, minutes, speeches, GDP, holidays) stay file-driven.",
  "backdrop": {
   "asof": "2026-11-14",
   "text": "The Fed raised rates 25 bp in September to 3.75-4.00% and held in October with two members dissenting in favour of another hike, so the market is especially sensitive to anything that changes hike odds.",
@@ -286,7 +286,11 @@
       "^Inflation Rate YoY"
      ]
     }
-   ]
+   ],
+   "sync": {
+    "src": "bls",
+    "page": "cpi"
+   }
   },
   "ppi": {
    "name": "PPI",
@@ -312,7 +316,11 @@
    ],
    "what": "The Producer Price Index measures the prices domestic producers get for what they sell: goods, services and construction. The Bureau of Labor Statistics publishes it monthly, usually the day after or within a few days of CPI.",
    "why": "It shows price pressure earlier in the supply chain. It does not map one-for-one onto CPI or PCE, but a big surprise can move rate expectations and it feeds analysts' PCE forecasts.",
-   "watch": "The headline against forecast, the core measure, and revisions to the prior months (PPI is revised for up to four months)."
+   "watch": "The headline against forecast, the core measure, and revisions to the prior months (PPI is revised for up to four months).",
+   "sync": {
+    "src": "bls",
+    "page": "ppi"
+   }
   },
   "nfp": {
    "name": "Nonfarm Payrolls",
@@ -361,7 +369,11 @@
      ],
      "fam": "infl"
     }
-   ]
+   ],
+   "sync": {
+    "src": "bls",
+    "page": "empsit"
+   }
   },
   "claims": {
    "name": "Jobless Claims",
@@ -391,7 +403,10 @@
       "^Jobless Claims"
      ]
     }
-   ]
+   ],
+   "sync": {
+    "src": "provider"
+   }
   },
   "fomc": {
    "name": "FOMC Rate Decision",
@@ -531,7 +546,11 @@
       "^Core Retail Sales"
      ]
     }
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "gdp": {
    "name": "GDP",
@@ -602,7 +621,11 @@
       "^Core PCE Price Index (y/y|YoY|\\(YoY\\))"
      ]
     }
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "ism_m": {
    "name": "ISM Manufacturing PMI",
@@ -636,7 +659,11 @@
      ],
      "fam": "infl"
     }
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "ism_s": {
    "name": "ISM Services PMI",
@@ -670,7 +697,11 @@
      ],
      "fam": "infl"
     }
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "spg_m": {
    "name": "S&P Global Manufacturing PMI",
@@ -696,7 +727,11 @@
    ],
    "what": "S&P Global's survey of purchasing managers at US factories. The final reading comes on the first business day of the month and revises the flash estimate published a week or so earlier. Above 50 means expansion.",
    "why": "It is an early read on factory activity. The final print usually moves markets little unless it differs a lot from the flash, because ISM follows at 10:00.",
-   "watch": "The gap to the flash reading, new orders, and prices."
+   "watch": "The gap to the flash reading, new orders, and prices.",
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "spg_s": {
    "name": "S&P Global Services PMI",
@@ -722,7 +757,11 @@
    ],
    "what": "S&P Global's survey of purchasing managers in the services sector, which is most of the US economy. The final reading follows the flash estimate. Above 50 means expansion.",
    "why": "A read on the biggest part of the economy, released ahead of the ISM services survey.",
-   "watch": "The gap to the flash reading, new business, and the prices index."
+   "watch": "The gap to the flash reading, new business, and the prices index.",
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "spg_f": {
    "name": "S&P Global flash PMIs",
@@ -758,7 +797,11 @@
    ],
    "what": "The preliminary (flash) PMI surveys for manufacturing and services, published about a week before month end. They are the first monthly read on US business activity. Above 50 means expansion.",
    "why": "As the earliest survey data for the month they can move markets, especially when they diverge from the ISM readings that follow.",
-   "watch": "New orders, employment and the input and output price indexes."
+   "watch": "New orders, employment and the input and output price indexes.",
+   "sync": {
+    "src": "provider",
+    "ref": 0
+   }
   },
   "adp": {
    "name": "ADP Nonfarm Employment Change",
@@ -787,7 +830,11 @@
    "watch": "The headline against forecast and revisions to the prior month.",
    "dow": [
     3
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "jolts": {
    "name": "JOLTS Job Openings",
@@ -818,7 +865,11 @@
     2,
     3,
     4
-   ]
+   ],
+   "sync": {
+    "src": "bls",
+    "page": "jolts"
+   }
   },
   "eia": {
    "name": "Crude Oil Inventories",
@@ -854,7 +905,10 @@
    "dow": [
     3,
     4
-   ]
+   ],
+   "sync": {
+    "src": "provider"
+   }
   },
   "philly": {
    "name": "Philadelphia Fed Manufacturing Index",
@@ -883,7 +937,11 @@
    "watch": "The headline, new orders, employment and prices paid.",
    "dow": [
     4
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": 0
+   }
   },
   "dgo": {
    "name": "Durable Goods Orders",
@@ -908,7 +966,11 @@
    ],
    "what": "The Census Bureau's advance report on new orders for long-lasting factory goods such as machinery and aircraft. It swings widely with aircraft orders.",
    "why": "A read on business investment and manufacturing demand.",
-   "watch": "The headline against forecast, and orders excluding transportation, which strip out the aircraft noise."
+   "watch": "The headline against forecast, and orders excluding transportation, which strip out the aircraft noise.",
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "cb": {
    "name": "CB Consumer Confidence",
@@ -937,7 +999,11 @@
    "watch": "The headline against forecast, the expectations index and the labour differential.",
    "dow": [
     2
-   ]
+   ],
+   "sync": {
+    "src": "provider",
+    "ref": 0
+   }
   },
   "nhs": {
    "name": "New Home Sales",
@@ -962,7 +1028,11 @@
    ],
    "what": "The Census Bureau's estimate of newly built single-family homes sold, in thousands at an annual rate.",
    "why": "A read on rate-sensitive housing demand. It is volatile and revised heavily.",
-   "watch": "The headline against forecast and revisions to the prior month."
+   "watch": "The headline against forecast and revisions to the prior month.",
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "ehs": {
    "name": "Existing Home Sales",
@@ -987,7 +1057,11 @@
    ],
    "what": "The National Association of Realtors' count of completed sales of existing homes, in millions at an annual rate.",
    "why": "It is the biggest part of the housing market and reacts to mortgage rates with a lag.",
-   "watch": "The headline against forecast, the median price and inventory."
+   "watch": "The headline against forecast, the median price and inventory.",
+   "sync": {
+    "src": "provider",
+    "ref": -1
+   }
   },
   "chi": {
    "name": "Chicago PMI",
@@ -1013,7 +1087,11 @@
    ],
    "what": "A monthly survey of purchasing managers in the Chicago area, released on the last business day of the month. Above 50 means expansion.",
    "why": "A late-month regional read that arrives just before the ISM manufacturing survey.",
-   "watch": "The headline against forecast, new orders and prices."
+   "watch": "The headline against forecast, new orders and prices.",
+   "sync": {
+    "src": "provider",
+    "ref": 0
+   }
   },
   "auc10": {
    "name": "10-Year Note Auction",
@@ -1044,7 +1122,10 @@
     2,
     3,
     4
-   ]
+   ],
+   "sync": {
+    "src": "treasury"
+   }
   },
   "auc30": {
    "name": "30-Year Bond Auction",
@@ -1075,7 +1156,10 @@
     2,
     3,
     4
-   ]
+   ],
+   "sync": {
+    "src": "treasury"
+   }
   },
   "speech": {
    "name": "Speech",
