@@ -2,8 +2,13 @@
  "_note": "What each release kind is. kinds[k].rows lists the rows the calendar shows for one schedule line (t = title, u = unit, dir = how to colour and read a surprise: grow, infl (both green when above forecast), inv (claims and unemployment: above forecast shows red), oil (crude: above forecast shows red), none; fam = which scenario family explains it; match = regular expressions that tie a provider event to the row; ic = icon (doc, mic); off = minutes after the schedule line's time). Kind fields: name, title, agency, imp (3 high, 2 medium, 0 holiday), time = usual New York time (alt = other times that are fine), per = m monthly, w weekly, q8 eight a year, none = not audited for cadence, hz = days of schedule left before the audit warns (default 45), np = leave the period out of the title, free = no time/day checks. fams holds the hand-written 'what to expect' text for each family. The text fields are fixed plain-English explainers written by hand: not generated and not live. They describe typical reactions, not predictions.",
  "backdrop": {
   "asof": "2026-11-14",
-  "text": "The Fed raised rates 25 bp in September to 3.75-4.00% and held in October with two members dissenting in favour of another hike, so the market is especially sensitive to anything that changes hike odds. Edit this line when the stance changes.",
+  "text": "The Fed raised rates 25 bp in September to 3.75-4.00% and held in October with two members dissenting in favour of another hike, so the market is especially sensitive to anything that changes hike odds.",
   "src": "Federal Reserve statements, as summarised on fedratecalc.com (14 Nov 2026)"
+ },
+ "fams_reviewed": {
+  "asof": "2026-11-15",
+  "stance": "last move: hike (Sep 2026); hold (Oct 2026)",
+  "note": "Fed lines are written to read correctly under tightening, hold or easing. If the policy stance changes, review them and update this entry (plan D95)."
  },
  "fams": {
   "infl": {
@@ -16,7 +21,7 @@
    "up": {
     "macro": "Price or wage pressure is running hotter than economists expected. If it is a core measure, inflation looks broader and stickier than hoped.",
     "stocks": "Usually negative. Higher yields and a stronger dollar tend to hit rate-sensitive growth hardest, which means Nasdaq-heavy NQ more than the Dow.",
-    "fed": "Raises the odds of another hike or pushes any cut further out. The 2-year yield is the quickest read."
+    "fed": "Raises the odds of tighter policy or pushes any easing further out. The 2-year yield is the quickest read."
    },
    "eq": {
     "macro": "Inflation is tracking expectations, so the current policy path is not challenged.",
@@ -26,7 +31,7 @@
    "down": {
     "macro": "Price or wage pressure is cooler than expected, which takes some pressure off the Fed.",
     "stocks": "Usually positive, especially for growth and small caps, as yields and the dollar ease.",
-    "fed": "Lowers hike odds and brings potential cuts closer."
+    "fed": "Lowers the odds of tighter policy and brings easing closer."
    }
   },
   "jobs": {
@@ -35,11 +40,11 @@
     "If in line",
     "If below forecast (weaker)"
    ],
-   "lead": "Jobs: with inflation the Fed's worry, a stronger number is the hawkish surprise.",
+   "lead": "Jobs: while inflation is the Fed's main worry, a stronger number is the hawkish surprise (see the policy backdrop).",
    "up": {
     "macro": "More hiring than expected. The labour market is tighter than thought, which supports wages and spending.",
     "stocks": "Mixed. Strong jobs are good for earnings, but when inflation is the worry they often lift yields and the dollar and can weigh on stocks, NQ especially.",
-    "fed": "Raises hike odds or delays cuts, because a tight labour market keeps wage pressure alive."
+    "fed": "Raises the odds of tighter policy or delays easing, because a tight labour market keeps wage pressure alive."
    },
    "eq": {
     "macro": "Hiring in line with expectations.",
@@ -49,7 +54,7 @@
    "down": {
     "macro": "Hiring is cooling faster than expected. A very weak print can read as recession risk.",
     "stocks": "Mixed. Lower yields help stocks, but a sharp miss raises growth worries and can hit cyclicals and small caps.",
-    "fed": "Lowers hike odds and raises cut odds. Markets then weigh that against recession risk."
+    "fed": "Lowers the odds of tighter policy and raises easing odds. Markets then weigh that against recession risk."
    }
   },
   "unemp": {
@@ -62,7 +67,7 @@
    "up": {
     "macro": "Slack is building in the labour market. One tick is noise; a rising trend over several months is not.",
     "stocks": "Depends on the regime. Softer labour eases rate fears, but a sharp rise brings recession worries.",
-    "fed": "Lowers hike odds and raises cut odds."
+    "fed": "Lowers the odds of tighter policy and raises easing odds."
    },
    "eq": {
     "macro": "Labour slack unchanged.",
@@ -72,7 +77,7 @@
    "down": {
     "macro": "The labour market is tighter than expected.",
     "stocks": "Mixed. Strong labour supports earnings, but higher yields can offset it.",
-    "fed": "Raises hike odds or delays cuts."
+    "fed": "Raises the odds of tighter policy or delays easing."
    }
   },
   "claims": {
@@ -85,7 +90,7 @@
    "up": {
     "macro": "More people are filing for the first time. The level is still low by historical standards, so the trend over several weeks matters more than one print.",
     "stocks": "Small moves unless it breaks the trend. Weaker labour can ease yields.",
-    "fed": "Slightly lowers hike odds."
+    "fed": "Slightly lowers the odds of tighter policy."
    },
    "eq": {
     "macro": "Layoffs steady.",
@@ -95,7 +100,7 @@
    "down": {
     "macro": "Fewer filings than expected. The labour market is still holding up.",
     "stocks": "Small. A string of low prints can lift yields.",
-    "fed": "Slightly raises hike odds."
+    "fed": "Slightly raises the odds of tighter policy."
    }
   },
   "act": {
@@ -108,7 +113,7 @@
    "up": {
     "macro": "Demand or activity is stronger than expected, so growth is holding up better than feared.",
     "stocks": "Usually supportive for cyclicals and earnings expectations. If rates are already high, rising yields can cap the gain.",
-    "fed": "Gives the Fed room to stay tight: higher hike odds or fewer cuts."
+    "fed": "Gives the Fed room to hold or tighten: higher tightening odds or fewer cuts."
    },
    "eq": {
     "macro": "Activity matches expectations.",
@@ -118,7 +123,7 @@
    "down": {
     "macro": "Activity is softer than expected, which raises slowdown worries.",
     "stocks": "Cyclicals and small caps tend to suffer, defensives hold up, and falling yields cushion growth names.",
-    "fed": "Lowers hike odds and raises cut odds, unless the data is weak enough to look like a downturn."
+    "fed": "Lowers the odds of tighter policy and raises easing odds, unless the data is weak enough to look like a downturn."
    }
   },
   "housing": {
@@ -141,7 +146,7 @@
    "down": {
     "macro": "High mortgage rates are biting harder than expected.",
     "stocks": "Homebuilders and related names lag. Small for the index.",
-    "fed": "Minor. Supports the case that tight policy is working."
+    "fed": "Minor. Shows rate-sensitive demand cooling."
    }
   },
   "oil": {
@@ -210,7 +215,7 @@
    "down": {
     "macro": "The Fed signals it is more worried about growth or sees inflation easing.",
     "stocks": "Typically positive for stocks and bonds, with a softer dollar.",
-    "fed": "Lowers hike odds and raises cut odds."
+    "fed": "Lowers the odds of tighter policy and raises easing odds."
    }
   },
   "fomc_txt": {
@@ -223,7 +228,7 @@
    "up": {
     "macro": "Officials stress inflation risk or openness to more tightening.",
     "stocks": "Yields and the dollar rise, equities fall, growth names hardest.",
-    "fed": "Raises hike odds."
+    "fed": "Raises the odds of tighter policy."
    },
    "eq": {
     "macro": "Nothing new relative to what is priced.",
@@ -233,7 +238,7 @@
    "down": {
     "macro": "Officials stress growth risk, labour weakness or progress on inflation.",
     "stocks": "Yields and the dollar fall, equities rise.",
-    "fed": "Lowers hike odds and raises cut odds."
+    "fed": "Lowers the odds of tighter policy and raises easing odds."
    }
   }
  },
