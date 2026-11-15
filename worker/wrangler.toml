@@ -6,6 +6,11 @@ compatibility_date = "2025-11-01"
 binding = "MARKET_KV"
 id = "101bd0442c804018a9880d7d4685621d"
 
+# Nightly schedule sync (plan P2 and P3): three daily triggers, one per source, so each run gets its own 10 ms CPU budget.
+# UTC: 09:20 BLS pages, 09:30 Treasury, 09:40 calendar-feed look-ahead (about 04:20 to 04:40 in New York in winter). The strings must match SYNC_CRONS in src/index.js.
+[triggers]
+crons = ["20 9 * * *", "30 9 * * *", "40 9 * * *"]
+
 # Phase 3 and 4 (one dispatcher, not yet used):
 # [triggers]
 # crons = ["* * * * *"]
