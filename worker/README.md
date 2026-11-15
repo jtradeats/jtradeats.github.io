@@ -17,6 +17,7 @@ Imports from `../config/` stay inside `worker/` so the build works whichever way
 - `config/schedule.json`: official release dates and times (ET). One line per release; it expands into the kind's rows. `v` tiers: official, `ref` (from the reference calendar screenshots, 14 Nov), `rule`, `check`.
 - `config/indicators.json`: kinds, rows, provider title patterns, the hand-written "what to expect" families and the dated policy backdrop. Edit the backdrop when the Fed's stance changes.
 - `config/results.json`: numbers typed by hand (actual, forecast, previous, revised flag). They win over the providers. Edit on GitHub; Cloudflare redeploys.
+- `src/official.js`: actuals for claims, payrolls, unemployment, earnings and CPI computed from FRED series (no key). Add rows to `SPEC` to cover more releases. Tests: `node --test worker/test/*.test.mjs`.
 - Providers (all optional): Fair Economy feed (forecast and previous, often 429 from Cloudflare) and **Financial Modeling Prep** (forecast, previous, actual). For FMP add the secret `FMP_KEY` (Cloudflare dashboard, Settings, Variables and Secrets, type Secret) and redeploy.
 - `GET /calendar?debug=1` shows each provider's raw sample and `unmatched` titles. `/health` shows `calendar.fmp`.
 - Tests: `node --test worker/test/calendar.test.mjs`.
