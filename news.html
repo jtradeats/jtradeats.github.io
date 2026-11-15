@@ -1115,7 +1115,7 @@ function acCls(e){
 const SRN={FRED:'FRED, official BLS and DOL series (computed by the Worker)',FMP:'FMP economic calendar','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised'};
 const srTip=(e,f)=>e.sr&&e.sr[f]?' title="'+esc((f==='ac'?'actual':f==='fc'?'forecast':'previous')+': '+(SRN[e.sr[f]]||e.sr[f]))+'"':'';
 const pvCell=e=>e.pv?(e.pvc?'<span class="rv '+e.pvc+'" title="previous figure was revised">'+esc(e.pv)+'</span>':esc(e.pv)):'';
-const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
+const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='tent'?'<span class="vq" title="tentative date published by the agency; it can move until the agency announces it, about a week ahead">~</span>':e.v==='prov'?'<span class="vq" title="date from a data provider’s calendar, not from the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
   +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">!</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
 const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
 const provTxt=d=>{
@@ -1893,6 +1893,8 @@ function showRelease(e){
   if(e.src==='feed')src='<div class="src w">This event is only in the unofficial feed. It is not part of the official schedule and does not drive the countdown or reminders.</div>';
   else if(e.v==='rule')src='<div class="src w">Date derived from the usual pattern for '+esc(e.agency||'the agency')+'; the agency has not published this one yet. '+esc(e.n||'')+'</div>';
   else if(e.v==='check')src='<div class="src w">Date in doubt. '+esc(e.n||'')+'</div>';
+  else if(e.v==='tent')src='<div class="src w">'+esc(e.n||'Tentative date from the agency’s published schedule. It can move until the agency announces it.')+'</div>';
+  else if(e.v==='prov')src='<div class="src w">'+esc(e.n||'Date and time from a data provider’s calendar, not from the agency.')+'</div>';
   const flag=e.flag?'<div class="src w">The provider disagrees: '+esc(e.flag)+'. The schedule above is what the countdown uses. Check the agency page.</div>':'';
   let sc='';
   if(fam){
@@ -1915,6 +1917,14 @@ function showRelease(e){
     +sc+(k?'<h4>What to watch</h4><p>'+esc(k.watch)+'</p>':'')+bk+src+flag
     +'<p class="relf">Not financial advice.</p>');
 }
+function syncBlock(d){ /* schedule sync status and the last changes, from the Worker's d.sync */
+  const s=d.sync;if(!s||!s.sources)return '';
+  const NM={bls:'BLS pages',treasury:'Treasury auctions',provider:'calendar-feed look-ahead'};
+  const st=['bls','treasury','provider'].map(k=>{const x=s.sources[k];return NM[k]+': '+(x?(x.ok?'ok, '+ago(Date.now()-x.at):(k==='provider'?'no provider data':'failed')):(k==='provider'?'not connected':'not run yet'))}).join(' · ');
+  const nm=c=>{const k=(d.kinds||{})[c.k];return (k&&k.name||c.k)+(c.p?' ('+c.p+')':'')};
+  const ch=(s.changes||[]).slice(0,8).map(c=>'<li>'+esc(nm(c)+(c.type==='moved'?' moved from '+c.from.d+' '+c.from.t+' to '+c.to.d+' '+c.to.t+' ET':c.type==='added'?' added for '+c.to.d:' removed (was '+c.from.d+')')+' · '+ago(Date.now()-c.at))+'</li>').join('');
+  return '<h4>Schedule sync</h4><p>'+esc(st)+'. It runs every night; agency dates replace the file’s dates.</p>'+(ch?'<ul class="iss">'+ch+'</ul>':'');
+}
 function showAudit(d){
   const a=d.audit||{},c=a.counts,iss=(a.issues||[]).map(i=>'<li class="'+esc(i.lvl)+'">'+esc(i.msg)+'</li>').join('');
   const src=Object.entries(d.sources||{}).filter(([k],i,arr)=>arr.findIndex(x=>x[1]===d.sources[k])===i).map(([k,u])=>esc(u.replace(/^https?:\/\/(www\.)?/,'').split('/')[0])).join(' · ');
@@ -1922,8 +1932,8 @@ function showAudit(d){
     '<h3 class="'+(a.status==='ok'?'g':a.status==='error'?'b':'')+'">'+(a.status==='ok'?'No problems found':a.status==='unk'?'Not audited (the Worker was not reached)':a.nIssues+' note'+(a.nIssues===1?'':'s')+(a.status==='error'?', including errors':''))+'</h3>'
     +'<div class="relt">'+(a.total||0)+' scheduled releases, '+fmtIso(a.first)+' to '+fmtIso(a.horizon)+(a.checked?' · oldest check '+fmtIso(a.checked):'')+'</div>'
     +'<h4>Status</h4><p>'+esc([provTxt(d),skewTxt()].filter(Boolean).join(' · ')||'No notes.')+'</p><p class="relf">Actual colours: green above forecast, red below; reversed for claims, unemployment and crude stocks. Cell tooltips show where each number came from.</p>'
-    +(c?'<p>'+c.official+' dates read from agency pages · '+(c.ref||0)+' from the reference calendar · '+c.rule+' derived from the agency’s usual pattern · '+c.check+' in doubt.</p>':'')
-    +(iss?'<ul class="iss">'+iss+'</ul>':'')
+    +(c?'<p>'+c.official+' dates read from agency pages · '+(c.ref||0)+' from the reference calendar · '+c.rule+' derived from the agency’s usual pattern · '+c.check+' in doubt'+(c.tent?' · '+c.tent+' tentative (agency)':'')+(c.prov?' · '+c.prov+' from a calendar provider':'')+'.</p>':'')
+    +(iss?'<ul class="iss">'+iss+'</ul>':'')+syncBlock(d)
     +'<h4>What is checked</h4><p>On every load the Worker re-checks the file: no weekend or federal-holiday dates, the right time for each release type, no missing or doubled weeks and months, FOMC spacing, minutes three weeks after each decision, how long ago each type was checked, and how far ahead the file runs. When the unofficial feed answers, its dates and times are compared with the schedule too. A device-clock check runs against the Worker’s clock'+(Math.abs(clkOff)>2000?' (yours is off by '+(Math.abs(clkOff)/1000).toFixed(0)+' s and is corrected)':' (yours agrees to within 2 s)')+'.</p>'
     +(src?'<h4>Official sources</h4><p>'+src+'</p>':'')
     +'<p class="relf">The check proves the file is consistent, not that the agencies have not changed a date since it was last compared with their pages.</p>');
