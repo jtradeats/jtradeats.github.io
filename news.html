@@ -153,7 +153,7 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .ti .c.up{color:var(--g)}.ti .c.dn{color:var(--r)}
 .ti.stale .p,.ti.old .p{opacity:.55}
 /* sector strip and week-open card (plan P4, P5): the tape's tile, laid out as a fitted grid */
-.sct{--tk:.88;display:grid;gap:2px;padding:6px 8px 2px} /* same content scale as the tape (.tapes --tk): fonts and padding follow it */
+.sct{--tk:.88;display:grid;gap:2px;padding:6px 8px 8px} /* same content scale as the tape (.tapes --tk): fonts and padding follow it */
 .sct.s12,.sct.w6{grid-template-columns:repeat(6,minmax(0,1fr))} /* six columns: sector ETFs fill two rows, week open one */
 html.mobile .sct.s12{grid-template-columns:repeat(3,minmax(0,1fr))}
 html.mobile .sct.w6{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -164,7 +164,6 @@ html.mobile .sct.w6{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sct .ti.old .c,.sct .ti.old .o{opacity:.55}
 .sct .p.up{color:var(--g)}.sct .p.dn{color:var(--r)}
 .sct .o{font-size:calc(var(--fxs)*var(--tk,1));color:var(--t3);font-variant-numeric:tabular-nums;margin-top:1px}
-.sct+.pw{padding:4px 14px 8px}
 :root{--cv1:#2a78d6;--cv2:#eb6834;--cv3:#1baf7a} /* yield-curve series: validated chart palette slots 1-3 (blue, orange, aqua), fixed order */
 :root[data-theme="dark"]{--cv1:#3987e5;--cv2:#d95926;--cv3:#199e70}
 .cv{padding:8px 14px 4px;display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:8px 16px;font-variant-numeric:tabular-nums}
@@ -520,7 +519,10 @@ function paintTape(items){
       return '<div class="tape" role="group" aria-label="market tape" tabindex="0"><div class="trk"><div class="seq">'+seq+'</div><div class="seq" aria-hidden="true">'+seq+'</div></div></div>';
     }).join('');
   }
-  items.forEach(i=>box.querySelectorAll('[data-l="'+esc(i.label)+'"]').forEach(el=>tapeFill(el,i)));
+  /* match tiles to items by comparing the decoded attribute, not through a CSS selector: a label with & < > or a quote never matched the
+     escaped selector, left its tile unfilled, and showed as an empty 98px gap before the next group chip */
+  const by=new Map(items.map(i=>[String(i.label),i]));
+  box.querySelectorAll('.ti[data-l]').forEach(el=>{const i=by.get(el.getAttribute('data-l'));if(i)tapeFill(el,i)});
   tapeLayout(); /* prices change the text width a little, so measure again */
 }
 /* The tape is moved by script, not by a CSS animation, so it can be dragged. Each row keeps an offset x (px) into its own
@@ -552,14 +554,18 @@ function tapeLayout(){
   const st=reduceMo.matches; /* the OS 'reduce motion' setting switches to the static grid */
   document.querySelectorAll('#tape .tape').forEach(t=>{
     t.classList.toggle('static',st);t.classList.remove('fit');
-    const sq=t.querySelectorAll('.seq');
-    sq.forEach(q=>{q.style.paddingRight=''}); /* measure the natural width first */
-    if(st){t.firstChild.style.transform='';return}
-    let w=sq[0].offsetWidth;
-    /* A row that is narrower than the tape (tablets) used to stop and sit still. Instead pad the end of each
-       copy so one cycle is a little wider than the tape: the loop stays seamless and the row keeps drifting. */
-    const need=t.clientWidth+40;
-    if(w&&w<need){sq.forEach(q=>{q.style.paddingRight=(need-w)+'px'});w=need}
+    const trk=t.firstChild,sq=trk.querySelectorAll('.seq');
+    sq.forEach(q=>{q.style.paddingRight=''}); /* no end padding any more: it showed as a gap at the seam before the first chip */
+    if(st){trk.style.transform='';return}
+    const w=sq[0].offsetWidth;
+    /* A row narrower than the tape (the 9-item row on wide screens, or tablets) used to be padded at the end of each copy, which left
+       a visible gap before its first chip. Instead the copy is repeated until the track is wider than the tape plus one copy, so the
+       seam looks like any other boundary between chips and the loop stays seamless (it still wraps at one copy's width). */
+    if(w){
+      const want=Math.min(20,Math.max(2,Math.ceil(t.clientWidth/w)+1));let have=sq.length;
+      while(have<want){const c=sq[0].cloneNode(true);c.setAttribute('aria-hidden','true');trk.appendChild(c);have++}
+      while(have>want){trk.removeChild(trk.lastElementChild);have--}
+    }
     tapeSt(t).w=w;
   });
   tapeStart();
@@ -1220,6 +1226,20 @@ function liveCard(id,url,paint){
   }
   return {render(){show();load(false)},load,show};
 }
+/* The status line of the sector and week-open cards sits in the card header, in the tape's own wording (see paintStamp):
+   "market closed · last quotes Sat 06:00 AM" when the session is shut, otherwise "quotes as of 10:32 AM · 4 min ago". */
+function cardStamp(b,d,bad,shut,delayed){
+  const cd=b.closest('.card'),ch=cd&&cd.querySelector('.ch');if(!ch)return;
+  let el=ch.querySelector('.stamp');
+  if(!el){el=document.createElement('span');el.className='stamp';ch.insertBefore(el,ch.querySelector('.acts'))}
+  const its=d.items||[],ts=its.filter(i=>i.p!=null&&!i.stale&&i.cls!=='prior'&&i.t!=null).map(i=>i.t),stl=its.filter(i=>i.stale).length;
+  let t;
+  if(ts.length){const n=Math.max(...ts),age=Date.now()-n;t=age>OLD&&shut()?'market closed \u00b7 last quotes '+asOf(n):'quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(age>OLD?' \u00b7 old':'')}
+  else t='no timestamped quotes';
+  if(stl)t+=' \u00b7 '+stl+' stale';
+  if(bad)t+=' \u00b7 refresh failed';
+  el.textContent=delayed+' \u00b7 '+t;
+}
 function secPaint(b,d,bad){
   const its=d.items||[],spy=its.find(i=>i.label==='SPY'),spyOk=!!(spy&&spy.pc!=null&&!spy.stale);
   const rows=SEC_ORDER.map(l=>its.find(i=>i.label===l)).filter(Boolean).concat(its.filter(i=>!SEC_ORDER.includes(i.label)));
@@ -1231,7 +1251,8 @@ function secPaint(b,d,bad){
     return '<div class="'+cls+'"'+(tip?' data-tt="'+esc(tip)+'"':'')+'><div class="l"><span>'+esc(it.label)+'</span><span class="a">'+esc(f.tag)+'</span></div>'
       +'<div class="p '+(hp?(it.pc>0?'up':it.pc<0?'dn':''):'')+'">'+(hp?sg(it.pc)+fmt(Math.abs(it.pc),2)+'%':'\u2014')+'</div><div class="c">'+(has?fmt(it.p,2):'&nbsp;')+'</div></div>';
   };
-  b.innerHTML='<div class="sct s12">'+rows.map(tile).join('')+'</div><div class="pw">Delayed'+(cashOpen()?'':' \u00b7 market closed, last session')+(bad?' \u00b7 refresh failed, showing the last data':'')+'</div>';
+  b.innerHTML='<div class="sct s12">'+rows.map(tile).join('')+'</div>';
+  cardStamp(b,d,bad,()=>!cashOpen(),'delayed');
 }
 function wkoPaint(b,d,bad){
   const tile=it=>{
@@ -1250,7 +1271,8 @@ function wkoPaint(b,d,bad){
   };
   const down=(d.items||[]).filter(i=>i.c!=null&&i.c<0&&!i.rolled).length,upn=(d.items||[]).filter(i=>i.c!=null&&i.c>0&&!i.rolled).length,half=(d.items||[]).length/2;
   const cd=b.closest('.card');if(cd){cd.classList.toggle('hr',down>half);cd.classList.toggle('hg',upn>half)} /* more than half down: red; more than half up: green; otherwise none */
-  b.innerHTML='<div class="sct w6">'+(d.items||[]).map(tile).join('')+'</div><div class="pw">Delayed 10+ min'+(futClosed()?' \u00b7 market closed, last session':'')+(bad?' \u00b7 refresh failed, showing the last data':'')+'</div>';
+  b.innerHTML='<div class="sct w6">'+(d.items||[]).map(tile).join('')+'</div>';
+  cardStamp(b,d,bad,futClosed,'delayed 10+ min');
 }
 /* ---- Treasury yield curve card (plan P6): its own Worker route /curve, official close only (never mixed with the delayed tape, R5/R44) ----
    Two views of one answer: History (2Y, 10Y and 30Y over six months) and Curve (1M to 30Y: latest close, a month ago, a year ago).
