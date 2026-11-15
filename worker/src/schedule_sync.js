@@ -111,6 +111,44 @@ export async function runBls({ get, IND, now, prev }) {
   return out;
 }
 
+// ---- 1b. FRED release calendar: the stand-in for the BLS pages when bls.gov refuses the Worker (it answered HTTP 403, 15 Nov 2026) ----
+// FRED (St. Louis Fed) lists the release dates of CPI, PPI, the jobs report and JOLTS, including future ones, and relays BLS's own schedule.
+// It has the date only: the reference month and the time of day are taken from the line of schedule.json it matches, so FRED can confirm or move
+// a date but never add one. A date that moves by more than 7 days is refused and reported. Needs a free API key (secret FRED_KEY).
+export const FRED_URL = (key, today) => `https://api.stlouisfed.org/fred/releases/dates?api_key=${encodeURIComponent(key)}&file_type=json&include_release_dates_with_no_data=true&realtime_start=${today}&realtime_end=9999-12-31&order_by=release_date&sort_order=asc&limit=1000`;
+export const FRED_NAMES = { cpi: /^consumer price index$/i, ppi: /^producer price index$/i, nfp: /^employment situation$/i, jolts: /^job openings and labor turnover survey$/i };
+export function parseFredDates(json) {
+  const rows = (json && json.release_dates) || [];
+  return rows.map(r => ({ name: String(r.release_name || '').trim()   /* exact name: variants such as "(data not included in press release)" are different releases */, d: String(r.date || '') })).filter(r => r.name && /^\d{4}-\d\d-\d\d$/.test(r.d));
+}
+export async function runFred({ get, key, kinds, IND, base, now, prev }) {
+  const today = etParts(now).iso, k = {}, errs = [];
+  const fail = (kind, msg) => { errs.push(`${(IND.kinds[kind] || {}).name || kind}: ${msg}`); k[kind] = { ...((prev && prev.k && prev.k[kind]) || { lines: [], seen: [] }), ok: false, err: String(msg).slice(0, 160), failAt: now, via: 'fred' }; };
+  let rows = null;
+  try { rows = parseFredDates(JSON.parse(await get(FRED_URL(key, today)))); if (!rows.length) throw new Error('FRED returned no release dates'); }
+  catch (e) { const m = String(e.message).replace(/api_key=[^&\s]*/gi, 'api_key=***'); for (const kind of kinds) fail(kind, `FRED: ${m}`); return { k, err: errs.join(' | ').slice(0, 300) }; }
+  for (const kind of kinds) {
+    const rx = FRED_NAMES[kind];
+    if (!rx) { fail(kind, 'no FRED release is configured for this kind'); continue; }
+    const dates = [...new Set(rows.filter(r => rx.test(r.name) && r.d >= today).map(r => r.d))].sort();
+    if (!dates.length) { fail(kind, 'FRED lists no upcoming dates for this release'); continue; }
+    const mine = base.filter(r => r.k === kind && r.d >= today).sort((a, b) => (a.d < b.d ? -1 : 1));
+    const lines = [], rejected = [], used = new Set();
+    for (const b of mine) {   // each line of the file takes the nearest unused FRED date within 20 days
+      let best = null;
+      for (const f of dates) if (!used.has(f)) { const g = Math.abs(daysBetween(b.d, f)); if (g <= 20 && (!best || g < best.g)) best = { f, g }; }
+      if (!best) continue;
+      used.add(best.f);
+      const l = { d: best.f, t: b.t, k: kind, p: b.p };
+      if (best.g > 7) { rejected.push({ d: l.d, t: l.t, p: l.p, why: `FRED lists ${l.d} but the schedule says ${b.d}, which is too far apart to follow without a check` }); continue; }
+      const why = checkLine(l, IND);
+      if (why) rejected.push({ d: l.d, t: l.t, p: l.p, why }); else lines.push(l);
+    }
+    k[kind] = { at: now, ok: true, err: null, n: lines.length, lines, seen: [], rejected, prune: null, via: 'fred' };
+  }
+  return { k, err: errs.length ? errs.join(' | ').slice(0, 300) : null };
+}
+
 // ================= 2. Treasury =================
 export const TD_URL = type => `https://www.treasurydirect.gov/TA_WS/securities/announced?format=json&type=${type}`;
 // Treasury's tentative auction schedule: one file per refunding quarter (Q1 Feb-Apr, Q2 May-Jul, Q3 Aug-Oct, Q4 Nov-Jan), published on the refunding day.
@@ -355,7 +393,7 @@ export function mergeSchedule(SCHED, rec, IND, today) {
         if (l.p) out.p = l.p;
         if (l.v) out.v = l.v; else delete out.v;
         let n = note(cur, l);
-        if (rank(cur.v) === 4 && !l.v && cur.d !== l.d) n = [n, `Date changed from ${cur.d} (schedule file) to ${l.d} by the ${name === 'bls' ? 'BLS page' : 'Treasury schedule'}${src.day ? `, synced ${src.day}` : ''}.`].filter(Boolean).join(' ');   // D76
+        if (rank(cur.v) === 4 && !l.v && cur.d !== l.d) n = [n, `Date changed from ${cur.d} (schedule file) to ${l.d} by the ${kr.via === 'fred' ? 'FRED release calendar (it relays BLS)' : name === 'bls' ? 'BLS page' : 'Treasury schedule'}${src.day ? `, synced ${src.day}` : ''}.`].filter(Boolean).join(' ');   // D76
         if (n) out.n = n; else delete out.n;
         base[i] = out;
         res.stats.updated++;
