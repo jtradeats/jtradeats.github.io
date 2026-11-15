@@ -205,20 +205,41 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .audit:hover{border-color:var(--bdm);color:var(--t)}
 .audit i{width:7px;height:7px;border-radius:50%;background:var(--g);flex:none}
 .audit.check i{background:#E0A24A}.audit.error i{background:var(--r)}.audit.unk i{background:var(--t3)}
+.sel{appearance:none;-webkit-appearance:none;font-family:var(--sans);font-size:var(--fsm);font-weight:600;color:var(--pbsel);background:var(--pbselbg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8a83' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 7px center;background-size:10px;border:.5px solid var(--pbselbd);border-radius:calc(var(--rad) - 1px);padding:3px 24px 3px 9px;cursor:pointer}
+.sel option{color:var(--t);background:var(--surface);font-weight:400}
+.topicon.al.on{color:var(--pc1)}
+.topicon.al.na{opacity:.4}
+.scs{display:grid;gap:8px;margin:6px 0}
+.sc{border:.5px solid var(--bd);border-radius:8px;padding:8px 10px;background:var(--s2)}
+.sc.hit{border-color:var(--pbselbd);background:var(--pbselbg)}
+.sc h5{font-size:var(--fsm);font-weight:600;margin-bottom:4px}
+.sc dl{display:grid;grid-template-columns:56px minmax(0,1fr);gap:3px 10px;font-size:var(--fsm);line-height:1.4}
+.sc dt{color:var(--t3);font-weight:600}.sc dd{margin:0}
+.relc .bd{font-size:var(--fsm);color:var(--t2);border:.5px solid var(--bd);border-radius:8px;padding:7px 10px;margin:10px 0 0;background:var(--s2)}
+.relc .lead{font-size:var(--fsm);color:var(--t2);margin:0 0 4px}
+.relc .got{font-size:15px;font-weight:600;margin:6px 0 2px}
 .calscroll{flex:1;min-height:0;overflow:auto}
 .ct{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .ct th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;font-size:var(--fxs);font-weight:500;color:var(--t3);padding:6px 10px;border-bottom:.5px solid var(--bd);white-space:nowrap}
 .ct td{padding:9px 10px;border-bottom:.5px solid var(--bd);font-size:var(--fbase);white-space:nowrap}
-.ct td.ev{white-space:normal;min-width:130px;font-weight:500}
-.ct th.n,.ct td.n{text-align:right}
-.ct td.n{min-width:54px}
-.ct td.tt{color:var(--t2);width:1%}
+.ct{table-layout:fixed}
+.ct col.c-t{width:62px}.ct col.c-i{width:64px}.ct col.c-n{width:86px}
+.ct td.ev{white-space:normal;font-weight:500;line-height:1.3;padding-right:12px;overflow-wrap:anywhere}
+.ct th.n,.ct td.n{text-align:right;padding-left:4px;padding-right:12px}
+.ct td.tt{color:var(--t2)}
 .ct td .none{color:var(--t3)}
+.ct td.n b{font-weight:600}.ct td.n b.g{color:var(--g)}.ct td.n b.r{color:var(--r)}
+.rv{text-decoration:underline dotted;text-underline-offset:3px}.rv.g{color:var(--g)}.rv.r{color:var(--r)}
+.pt{font-family:Georgia,'Times New Roman',serif;font-size:11px;font-weight:400;color:var(--t3);margin-left:6px;cursor:help}
+.ev svg.ei{width:12px;height:12px;margin-left:6px;vertical-align:-1px;color:var(--t3);stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ct tr.hol td{color:var(--t2)}
+.ct td.im .hl{font-weight:600;font-size:var(--fsm);color:var(--t2)}
+.ct tr.hol{cursor:default}
 .ct tr.day td{background:var(--s2);font-size:var(--fsm);font-weight:600;color:var(--t2);padding:7px 10px;cursor:default}
 .ct tr.day td small{font-weight:400;color:var(--t3);margin-left:6px}
 .ct tr.rw{cursor:pointer}
 .ct tr.rw:hover td,.ct tr.rw:focus-visible td{background:var(--s2)}
-.ct tr.past td{opacity:.5}
+.ct tr.past.nodata td{opacity:.55}
 .ct tr.next td{background:var(--pbselbg)}
 .flames{display:inline-flex;gap:1px;vertical-align:middle}
 .flames i{display:inline-flex;color:var(--bdm)}
@@ -276,8 +297,9 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .nsub .vq{margin-left:4px}
 html.mobile .mk3{grid-template-columns:minmax(0,1fr)}
 html.mobile .ct th,html.mobile .ct td{padding:8px 5px;font-size:12px}
-html.mobile .ct td.ev{min-width:0}
-html.mobile .ct td.n{min-width:0}
+html.mobile .ct col.c-i,html.mobile .ct th.im,html.mobile .ct td.im{display:none}
+html.mobile .ct col.c-t{width:50px}html.mobile .ct col.c-n{width:58px}
+html.mobile .ct td.ev{padding-right:6px}html.mobile .ct th.n,html.mobile .ct td.n{padding-right:6px}
 html.mobile .flames svg{width:10px;height:10px}
 html.mobile .mk3{gap:8px;margin-bottom:1rem}
 html.mobile .mk3 .card{height:auto}
@@ -292,11 +314,11 @@ html.mobile .tu b{font-size:22px}
 .toast{pointer-events:auto;position:relative;background:#f9e3d3;color:#2a1d14;border:.5px solid #e9c7ae;border-radius:10px;padding:10px 30px 10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-size:var(--fsm);line-height:1.35}
 .toast .src{display:block;font-size:var(--fbase)}
 .toast .tag{font-size:10px;letter-spacing:.08em;color:#b24a1c;font-weight:700;margin:2px 0 4px}
-.toast p{margin:3px 0 6px}
+.toast p{margin:3px 0 6px;white-space:pre-line}
 .toast .x{position:absolute;top:5px;right:8px;background:none;border:0;color:#2a1d14;cursor:pointer;font-size:18px;line-height:1}
 .toast a,.toast .rd{color:#b24a1c;font-weight:600;font-size:var(--fsm);text-decoration:none;background:none;border:0;cursor:pointer;padding:0;font-family:var(--sans)}
 #rel{position:fixed;inset:0;z-index:2147483100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
-.relc{background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--radl);max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:14px 18px 16px;line-height:1.5}
+.relc{background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--radl);max-width:620px;width:100%;max-height:90vh;overflow:auto;padding:14px 18px 16px;line-height:1.5}
 .relh{display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid var(--bd);padding-bottom:8px;margin-bottom:10px}
 .relh .topicon{font-size:22px}
 .relc h3{font-size:17px;font-weight:600;margin-bottom:2px}
@@ -687,7 +709,8 @@ const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark'
    Polls only while the card is on screen: news tab, card open, page visible. Health comes from the poll, never from post age:
    gaps of an hour or more are normal on this wire, so an old newest post is "quiet", while a failed poll is "broken". */
 const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
-const WIRE={d:null,err:null,at:0,busy:false,maxId:0,fresh:new Map(),open:new Set(),el:null,alert:LS.g(KEY+'wire_alert','1')==='1'};
+let alWire=LS.g(KEY+'al_wire','0')==='1'; /* new-post alerts for the DeItaone wire: off until switched on */
+const WIRE={d:null,err:null,at:0,busy:false,maxId:0,fresh:new Map(),open:new Set(),el:null};
 const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280;
 const wireVisible=()=>!document.hidden&&tab==='news'&&WIRE.el&&WIRE.el.isConnected&&!WIRE.el.closest('.card.closed');
 async function wireLoad(){
@@ -697,13 +720,18 @@ async function wireLoad(){
     if(!r.ok)throw new Error('Worker /feed answered '+r.status);
     const d=await r.json();
     if(!Array.isArray(d.posts))throw new Error(d.error||'bad payload');
-    const nw=WIRE.d?d.posts.filter(p=>p.id>WIRE.maxId).sort((a,b)=>a.id-b.id):[]; /* new since the last poll; the first load is silent */
-    nw.forEach(p=>WIRE.fresh.set(p.id,Date.now()));
+    const first=!WIRE.d,prevMax=WIRE.maxId;
+    if(WIRE.d)d.posts.forEach(p=>{if(p.id>WIRE.maxId)WIRE.fresh.set(p.id,Date.now())}); /* highlight only what arrives after the first load */
     if(d.posts.length&&d.posts[0].id>WIRE.maxId)WIRE.maxId=d.posts[0].id;
     WIRE.d=d;WIRE.err=null;
-    try{wireAlert(nw)}catch(e){} /* an alert problem must never count as a feed problem */
+    if(!first&&alWire){const nw=d.posts.filter(p=>p.id>prevMax);if(nw.length)wireAlert(nw)} /* never on the first load, so opening the page does not alert for old posts */
   }catch(e){WIRE.err=String(e.message||e)}
   finally{WIRE.busy=false;WIRE.at=Date.now();wirePaint()}
+}
+function wireAlert(nw){ /* nw is newest first; a burst becomes one alert (plan 4.4: a digest, not one toast per post) */
+  const p=nw[0],line=(p.text||(p.media?'[media post]':'[empty post]')).split('\n')[0].slice(0,160);
+  toast({src:'DeItaone wire \u00b7 Telegram mirror',tag:nw.length>1?nw.length+' NEW POSTS':'NEW POST',h:line,s:nw.length>1?'Newest of '+nw.length+' new posts since the last check.':'Ultrafast mirror, unconfirmed.',u:typeof p.url==='string'&&p.url.indexOf('https://t.me/')===0?p.url:null,ms:20000});
+  notify('DeItaone wire',line);
 }
 function wirePaint(){
   const el=WIRE.el;if(!el||!el.isConnected)return;
@@ -735,45 +763,15 @@ function wirePaint(){
   const nw=d&&d.posts[0]&&d.posts[0].t?now-d.posts[0].t:null;
   st.appendChild(document.createTextNode('DeItaone wire via Telegram mirror · ultrafast, unconfirmed'+(d?' · poll '+d.status+(d.status!=='broken'&&nw!=null&&nw>36e5?' · quiet, newest post '+fmtAge(nw)+' old':''):'')+' · '));
   const a=mk('a','','open channel');a.href='https://t.me/s/WalterBloomberg';a.target='_blank';a.rel='noopener';st.appendChild(a);
-  const tg=mk('button','wmore',WIRE.alert?'alerts on':'alerts off');
-  tg.title='A toast (and a system notification if allowed) for each new post while this page is open. More than '+WIRE_DIGEST+' at once become one digest.';
-  tg.onclick=()=>{
-    WIRE.alert=!WIRE.alert;LS.s(KEY+'wire_alert',WIRE.alert?'1':'0');
-    if(WIRE.alert){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}wireLoad()}
-    wirePaint();
-  };
-  st.appendChild(document.createTextNode(' \u00b7 '));st.appendChild(tg);
 }
 const wire=el=>{
   WIRE.el=el;
   el.innerHTML='<div class="emb"><div class="xw"></div><div class="pw"></div></div>';
   wirePaint();wireLoad();
 };
-const WIRE_DIGEST=3; /* more new posts than this in one poll become one digest alert instead of one each */
-const clip=(t,n)=>{t=String(t||'').replace(/\s+/g,' ').trim();return t.length>n?t.slice(0,n).replace(/\s+$/,'')+'\u2026':t};
-function wireNotify(title,body,tag){ /* system notification: only while the tab is in the background and the user allowed it */
-  try{if(document.hidden&&'Notification' in window&&Notification.permission==='granted')new Notification(title,{body:body,tag:tag})}catch(e){}
-}
-function wireAlert(nw){ /* nw: new posts, oldest first. Plan 4.4 in-page version (D64): works only while this page is open */
-  if(!WIRE.alert||!nw.length)return;
-  const src='DeItaone wire \u00b7 unconfirmed',chan='https://t.me/s/WalterBloomberg';
-  if(nw.length>WIRE_DIGEST){
-    const top=nw[nw.length-1];
-    toast({src:src,tag:'WIRE \u00b7 '+nw.length+' NEW POSTS',h:clip(top.text||'[media post]',140),s:'Latest of '+nw.length+' new posts. The wire card has the rest.',u:chan,ms:20000});
-    wireNotify('DeItaone wire: '+nw.length+' new posts',clip(top.text||'[media post]',140),'wire-digest');
-    return;
-  }
-  nw.forEach(p=>{
-    const body=clip(p.text||'[media post, open on Telegram]',160);
-    toast({src:src,tag:'WIRE \u00b7 NEW POST',h:body,s:(p.t?'Posted '+asOf(p.t)+' \u00b7 ':'')+'Telegram mirror, unconfirmed',u:/^https:\/\/t\.me\//.test(p.url||'')?p.url:chan,ms:20000});
-    wireNotify('DeItaone wire',body,'wire-'+p.id);
-  });
-}
-/* With alerts on, the feed is polled whenever the page is open (any tab; a background tab is throttled by the browser). With alerts off, only while the card is on screen. */
-setInterval(()=>{if(WIRE.alert||wireVisible())wireLoad()},WIRE_POLL);
+setInterval(()=>{if(wireVisible()||alWire)wireLoad()},WIRE_POLL); /* with alerts on it keeps polling in a background tab (the browser slows it) */
 setInterval(()=>{if(wireVisible())wirePaint()},15000); /* keeps the ages moving between polls */
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(WIRE.alert||wireVisible()))wireLoad()});
-if(WIRE.alert)wireLoad(); /* alerts do not wait for the news tab to be opened */
+document.addEventListener('visibilitychange',()=>{if(wireVisible())wireLoad()});
 const fj=el=>{
   el.innerHTML='<div id="financialjuice-news-widget-container"></div>';
   load('https://feed.financialjuice.com/widgets/widgets.js?r='+Math.floor(Math.random()*9999),'fj','FJ-Widgets').then(()=>{
@@ -798,6 +796,9 @@ const technicals=pair(tv('technical-analysis',()=>({symbol:sym,interval:'1D',sho
 const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
 const STATIC_BASE='worker/config/'; /* relative to this page: assumes the repo root is what GitHub Pages serves */
 let calData=null,calAt=0,calMed=LS.g(KEY+'cal_med','0')==='1',calRng=LS.g(KEY+'cal_rng','week');
+const RNG=[['yest','yesterday'],['today','today'],['week','this week'],['next','next week'],['month','this month']];
+if(!RNG.some(x=>x[0]===calRng))calRng='week'; /* saved choices from the old today/upcoming buttons: 'week' still means this week, anything else falls back to it */
+const CALP={fn:null,el:null}; /* the open calendar card, so new data repaints it */
 let clkOff=0; /* Worker clock minus this device's clock, ms. Countdown, reminders and sessions use NOW() so a wrong device clock cannot skew them */
 const NOW=()=>Date.now()+clkOff;
 const ETF=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -811,21 +812,32 @@ const etClock=ms=>{const q=etP(ms),h=q.h%12||12;return h+':'+p2(q.mi)+' '+(q.h<1
 const etDay=ms=>new Date(ms).toLocaleDateString('en-US',{timeZone:'America/New_York',weekday:'long',month:'short',day:'numeric'});
 const fmtIso=iso=>iso?new Date(iso+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}):'';
 async function calStatic(){
-  const [sc,ind]=await Promise.all(['schedule.json','indicators.json'].map(f=>fetch(STATIC_BASE+f,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(r.status+' '+f);return r.json()})));
-  const events=[];
-  for(const r of sc.releases){
-    const k=ind.kinds[r.k],t=etMs(r.d+'T'+r.t);if(!k||t==null)continue;
-    events.push({t,k:r.k,title:k.name+(r.p?(/^Q\d/.test(r.p)?' '+r.p:' ('+r.p+')'):''),imp:r.i||k.imp,agency:k.agency,v:r.v||'official',n:r.n||null,pd:r.p||null,d:r.d,src:'schedule',fc:null,pv:null,ac:null});
-  }
-  events.sort((a,b)=>a.t-b.t);
+  const [sc,ind,res]=await Promise.all(['schedule.json','indicators.json','results.json'].map(f=>fetch(STATIC_BASE+f,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(r.status+' '+f);return r.json()}).catch(e=>{if(f==='results.json')return{rows:{}};throw e})));
+  const events=[],order=Object.keys(ind.kinds);
+  sc.releases.forEach((r,li)=>{
+    const k=ind.kinds[r.k],t0=etMs(r.d+'T'+r.t);if(!k||t0==null)return;
+    (k.rows||[{id:'main',t:k.name,u:''}]).forEach((row,ri)=>{
+      events.push({id:r.k+'|'+r.d+'|'+row.id,t:t0+(row.off||0)*6e4,k:r.k,r:row.id,title:r.ti||(row.t+(k.np||!r.p?'':' ('+r.p+')')),imp:r.i??row.imp??k.imp,agency:k.agency,v:r.v||'official',n:r.n||null,pd:r.p||null,d:r.d,src:'schedule',
+        fc:null,pv:null,ac:null,u:row.u||'',dir:row.dir||k.dir||'none',fam:row.fam||k.fam||null,ic:row.ic||null,pre:r.pre?1:0,ad:r.ad||0,hol:k.hol?1:0,_o:order.indexOf(r.k)*100+ri,_l:li});
+    });
+  });
+  events.sort((a,b)=>a.t-b.t||a._o-b._o||a._l-b._l);
+  let n=0;const rr=(res&&res.rows)||{};
+  events.forEach(e=>{const x=rr[e.id];if(!x)return;n++;['fc','pv','ac'].forEach(f=>{if(x[f]!=null&&x[f]!=='')e[f]=x[f]});if(x.pvc)e.pvc=x.pvc});
   const now=Date.now(),ch=Object.values(sc.checked||{}).sort();
-  return{updated:new Date().toISOString(),now:null,src:'schedule file',offline:true,feed:{status:'none'},sources:sc.sources,checked:sc.checked,kinds:ind.kinds,
+  return{updated:new Date().toISOString(),now:null,src:'schedule file',offline:true,feed:{status:'none'},fmp:{status:'none'},results:{asof:res.asof||null,n},sources:sc.sources,checked:sc.checked,kinds:ind.kinds,fams:ind.fams,backdrop:ind.backdrop,
     audit:{status:'unk',nIssues:0,counts:null,total:sc.releases.length,horizon:sc.releases.reduce((m,r)=>r.d>m?r.d:m,''),checked:ch[0]||null,issues:[]},
-    events:events.filter(e=>e.t>=now-2*864e5&&e.t<=now+60*864e5)};
+    events:events.filter(e=>e.t>=now-31*864e5&&e.t<=now+60*864e5)};
 }
+/* how long a calendar copy is reused: 15 s from 25 min before to 2 min after a high-impact release that has no actual yet, else 5 min */
+function calTtl(){
+  if(!calData)return 0;const n=NOW();
+  return calData.events.some(e=>e.imp===3&&e.src!=='feed'&&!e.hol&&e.ac==null&&e.t>n-25*60000&&e.t<n+120000)?15000:300000;
+}
+function calRepaint(){if(CALP.fn&&CALP.el&&CALP.el.isConnected&&calData)CALP.fn(calData)}
 let calFailAt=0,calLastErr=null;
 async function calGet(){
-  if(calData&&Date.now()-calAt<300000)return calData;
+  if(calData&&Date.now()-calAt<calTtl())return calData;
   if(calFailAt&&Date.now()-calFailAt<150000){if(calData)return calData;throw calLastErr} /* do not hammer a failing route */
   let d;
   try{
@@ -837,42 +849,81 @@ async function calGet(){
     if(calData&&!calData.offline&&Date.now()-calAt<1800000){calFailAt=Date.now();return calData} /* keep a recent Worker copy rather than swap to the bare file */
     try{d=await calStatic()}catch(_){calFailAt=Date.now();calLastErr=e;if(calData)return calData;throw e}
   }
-  calFailAt=0;calData=d;calAt=Date.now();return d;
+  calFailAt=0;calData=d;calAt=Date.now();calRepaint();return d;
 }
 const FLAME='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
 const flames=n=>'<span class="flames '+(n>=3?'h':'m')+'" role="img" aria-label="'+(n>=3?'high':'medium')+' impact">'+[1,2,3].map(i=>'<i class="'+(i<=n?'f':'')+'">'+FLAME+'</i>').join('')+'</span>';
-const cell=v=>v?esc(v):'<span class="none">—</span>';
+const cell=v=>v?esc(v):'';
+const numOf=v=>{if(v==null)return NaN;const m=String(v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):NaN};
+const et24=ms=>{const q=etP(ms);return p2(q.h)+':'+p2(q.mi)};
+const etDayL=ms=>new Date(ms).toLocaleDateString('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric',year:'numeric'});
+const IC={mic:'<svg class="ei" viewBox="0 0 24 24" aria-label="speech"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+  doc:'<svg class="ei" viewBox="0 0 24 24" aria-label="document"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>'};
+/* Actual colour follows the reference calendar: green above forecast, red below, plain bold when equal or when there is nothing to compare;
+   reversed for jobless claims, unemployment and crude stocks (dir inv / oil), and never coloured for rows with no direction (auctions, speeches). */
+function acCls(e){
+  if(e.ac==null)return '';
+  const a=numOf(e.ac),f=numOf(e.fc);
+  if(isNaN(a)||isNaN(f)||a===f||e.dir==='none')return 'k';
+  const inv=e.dir==='inv'||e.dir==='oil';
+  return (a>f)!==inv?'g':'r';
+}
+const SRN={FMP:'FMP economic calendar','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised'};
+const srTip=(e,f)=>e.sr&&e.sr[f]?' title="'+esc((f==='ac'?'actual':f==='fc'?'forecast':'previous')+': '+(SRN[e.sr[f]]||e.sr[f]))+'"':'';
+const pvCell=e=>e.pv?(e.pvc?'<span class="rv '+e.pvc+'" title="previous figure was revised">'+esc(e.pv)+'</span>':esc(e.pv)):'';
 const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
   +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">!</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
 const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
-const feedTxt=d=>d.feed&&d.feed.status==='ok'?'forecast and previous: unofficial feed':'no forecast'+(d.feed&&d.feed.status&&d.feed.status!=='none'?' (feed '+d.feed.status+')':'');
+const provTxt=d=>{
+  const f=(d.feed||{}).status,m=(d.fmp||{}).status,p=[];
+  if(m==='ok')p.push('forecast and actual: FMP');else p.push('actuals not connected'+(m&&m!=='no-key'&&m!=='none'?' (FMP '+m+')':''));
+  if(f==='ok'&&m!=='ok')p.push('forecast: unofficial feed');
+  if(d.results&&d.results.n)p.push('typed numbers from '+fmtIso(d.results.asof));
+  return p.join(' · ');
+};
+/* range -> [first, last] New York date. Weeks run Monday to Sunday. */
+function rngBounds(r,todayIso){
+  const D=864e5,d=new Date(todayIso+'T00:00:00Z'),t=+d,iso=x=>new Date(x).toISOString().slice(0,10),mon=t-((d.getUTCDay()+6)%7)*D;
+  if(r==='yest')return[iso(t-D),iso(t-D)];
+  if(r==='today')return[todayIso,todayIso];
+  if(r==='next')return[iso(mon+7*D),iso(mon+13*D)];
+  if(r==='month')return[iso(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)),iso(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0))];
+  return[iso(mon),iso(mon+6*D)];
+}
 const cal=el=>{
-  el.innerHTML='<div class="cal"><div class="calbar"><button class="pbtn" data-ck="today">today</button><button class="pbtn" data-ck="week">upcoming</button><button class="pbtn" data-ck="med">+ medium</button><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading…</p></div></div>';
+  el.innerHTML='<div class="cal"><div class="calbar"><select class="sel" data-ck="rng" aria-label="date range">'+RNG.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select><button class="pbtn" data-ck="med">+ medium</button><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button><span class="calnote"></span></div><div class="calscroll"><p class="note">loading…</p></div></div>';
   const bar=$('.calbar',el),box=$('.calscroll',el);let shown=[];
   const paint=d=>{
-    const now=NOW(),today=etP(now).iso,end=etP(now+14*864e5).iso;
-    const ev=d.events.filter(e=>(calMed||e.imp===3)&&e.d>=today&&(calRng==='week'?e.d<=end:e.d===today));
-    const nx=ev.find(e=>e.t>now&&e.src!=='feed');let h='',last='';shown=ev;
-    ev.forEach((e,i)=>{
-      if(e.d!==last){last=e.d;h+='<tr class="day"><td colspan="6">'+esc(etDay(e.t))+(e.d===today?'<small>today</small>':'')+'</td></tr>'}
-      h+='<tr class="rw '+(e.t<now?'past':e===nx?'next':'')+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+etClock(e.t)+'</td><td>'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+vmark(e)+'</td><td class="n"><b>'+cell(e.ac)+'</b></td><td class="n">'+cell(e.fc)+'</td><td class="n">'+cell(e.pv)+'</td></tr>';
+    const now=NOW(),today=etP(now).iso,[lo,hi]=rngBounds(calRng,today),st=box.scrollTop;
+    const ev=d.events.filter(e=>e.d>=lo&&e.d<=hi&&(e.hol||e.imp===3||(calMed&&e.imp>=2)));
+    const nx=ev.find(e=>e.t>now&&e.src!=='feed'&&!e.hol);let h='',last='';shown=[];
+    ev.forEach(e=>{
+      if(e.d!==last){last=e.d;h+='<tr class="day"><td colspan="6">'+esc(etDayL(e.t))+(e.d===today?'<small>today</small>':'')+'</td></tr>'}
+      if(e.hol){h+='<tr class="hol"><td class="tt">'+(e.ad===1?'All Day':'')+'</td><td class="im"><span class="hl">Holiday</span></td><td class="ev">'+esc(e.title)+vmark(e)+'</td><td class="n"></td><td class="n"></td><td class="n"></td></tr>';return}
+      const i=shown.push(e)-1,has=e.ac||e.fc||e.pv;
+      h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):e===nx?'next':'')+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>':'')+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
     });
-    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th>Time (ET)</th><th>Imp.</th><th>Event</th><th class="n">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
-    bar.querySelectorAll('.pbtn').forEach(b=>{const k=b.dataset.ck;b.classList.toggle('on',k==='med'?calMed:k===calRng)});
-    const a=d.audit||{},ab=$('.audit',bar),st=a.status||'unk';
-    ab.className='audit '+st;
-    $('span',ab).textContent=st==='ok'?'schedule checked '+fmtIso(a.checked):st==='unk'?'schedule not audited':'schedule: '+a.nIssues+' note'+(a.nIssues===1?'':'s');
+    box.innerHTML=ev.length?'<table class="ct"><colgroup><col class="c-t"><col class="c-i"><col><col class="c-n"><col class="c-n"><col class="c-n"></colgroup><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th>Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
+    box.scrollTop=st;
+    bar.querySelectorAll('.pbtn').forEach(b=>b.classList.toggle('on',b.dataset.ck==='med'&&calMed));
+    const sel=$('.sel',bar);if(sel.value!==calRng)sel.value=calRng;
+    const a=d.audit||{},ab=$('.audit',bar),stt=a.status||'unk';
+    ab.className='audit '+stt;
+    $('span',ab).textContent=stt==='ok'?'schedule checked '+fmtIso(a.checked):stt==='unk'?'schedule not audited':'schedule: '+a.nIssues+' note'+(a.nIssues===1?'':'s');
     ab.title='Open the schedule check';
-    $('.calnote',el).textContent=['click a row to explain',feedTxt(d),skewTxt()].filter(Boolean).join(' · ');
+    $('.calnote',el).textContent=['click a row to explain',provTxt(d),skewTxt()].filter(Boolean).join(' · ');
   };
-  bar.onclick=e=>{const b=e.target.closest('[data-ck]');if(!b||!calData)return;const k=b.dataset.ck;
+  CALP.fn=paint;CALP.el=el;
+  bar.onclick=e=>{const b=e.target.closest('button[data-ck]');if(!b||!calData)return;const k=b.dataset.ck;
     if(k==='audit'){showAudit(calData);return}
-    if(k==='med'){calMed=!calMed;LS.s(KEY+'cal_med',calMed?'1':'0')}else{calRng=k;LS.s(KEY+'cal_rng',k)}paint(calData)};
+    if(k==='med'){calMed=!calMed;LS.s(KEY+'cal_med',calMed?'1':'0')}paint(calData)};
+  bar.onchange=e=>{const sl=e.target.closest('select[data-ck]');if(!sl||!calData)return;calRng=sl.value;LS.s(KEY+'cal_rng',calRng);paint(calData)};
   const open=e=>{const tr=e.target.closest('tr[data-i]');if(tr&&shown[+tr.dataset.i])showRelease(shown[+tr.dataset.i])};
   box.onclick=open;
   box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){if(e.target.closest('tr[data-i]')){e.preventDefault();open(e)}}};
   calGet().then(paint).catch(()=>{box.innerHTML='<p class="note">The schedule could not be loaded (Worker /calendar and worker/config/schedule.json both failed). Use the MQL5 or TradingView tab.</p>'});
 };
+setInterval(()=>{if(!document.hidden)calRepaint()},60000); /* keeps past/next styling and ages current between data refreshes */
 
 /* ---- next high-impact USD event countdown + session clock (row under the gauges) ---- */
 const cd=ms=>{const s=Math.max(0,Math.floor(ms/1000)),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m '+String(s%60).padStart(2,'0')+'s'};
@@ -903,7 +954,7 @@ function nxtPaint(){
 }
 $('#nbody').addEventListener('click',e=>{if(e.target.closest('.nev')&&nxtEv)showRelease(nxtEv)});
 $('#nbody').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.nev')&&nxtEv){e.preventDefault();showRelease(nxtEv)}});
-const nxtLoad=()=>calGet().then(()=>{calFail=false;calErr='';nxtPaint()}).catch(e=>{calFail=true;calErr=String(e.message);nxtPaint()});
+const nxtLoad=()=>calGet().then(()=>{calFail=false;calErr='';nxtPaint();relCheck()}).catch(e=>{calFail=true;calErr=String(e.message);nxtPaint()});
 function lclkPaint(){const el=$('#lclk');if(el)el.textContent='CME '+(futClosed()?'closed':'open')+' \u00b7 '+new Date(NOW()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'})}
 
 /* ---- calendar reminders (plan 4.2, in-page version): toasts for High-impact USD events, 15 min and 5 min before and at release.
@@ -911,12 +962,57 @@ function lclkPaint(){const el=$('#lclk');if(el)el.textContent='CME '+(futClosed(
 const REM=[15,5,0],REM_WINDOW=150000;
 let remOn=LS.g(KEY+'rem_on','1')==='1',fired=[];
 try{fired=JSON.parse(LS.g(KEY+'rem_fired','[]'))||[]}catch(e){}
-function paintRem(){
-  const b=$('#remb');if(!b)return;
-  const t=remOn?'reminders on: 15 min and 5 min before, and at release (while this page is open). Click to turn off':'reminders off. Click to turn on';
-  b.innerHTML=remOn?I.bell:I.belloff;b.classList.toggle('on',remOn);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
+/* ---- alert switches: one per card that can alert, all in the same header slot (refresh, alert, open, expand, collapse) ----
+   cal: calendar reminders and release alerts (the same switch as the bell in the countdown card). wire: new DeItaone posts.
+   news: not available, because the FinancialJuice and TradingView news widgets are third-party frames that cannot be read (plan 4.3). */
+const ALERT={
+  cal:{get:()=>remOn,set:v=>{remOn=v;LS.s(KEY+'rem_on',v?'1':'0')},
+    on:'Alerts on: reminders 15 and 5 min before a high-impact release, then actual vs forecast vs previous when it prints (this page must be open). Click to turn off',
+    off:'Alerts off. Click to turn on reminders and release alerts'},
+  wire:{get:()=>alWire,set:v=>{alWire=v;LS.s(KEY+'al_wire',v?'1':'0');if(v)wireLoad()},
+    on:'Alerts on: a toast for new DeItaone posts, bursts grouped (this page must be open). Click to turn off',off:'Alerts off. Click to turn on new-post alerts'},
+  news:{na:true,tip:'Not available yet: the news widgets cannot be read, so headline alerts need a permitted FinancialJuice feed (plan 4.3)'}
+};
+function paintAlert(k){
+  const c=C[k];if(!c||!c.alert)return;
+  const b=$('[data-a="al"]',c.el),A=ALERT[c.alert];if(!b||!A)return;
+  const on=!A.na&&A.get(),t=A.na?A.tip:on?A.on:A.off;
+  b.innerHTML=on?I.bell:I.belloff;b.classList.toggle('on',on);b.classList.toggle('na',!!A.na);
+  b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);b.setAttribute('aria-pressed',A.na?'false':String(on));
 }
-function toggleRem(){remOn=!remOn;LS.s(KEY+'rem_on',remOn?'1':'0');paintRem()}
+function paintRem(){
+  const b=$('#remb');
+  if(b){const t=remOn?ALERT.cal.on:ALERT.cal.off;b.innerHTML=remOn?I.bell:I.belloff;b.classList.toggle('on',remOn);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t)}
+  if(typeof C!=='undefined')for(const k in C)paintAlert(k);
+}
+function setAlert(key,on){
+  const A=ALERT[key];if(!A)return;
+  if(A.na){toast({src:'Alerts',tag:'NOT AVAILABLE',h:'Headline alerts for this card',s:A.tip,ms:9000});return}
+  A.set(on);paintRem();
+  if(on&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}} /* lets an alert reach you while this tab is in the background */
+}
+function toggleRem(){setAlert('cal',!remOn)}
+function notify(title,body){try{if(document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body:body})}catch(e){}}
+/* release alerts: the first time an actual appears for a high-impact release (within 45 min of the print), one alert per release with
+   actual vs forecast vs previous and a line on what it usually means. A report with several rows (jobs, CPI) is one alert. */
+let relFired=[];try{relFired=JSON.parse(LS.g(KEY+'rel_fired','[]'))||[]}catch(e){}
+function relCheck(){
+  if(!remOn||!calData)return;
+  const now=NOW(),by=new Map();
+  calData.events.forEach(e=>{
+    if(e.src==='feed'||e.hol||e.imp!==3||e.ac==null||e.t>now+60000||e.t<now-45*60000||relFired.includes(e.id))return;
+    const g=e.k+'|'+e.d;if(!by.has(g))by.set(g,[]);by.get(g).push(e);
+  });
+  if(!by.size)return;
+  for(const list of by.values()){
+    list.forEach(e=>relFired.push(e.id));
+    const f=list[0],lines=list.slice(0,4).map(x=>x.title+': '+x.ac+(x.fc?' vs '+x.fc+' forecast':'')+(x.pv?' \u00b7 previous '+x.pv:'')),tk=takeaway(f),hd=relHead(f);
+    toast({src:'Release \u00b7 '+(f.agency||'USD'),tag:'RELEASED \u00b7 ACTUAL VS FORECAST',h:hd.h,s:lines.join('\n')+(tk?'\n'+tk.slice(0,280):''),rel:true,ev:f,ms:90000});
+    notify(hd.h,lines.join('\n'));
+  }
+  const keep=etP(now-3*864e5).iso;
+  relFired=relFired.filter(id=>String(id).split('|')[1]>=keep);LS.s(KEY+'rel_fired',JSON.stringify(relFired));
+}
 function remCheck(){
   if(!remOn||!calData)return;
   const now=NOW(),by=new Map();let dirty=false;
@@ -975,7 +1071,7 @@ function clkPaint(){
   });
 }
 setInterval(()=>{if(!document.hidden){nxtPaint();lclkPaint();clkPaint()}},1000);
-setInterval(()=>{if(!document.hidden)nxtLoad()},30000);
+setInterval(()=>{if(!document.hidden||remOn)nxtLoad()},15000); /* calGet itself reuses a copy for 5 min, or 15 s around a release */
 
 /* ---- cards ---- */
 const C={
@@ -983,14 +1079,14 @@ const C={
     zg:{l:'ZeroGEX',u:'https://zerogex.io/nq-gamma-levels',r:gex('NQ')}}},
   gexq:{page:'tech',t:'qqq gamma levels',col:'gx',sp:4,fit:true,noexp:true,ifh:310,ifhm:286,src:{
     zg:{l:'ZeroGEX',u:'https://zerogex.io/qqq-gamma-levels',r:gex('QQQ')}}},
-  econ:{page:'news',t:'economic calendar',sp:7,h:640,hm:460,full:1100,fullm:1000,src:{
+  econ:{page:'news',t:'economic calendar',alert:'cal',noexp:true,sp:7,h:640,hm:460,full:1100,fullm:1000,src:{
     cal:{l:'Calendar',u:'https://www.forexfactory.com/calendar',r:cal},
     mql:{l:'MQL5',u:'https://www.tradays.com/en/economic-calendar',r:mql},
     tv:{l:'TradingView',u:'https://www.tradingview.com/economic-calendar/',r:tv('events',{importanceFilter:'1',countryFilter:'us'})}}},
-  news:{page:'news',col:true,t:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
+  news:{page:'news',col:true,t:'news',alert:'news',noopen:true,sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',u:'https://www.financialjuice.com/home',r:fj},
     tv:{l:'TradingView',u:'https://www.tradingview.com/news/',r:tv('timeline',{feedMode:'market',market:'stock',displayMode:'regular'})}}},
-  wire:{page:'news',col:true,t:'deitaone wire \u00b7 telegram mirror',sp:5,h:320,hm:420,full:900,fullm:900,src:{
+  wire:{page:'news',col:true,t:'deitaone wire \u00b7 telegram mirror',alert:'wire',noopen:true,sp:5,h:320,hm:420,full:900,fullm:900,src:{
     tg:{l:'Telegram',u:'https://t.me/s/WalterBloomberg',r:wire}}},
   earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',u:'https://earningshub.com/earnings-calendar/this-week',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
@@ -1018,7 +1114,9 @@ for(const k in C){
   const keys=Object.keys(c.src);
   s.innerHTML='<div class="ch"><span class="plbl">'+c.t+'</span>'
     +(keys.length>1?'<div class="seg">'+keys.map(i=>'<button class="pbtn" data-s="'+i+'">'+c.src[i].l+'</button>').join('')+'</div>':'')
-    +'<div class="acts"><button class="topicon" data-a="r" aria-label="refresh" data-tt="refresh">'+I.refresh+'</button><button class="topicon" data-a="o" aria-label="open source" data-tt="open source">'+I.open+'</button>'
+    +'<div class="acts"><button class="topicon" data-a="r" aria-label="refresh" data-tt="refresh">'+I.refresh+'</button>'
+    +(c.alert?'<button class="topicon al" data-a="al" aria-label="alerts" aria-pressed="false">'+I.belloff+'</button>':'')
+    +(c.noopen?'':'<button class="topicon" data-a="o" aria-label="open source" data-tt="open source">'+I.open+'</button>')
     +(c.noexp?'':'<button class="topicon" data-a="f" aria-label="expand" data-tt="expand to full height">'+I.expand+'</button>')+'<button class="topicon" data-a="c" aria-label="collapse" data-tt="collapse (or double-click the header)">'+I.fold+'</button></div></div>'
     +(c.tb?'<form class="tb"><input aria-label="ticker" maxlength="10" autocomplete="off" spellcheck="false" value="'+sym+'"><button class="btn">look up</button><a class="btn" id="est" target="_blank" rel="noopener" href="'+estUrl()+'">estimize '+I.open+'</a></form>':'')
     +'<div class="body"></div>';
@@ -1063,6 +1161,7 @@ document.addEventListener('click',e=>{
   if(!ab)return;
   const a=ab.dataset.a;
   if(a==='r')draw(k);
+  if(a==='al')setAlert(c.alert,!(ALERT[c.alert]&&ALERT[c.alert].get&&ALERT[c.alert].get()));
   if(a==='o'){const u=c.src[c.cur].u;window.open(typeof u=='function'?u():u,'_blank','noopener')}
   if(a==='f')setTall(k,!card.classList.contains('tall'));
   if(a==='c')setClosed(k,!card.classList.contains('closed'));
@@ -1121,16 +1220,31 @@ function toast(a){
 function testAlert(){const m={...MOCKS[mockI++%MOCKS.length]};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
 const relBox=document.createElement('div');relBox.id='rel';relBox.hidden=true;document.body.appendChild(relBox);
 const closeRel=()=>{relBox.hidden=true};
-const numOf=v=>{if(v==null)return NaN;const m=String(v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):NaN};
-function relHead(e,k){ /* headline tone from actual vs forecast; only possible once an actual exists */
-  const a=numOf(e.ac),f=numOf(e.fc),nm=k?k.name:e.title;
-  if(isNaN(a)||isNaN(f))return e.t>NOW()?{c:'',h:'Upcoming: '+e.title}:{c:'',h:'Released: '+e.title+' (actual not connected yet)'};
-  if(a===f)return{c:'',h:nm+' came in line with forecast'};
-  const up=a>f,dir=k?k.dir:'none',w=up?'above':'below';
-  if(dir==='claims')return up?{c:'b',h:'Bad news: '+nm+' rose more than expected'}:{c:'g',h:'Good news: '+nm+' fell more than expected'};
-  if(dir==='infl')return up?{c:'b',h:'Hot: '+nm+' came in above forecast'}:{c:'g',h:'Cool: '+nm+' came in below forecast'};
-  if(dir==='grow')return up?{c:'g',h:'Good news: '+nm+' came in above forecast'}:{c:'b',h:'Bad news: '+nm+' came in below forecast'};
-  return{c:'',h:nm+' came in '+w+' forecast'};
+/* which scenario came true: 0 above forecast, 1 in line, 2 below. Rows with no forecast (auctions) compare with the previous figure. -1 until an actual exists. */
+function scenIdx(e){
+  if(e.ac==null)return -1;
+  const a=numOf(e.ac);let f=numOf(e.fc);if(isNaN(f))f=numOf(e.pv);
+  if(isNaN(a)||isNaN(f))return -1;
+  return a===f?1:a>f?0:2;
+}
+function relHead(e,k){ /* headline from actual vs forecast; only possible once an actual exists */
+  if(e.hol)return{c:'',h:e.title};
+  const a=numOf(e.ac),f=numOf(e.fc);
+  if(e.ac==null)return e.t>NOW()?{c:'',h:'Upcoming: '+e.title}:{c:'',h:'Released: '+e.title+' (actual not connected yet)'};
+  if(isNaN(a)||isNaN(f))return{c:'',h:e.title+': '+e.ac+(e.pv?' (previous '+e.pv+')':'')};
+  if(a===f)return{c:'',h:e.title+' came in line with forecast'};
+  const up=a>f,w=up?'above':'below',dir=e.dir;
+  if(e.k==='claims')return up?{c:'b',h:'Bad news: Jobless claims rose more than expected'}:{c:'g',h:'Good news: Jobless claims fell more than expected'};
+  if(dir==='inv')return up?{c:'b',h:'Bad news: '+e.title+' came in '+w+' forecast'}:{c:'g',h:'Good news: '+e.title+' came in '+w+' forecast'};
+  if(dir==='infl')return{c:'',h:(up?'Hot: ':'Cool: ')+e.title+' came in '+w+' forecast'};
+  if(dir==='grow')return up?{c:'g',h:'Good news: '+e.title+' came in '+w+' forecast'}:{c:'b',h:'Bad news: '+e.title+' came in '+w+' forecast'};
+  return{c:'',h:e.title+' came in '+w+' forecast'};
+}
+const SCK=['up','eq','down'];
+function takeaway(e){ /* one line for alerts: which case happened and what it usually means for stocks */
+  const fam=((calData&&calData.fams)||{})[e.fam],i=scenIdx(e);
+  if(!fam||i<0)return '';
+  return ((fam.lbl||[])[i]||'')+': '+fam[SCK[i]].macro+' Stocks: '+fam[SCK[i]].stocks;
 }
 function relShell(label,inner){
   relBox.innerHTML='<div class="relc" role="dialog" aria-modal="true" aria-label="'+esc(label)+'"><div class="relh"><b>'+esc(label)+'</b><button class="topicon" aria-label="close">×</button></div>'+inner+'</div>';
@@ -1138,22 +1252,35 @@ function relShell(label,inner){
 }
 function showRelease(e){
   if(!e)return;
-  const d=calData||{},k=(d.kinds||{})[e.k],hd=relHead(e,k);
+  const d=calData||{},k=(d.kinds||{})[e.k],fam=(d.fams||{})[e.fam]||null,hd=relHead(e,k);
   const loc=new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});
-  const rows=[e].concat(e.sub||[]).map(x=>'<tr><td class="num">'+esc(x.title)+'</td><td class="num">'+cell(x.ac)+'</td><td class="num">'+cell(x.fc)+'</td><td class="num">'+cell(x.pv)+'</td></tr>').join('');
+  const sib=(d.events||[]).filter(x=>x.k===e.k&&x.d===e.d&&x.src!=='feed'&&!x.hol);if(!sib.includes(e))sib.unshift(e);
+  const rows=sib.map(x=>'<tr><td class="num">'+esc(x.title)+'</td><td class="num"><b class="'+acCls(x)+'">'+cell(x.ac)+'</b></td><td class="num">'+cell(x.fc)+'</td><td class="num">'+pvCell(x)+'</td></tr>').join('');
   const ck=d.checked&&d.checked[e.k],srcUrl=d.sources&&d.sources[e.k];
   let src;
   if(e.src==='feed')src='<div class="src w">This event is only in the unofficial feed. It is not part of the official schedule and does not drive the countdown or reminders.</div>';
   else if(e.v==='rule')src='<div class="src w">Date derived from the usual pattern for '+esc(e.agency||'the agency')+'; the agency has not published this one yet. '+esc(e.n||'')+'</div>';
   else if(e.v==='check')src='<div class="src w">Date in doubt. '+esc(e.n||'')+'</div>';
+  else if(e.v==='ref')src='<div class="src">Date and time from the reference calendar you supplied (14 Nov), not yet compared with the '+esc(e.agency||'agency')+' page.'+(srcUrl?' <a href="'+esc(srcUrl)+'" target="_blank" rel="noopener">source</a>':'')+(e.n?' '+esc(e.n):'')+'</div>';
   else src='<div class="src">Date and time from the official '+esc(e.agency||'')+' schedule'+(ck?', checked '+esc(fmtIso(ck)):'')+'.'+(srcUrl?' <a href="'+esc(srcUrl)+'" target="_blank" rel="noopener">source</a>':'')+(e.n?' '+esc(e.n):'')+'</div>';
-  const flag=e.flag?'<div class="src w">The unofficial feed disagrees: '+esc(e.flag)+'. The schedule above is what the countdown uses. Check the agency page.</div>':'';
+  const flag=e.flag?'<div class="src w">The provider disagrees: '+esc(e.flag)+'. The schedule above is what the countdown uses. Check the agency page.</div>':'';
+  const used=[...new Set(sib.flatMap(x=>Object.values(x.sr||{})))].map(x=>SRN[x]||x);
+  const nums='<div class="src">'+(used.length?'Numbers from: '+esc(used.join(', '))+'.':'No forecast or actual is connected for this event yet.')+'</div>';
+  let sc='';
+  if(fam){
+    const hit=scenIdx(e),lbl=fam.lbl||['If above forecast','If in line','If below forecast'];
+    const order=hit>=0?[hit].concat([0,1,2].filter(i=>i!==hit)):[0,1,2];
+    sc='<h4>What to expect</h4>'+(fam.lead?'<p class="lead">'+esc(fam.lead)+'</p>':'')+'<div class="scs">'+order.map(i=>{const x=fam[SCK[i]];
+      return '<div class="sc'+(hit===i?' hit':'')+'"><h5>'+esc(lbl[i])+(hit===i?' · this is what happened':'')+'</h5><dl><dt>Macro</dt><dd>'+esc(x.macro)+'</dd><dt>Stocks</dt><dd>'+esc(x.stocks)+'</dd><dt>Fed</dt><dd>'+esc(x.fed)+'</dd></dl></div>'}).join('')+'</div>';
+  }
+  const bk=d.backdrop?'<div class="bd"><b>Policy backdrop, '+esc(fmtIso(d.backdrop.asof))+':</b> '+esc(d.backdrop.text)+' <span class="relf">'+esc(d.backdrop.src||'')+'</span></div>':'';
+  const got=e.ac?'<div class="got">Actual '+esc(e.ac)+(e.fc?' · forecast '+esc(e.fc):'')+(e.pv?' · previous '+esc(e.pv):'')+'</div>':'';
   relShell('Economic release',
-    '<h3 class="'+hd.c+'">'+esc(hd.h)+'</h3><div class="relt">'+esc(etDay(e.t))+', '+etClock(e.t)+' ET · '+esc(loc)+' (your time)</div>'
+    '<h3 class="'+hd.c+'">'+esc(hd.h)+'</h3><div class="relt">'+esc(etDayL(e.t))+', '+etClock(e.t)+' ET · '+esc(loc)+' (your time)'+(e.pd&&k&&k.np?' · '+esc(e.pd):'')+'</div>'+got
     +'<table><tr><th>Event</th><th>Actual</th><th>Forecast</th><th>Previous</th></tr>'+rows+'</table>'
-    +(k?'<h4>What it is</h4><p>'+esc(k.what)+'</p><h4>Why it matters</h4><p>'+esc(k.why)+'</p><h4>What to watch</h4><p>'+esc(k.watch)+'</p>':'')
-    +src+flag
-    +'<p class="relf">Explainer text is fixed per release type, written by hand: not AI and not live. Actual figures are not connected yet (plan 3.5), so the good/bad headline appears once a release carries an actual.</p>');
+    +(k?'<h4>What it is</h4><p>'+esc(k.what)+'</p><h4>Why it matters</h4><p>'+esc(k.why)+'</p>':'')
+    +sc+(k?'<h4>What to watch</h4><p>'+esc(k.watch)+'</p>':'')+bk+nums+src+flag
+    +'<p class="relf">The explanations are typical reactions written by hand, not predictions and not AI. Real moves depend on positioning and the details of the report. Green and red follow the reference calendar: green above forecast, red below, reversed for claims, unemployment and crude stocks.</p>');
 }
 function showAudit(d){
   const a=d.audit||{},c=a.counts,iss=(a.issues||[]).map(i=>'<li class="'+esc(i.lvl)+'">'+esc(i.msg)+'</li>').join('');
@@ -1161,7 +1288,7 @@ function showAudit(d){
   relShell('Schedule check',
     '<h3 class="'+(a.status==='ok'?'g':a.status==='error'?'b':'')+'">'+(a.status==='ok'?'No problems found':a.status==='unk'?'Not audited (the Worker was not reached)':a.nIssues+' note'+(a.nIssues===1?'':'s')+(a.status==='error'?', including errors':''))+'</h3>'
     +'<div class="relt">'+(a.total||0)+' scheduled releases, '+fmtIso(a.first)+' to '+fmtIso(a.horizon)+(a.checked?' · oldest check '+fmtIso(a.checked):'')+'</div>'
-    +(c?'<p>'+c.official+' dates read from agency pages · '+c.rule+' derived from the agency’s usual pattern · '+c.check+' in doubt.</p>':'')
+    +(c?'<p>'+c.official+' dates read from agency pages · '+(c.ref||0)+' from the reference calendar · '+c.rule+' derived from the agency’s usual pattern · '+c.check+' in doubt.</p>':'')
     +(iss?'<ul class="iss">'+iss+'</ul>':'')
     +'<h4>What is checked</h4><p>On every load the Worker re-checks the file: no weekend or federal-holiday dates, the right time for each release type, no missing or doubled weeks and months, FOMC spacing, minutes three weeks after each decision, how long ago each type was checked, and how far ahead the file runs. When the unofficial feed answers, its dates and times are compared with the schedule too. A device-clock check runs against the Worker’s clock'+(Math.abs(clkOff)>2000?' (yours is off by '+(Math.abs(clkOff)/1000).toFixed(0)+' s and is corrected)':' (yours agrees to within 2 s)')+'.</p>'
     +(src?'<h4>Official sources</h4><p>'+src+'</p>':'')
