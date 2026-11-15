@@ -126,8 +126,8 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .stack .card.closed{flex:none}
 .stack .card.tall{flex:none;height:var(--full,640px)}
 /* market tape */
-.tapes{display:flex;flex-direction:column;padding:2px 0}
-.tape{position:relative;overflow:hidden;padding:5px 0;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.tapes{--tk:.88;display:flex;flex-direction:column;padding:2px 0} /* tape content scale: font sizes, padding and item width all follow it */
+.tape{position:relative;overflow:hidden;padding:4px 0;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
 .tape.drag{cursor:grabbing}
 .tape+.tape{border-top:.5px solid var(--bd)}
 .trk{display:flex;width:max-content;will-change:transform}
@@ -136,20 +136,20 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .tape.static .seq+.seq{display:none}
 .tape.static{overflow:visible;-webkit-mask-image:none;mask-image:none}
 .tape.static .trk{width:auto;display:block;transform:none!important}
-.tape.static .seq{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
-.tape.static .ti{min-width:0;padding:6px 8px}
+.tape.static .seq{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+.tape.static .ti{min-width:0;padding:5px 7px}
 .tape.static .gc{grid-column:1/-1;justify-self:start;margin:6px 0 0 8px}
-.gc{align-self:center;flex:none;font-size:var(--fxs);font-weight:600;padding:2px 9px;border-radius:999px;margin:0 4px 0 16px;border:.5px solid currentColor;white-space:pre-line;text-align:center;line-height:1.2}
+.gc{align-self:center;flex:none;font-size:calc(var(--fxs)*var(--tk,1));font-weight:600;padding:2px 8px;border-radius:999px;margin:0 4px 0 14px;border:.5px solid currentColor;white-space:pre-line;text-align:center;line-height:1.2}
 @supports (background:color-mix(in srgb,red 10%,transparent)){.gc{background:color-mix(in srgb,currentColor 12%,transparent)}}
-.gc.gc2{padding:3px 10px;border-radius:12px}
+.gc.gc2{padding:3px 9px;border-radius:11px}
 .tape.static .gc{white-space:nowrap}
 .tape.static .gc.gc2{padding:2px 9px;border-radius:999px}
-.ti{flex:none;min-width:112px;padding:3px 14px;white-space:nowrap}
-.ti .l{font-size:var(--fxs);color:var(--t3);letter-spacing:.06em;display:flex;justify-content:space-between;gap:10px}
-.ti .a{font-size:10px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.ti{flex:none;min-width:98px;padding:3px 12px;white-space:nowrap}
+.ti .l{font-size:calc(var(--fxs)*var(--tk,1));color:var(--t3);letter-spacing:.06em;display:flex;justify-content:space-between;gap:8px}
+.ti .a{font-size:calc(10px*var(--tk,1));letter-spacing:0;font-variant-numeric:tabular-nums}
 .ti.stale .a{color:var(--r)}
-.ti .p{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;margin:1px 0}
-.ti .c{font-size:var(--fsm);font-variant-numeric:tabular-nums;color:var(--t3);white-space:nowrap}
+.ti .p{font-size:calc(15px*var(--tk,1));font-weight:600;font-variant-numeric:tabular-nums;margin:1px 0}
+.ti .c{font-size:calc(var(--fsm)*var(--tk,1));font-variant-numeric:tabular-nums;color:var(--t3);white-space:nowrap}
 .ti .c.up{color:var(--g)}.ti .c.dn{color:var(--r)}
 .ti.stale .p,.ti.old .p{opacity:.55}
 .fbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px 12px;gap:4px}
@@ -875,7 +875,7 @@ const technicals=pair(tvwc('tv-technical-analysis',()=>({symbol:sym,'ratings-dis
 const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
 const STATIC_BASE='worker/config/'; /* relative to this page: assumes the repo root is what GitHub Pages serves */
 let calData=null,calAt=0,calRng=LS.g(KEY+'cal_rng','week');
-const RNG=[['last','last week'],['yest','yesterday'],['today','today'],['week','this week'],['next','next week'],['month','this month']];
+const RNG=[['yest','yesterday'],['today','today'],['last','last week'],['week','this week'],['next','next week'],['month','this month']]; /* days first, then weeks in time order, then the month */
 if(!RNG.some(x=>x[0]===calRng))calRng='week'; /* saved choices from the old today/upcoming buttons: 'week' still means this week, anything else falls back to it */
 const CALP={fn:null,el:null}; /* the open calendar card, so new data repaints it */
 let clkOff=0; /* Worker clock minus this device's clock, ms. Countdown, reminders and sessions use NOW() so a wrong device clock cannot skew them */
@@ -974,6 +974,7 @@ function rngBounds(r,todayIso){
 const cal=el=>{
   el.innerHTML='<div class="cal"><div class="calbar"><select class="sel" data-ck="rng" aria-label="date range">'+RNG.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button></div><div class="calscroll"><p class="note">loading…</p></div></div>';
   const bar=$('.calbar',el),box=$('.calscroll',el);let shown=[];
+  $('.sel',bar).value=calRng; /* show the saved range at once, not the first option until data arrives */
   const paint=d=>{
     const now=NOW(),today=etP(now).iso,[lo,hi]=rngBounds(calRng,today),st=box.scrollTop;
     const ev=d.events.filter(e=>e.d>=lo&&e.d<=hi&&(e.hol||e.imp===3));
@@ -1362,7 +1363,12 @@ function showRelease(e){
     sc='<h4>What to expect</h4>'+(fam.lead?'<p class="lead">'+esc(fam.lead)+'</p>':'')+'<div class="scs">'+order.map(i=>{const x=fam[SCK[i]];
       return '<div class="sc'+(hit===i?' hit':'')+'"><h5>'+esc(lbl[i])+(hit===i?' · this is what happened':'')+'</h5><dl><dt>Macro</dt><dd>'+esc(x.macro)+'</dd><dt>Stocks</dt><dd>'+esc(x.stocks)+'</dd><dt>Fed</dt><dd>'+esc(x.fed)+'</dd></dl></div>'}).join('')+'</div>';
   }
-  const bk=d.backdrop?'<div class="bd"><b>Policy backdrop, '+esc(fmtIso(d.backdrop.asof))+':</b> '+esc(d.backdrop.text)+' <span class="relf">'+esc(d.backdrop.src||'')+'</span></div>':'';
+  /* The backdrop is hand-written, so it can go stale. Within 14 days it shows as written; 15 to 45 days it carries a warning; past 45 days
+     it is not shown at all (a missing line is better than a misleading one). Automatic refresh is planned with L1 (plan D93). */
+  const bAge=d.backdrop&&d.backdrop.asof?Math.floor((NOW()-new Date(d.backdrop.asof+'T12:00:00Z'))/864e5):null;
+  const bTxt=d.backdrop?String(d.backdrop.text||'').replace(/\s*Edit this line[^.]*\./i,''):'';
+  const bk=!d.backdrop?'':bAge!==null&&bAge>45?'<div class="bd"><b>Policy backdrop not shown:</b> the last one was written '+bAge+' days ago (<span>'+esc(fmtIso(d.backdrop.asof))+'</span>) and may no longer be true.</div>'
+    :'<div class="bd"><b>Policy backdrop, '+esc(fmtIso(d.backdrop.asof))+':</b> '+esc(bTxt)+' <span class="relf">'+esc(d.backdrop.src||'')+'</span>'+(bAge!==null&&bAge>14?'<div class="relf"><b>Written '+bAge+' days ago. The Fed&rsquo;s stance may have changed since.</b></div>':'')+'</div>';
   const got=e.ac?'<div class="got">Actual '+esc(e.ac)+(e.fc?' · forecast '+esc(e.fc):'')+(e.pv?' · previous '+esc(e.pv):'')+'</div>':'';
   relShell('Economic release',
     '<h3 class="'+hd.c+'">'+esc(hd.h)+'</h3><div class="relt">'+esc(etDayL(e.t))+', '+etClock(e.t)+' ET · '+esc(loc)+' (your time)'+(e.pd&&k&&k.np?' · '+esc(e.pd):'')+'</div>'+got
