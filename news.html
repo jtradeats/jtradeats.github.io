@@ -26,6 +26,7 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --tabB:#A15B78;--tabBbg:rgba(161,91,120,0.12);--tabBbd:rgba(161,91,120,0.32); /* tab accent B: mauve (even tabs) */
   --a1:#4F7691;--a2:#A15B78;--a3:#6F8A4A;--a4:#B7803A;--a5:#6E6AA8;--a6:#3F8F8A;
   --pc1:#E8794A;--pc2:#DD5B7A;--pc3:#D4483F; /* next-event card: peach to coral-pink, hotter under an hour */
+  --hd:rgba(232,121,74,.17);--hdt:#B8532B; /* calendar header strip: tint of the countdown card's peach */
   --s-off:#E5484D; /* session dot when closed */
   --s-tokyo:#7FB6EE;--s-london:#E9D25F;--s-ny:#EE8B8B; /* session tints: light blue, pale yellow, light red (ORB colours): change here */
   --rad:8px;--radl:12px;
@@ -45,6 +46,7 @@ var l=document.getElementById("favicon");if(l)l.href="data:image/svg+xml,"+encod
   --tabB:#E0AFC2;--tabBbg:rgba(224,175,194,0.15);--tabBbd:rgba(224,175,194,0.35);
   --a1:#A9C6DE;--a2:#E0AFC2;--a3:#B9CC8E;--a4:#E8C07A;--a5:#B7B3E6;--a6:#8FD0C9;
   --pc1:#FFB08C;--pc2:#FF8A9A;--pc3:#FF7A7A;
+  --hd:rgba(255,176,140,.16);--hdt:#FFB08C;
 }
 body{font-family:var(--sans);background:var(--bg);color:var(--t);min-height:100vh;font-size:var(--fbase)}
 #app{max-width:1152px;margin:0 auto;padding:2rem 1.25rem 4rem}
@@ -220,11 +222,12 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .relc .got{font-size:15px;font-weight:600;margin:6px 0 2px}
 .calscroll{flex:1;min-height:0;overflow:auto}
 .ct{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-.ct th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;font-size:var(--fxs);font-weight:500;color:var(--t3);padding:6px 10px;border-bottom:.5px solid var(--bd);white-space:nowrap}
+.ct th{position:sticky;top:0;z-index:1;background-color:var(--surface);background-image:linear-gradient(var(--hd),var(--hd));text-align:left;font-size:var(--fxs);font-weight:600;color:var(--hdt);padding:6px 10px;border-bottom:.5px solid var(--bdm);line-height:1.15}
 .ct td{padding:9px 10px;border-bottom:.5px solid var(--bd);font-size:var(--fbase);white-space:nowrap}
-.ct{table-layout:fixed}
-.ct col.c-t{width:62px}.ct col.c-i{width:64px}.ct col.c-n{width:86px}
-.ct td.ev{white-space:normal;font-weight:500;line-height:1.3;padding-right:12px;overflow-wrap:anywhere}
+/* auto layout: the event column takes whatever width is left and wraps at spaces only (never mid-word, never hyphenated); time, importance and the three number columns keep a fixed width and never wrap, so every header stays whole */
+.ct th.tt,.ct td.tt{width:62px}.ct th.im,.ct td.im{width:64px}.ct th.n,.ct td.n{width:86px;white-space:nowrap}
+.ct th.ev,.ct td.ev{min-width:120px}
+.ct td.ev{white-space:normal;font-weight:500;line-height:1.3;padding-right:12px;overflow-wrap:normal;word-break:normal;hyphens:none}
 .ct th.n,.ct td.n{text-align:right;padding-left:4px;padding-right:12px}
 .ct td.tt{color:var(--t2)}
 .ct td .none{color:var(--t3)}
@@ -297,9 +300,11 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .nsub .vq{margin-left:4px}
 html.mobile .mk3{grid-template-columns:minmax(0,1fr)}
 html.mobile .ct th,html.mobile .ct td{padding:8px 5px;font-size:12px}
-html.mobile .ct col.c-i,html.mobile .ct th.im,html.mobile .ct td.im{display:none}
-html.mobile .ct col.c-t{width:50px}html.mobile .ct col.c-n{width:58px}
-html.mobile .ct td.ev{padding-right:6px}html.mobile .ct th.n,html.mobile .ct td.n{padding-right:6px}
+html.mobile .ct th{font-size:11px}
+html.mobile .ct th.im,html.mobile .ct td.im{display:none}
+html.mobile .ct th.tt,html.mobile .ct td.tt{width:50px}
+html.mobile .ct th.n,html.mobile .ct td.n{width:60px;padding:8px 6px 8px 2px}
+html.mobile .ct th.ev,html.mobile .ct td.ev{min-width:96px}html.mobile .ct td.ev{padding-right:6px}
 html.mobile .flames svg{width:10px;height:10px}
 html.mobile .mk3{gap:8px;margin-bottom:1rem}
 html.mobile .mk3 .card{height:auto}
@@ -868,7 +873,7 @@ function acCls(e){
   const inv=e.dir==='inv'||e.dir==='oil';
   return (a>f)!==inv?'g':'r';
 }
-const SRN={FMP:'FMP economic calendar','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised'};
+const SRN={FRED:'FRED, official BLS and DOL series (computed by the Worker)',FMP:'FMP economic calendar','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised'};
 const srTip=(e,f)=>e.sr&&e.sr[f]?' title="'+esc((f==='ac'?'actual':f==='fc'?'forecast':'previous')+': '+(SRN[e.sr[f]]||e.sr[f]))+'"':'';
 const pvCell=e=>e.pv?(e.pvc?'<span class="rv '+e.pvc+'" title="previous figure was revised">'+esc(e.pv)+'</span>':esc(e.pv)):'';
 const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
@@ -876,7 +881,8 @@ const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agen
 const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
 const provTxt=d=>{
   const f=(d.feed||{}).status,m=(d.fmp||{}).status,p=[];
-  if(m==='ok')p.push('forecast and actual: FMP');else p.push('actuals not connected'+(m&&m!=='no-key'&&m!=='none'?' (FMP '+m+')':''));
+  const o=(d.official||{}).status;
+  if(m==='ok')p.push('forecast and actual: FMP');else if(o==='ok'||o==='stale')p.push('actuals: official (FRED) for jobs, CPI and claims'+(o==='stale'?' (stale)':''));else p.push('actuals not connected'+(m&&m!=='no-key'&&m!=='none'?' (FMP '+m+')':''));
   if(f==='ok'&&m!=='ok')p.push('forecast: unofficial feed');
   if(d.results&&d.results.n)p.push('typed numbers from '+fmtIso(d.results.asof));
   return p.join(' · ');
@@ -903,7 +909,7 @@ const cal=el=>{
       const i=shown.push(e)-1,has=e.ac||e.fc||e.pv;
       h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):e===nx?'next':'')+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>':'')+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
     });
-    box.innerHTML=ev.length?'<table class="ct"><colgroup><col class="c-t"><col class="c-i"><col><col class="c-n"><col class="c-n"><col class="c-n"></colgroup><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th>Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
+    box.innerHTML=ev.length?'<table class="ct"><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th class="ev">Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No '+(calMed?'high or medium':'high')+'-impact USD events in this range.</p>';
     box.scrollTop=st;
     bar.querySelectorAll('.pbtn').forEach(b=>b.classList.toggle('on',b.dataset.ck==='med'&&calMed));
     const sel=$('.sel',bar);if(sel.value!==calRng)sel.value=calRng;
