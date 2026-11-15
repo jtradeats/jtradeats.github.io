@@ -144,6 +144,37 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .gc.gc2{padding:3px 9px;border-radius:11px}
 .tape.static .gc{white-space:nowrap}
 .tape.static .gc.gc2{padding:2px 9px;border-radius:999px}
+
+/* group explainer (opens under the tape when a group chip is tapped) */
+.gc{cursor:pointer}
+.gc:hover{filter:brightness(1.15)}
+.gc.on{background:color-mix(in srgb,currentColor 26%,transparent);box-shadow:0 0 0 1px currentColor}
+.gc:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.gx{border-top:.5px solid var(--bd);border-left:3px solid var(--gxc,var(--a1));margin:6px 8px 8px;padding:10px 12px 12px;background:var(--s2);border-radius:var(--rad);font-size:var(--fbase);line-height:1.45;color:var(--t)}
+.gx-h{display:flex;align-items:flex-start;gap:10px}
+.gx-h h3{flex:1;font-size:calc(var(--fbase)*1.08);font-weight:650;color:var(--gxc,var(--a1));line-height:1.3}
+.gx-x{flex:none;width:28px;height:28px;margin:-4px -6px 0 0;display:inline-flex;align-items:center;justify-content:center;background:none;border:none;color:var(--t2);cursor:pointer;font-size:20px;line-height:1;border-radius:6px}
+.gx-x:hover{color:var(--t);background:var(--s2)}
+.gx-w{margin:4px 0 8px;color:var(--t)}
+.gx-cols{display:grid;grid-template-columns:1fr 1fr;gap:4px 22px}
+.gx h4{font-size:var(--fsm);font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);margin:8px 0 3px}
+.gx ul{list-style:none}
+.gx li{position:relative;padding-left:13px;margin:2px 0;color:var(--t2)}
+.gx li::before{content:"";position:absolute;left:2px;top:.62em;width:4px;height:4px;border-radius:50%;background:var(--gxc,var(--a1))}
+.gx li b{color:var(--t);font-weight:600}
+.gx-t{margin-top:10px;border-top:.5px solid var(--bd);padding-top:6px}
+.gx-t summary{cursor:pointer;padding:6px 0;font-weight:600;font-size:var(--fsm);color:var(--gxc,var(--a1));list-style:none;display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.gx-t summary::-webkit-details-marker{display:none}
+.gx-t summary::before{content:"\25B8";display:inline-block;transition:transform .15s}
+.gx-t[open] summary::before{transform:rotate(90deg)}
+.gx-k{padding:8px 0;border-top:.5px dashed var(--bd)}
+.gx-k:first-of-type{border-top:none}
+.gx-k .nm{font-weight:650}
+.gx-k .nm i{font-style:normal;font-weight:400;color:var(--t3)}
+.gx-k p{margin:2px 0;color:var(--t2)}
+.gx-k p b{color:var(--t);font-weight:600;font-size:var(--fsm)}
+.gx-k .hit{color:var(--t)}
+@media(max-width:720px){.gx-cols{grid-template-columns:1fr}.gx{margin:6px 6px 8px;padding:10px 10px 12px}}
 .ti{flex:none;min-width:98px;padding:3px 12px;white-space:nowrap}
 .ti .l{font-size:calc(var(--fxs)*var(--tk,1));color:var(--t3);letter-spacing:.06em;display:flex;justify-content:space-between;gap:8px}
 .ti .a{font-size:calc(10px*var(--tk,1));letter-spacing:0;font-variant-numeric:tabular-nums}
@@ -404,6 +435,7 @@ html.mobile .tu b{font-size:22px}
         <button class="topicon" id="mfreeze"></button>
         <button class="topicon" id="mrefresh" aria-label="reload the latest data" data-tt="reload the latest data"></button></div>
       <div class="tapes" id="tape"></div>
+      <div class="gx" id="gx" role="region" aria-live="polite" hidden></div>
     </section>
   </div>
   <div class="mk3">
@@ -504,6 +536,100 @@ function tapeFill(el,it){
 /* the tape is built once per item list and then updated in place, so the scroll never restarts */
 let tapeSig='',frozen=LS.g(KEY+'frozen','0')==='1';
 const reduceMo=matchMedia('(prefers-reduced-motion:reduce)');
+
+/* ---- group explainer: static plain-English notes for each tape group (opens under the tape; tap the chip again, the x, or Esc to close) ---- */
+const GX={
+'VOL':{t:'Vol: how nervous is the market?',
+ w:'Volatility (\u201cvol\u201d) is the price of insurance. When investors fear a big drop, they pay more for protection (options), and that cost shows up in these numbers. High means nervous and bumpy, low means calm. It tells you how big a move the market is bracing for, not which way it will go.',
+ m:['<b>Surprises:</b> inflation or jobs data far from forecast, or a central bank (the Fed) sounding tougher or softer than expected','<b>Shocks:</b> war, sanctions, oil-supply scares, tariff or election surprises','<b>Stress:</b> a fast fall in stocks, trouble in banks or credit, or a popular trade unwinding (e.g. the yen jumping)','<b>Calm:</b> predictable central banks and steady data let vol sink and stay low'],
+ i:['<b>Vol up:</b> stocks usually fall, funds cut risk (many size positions by vol), and money runs to Treasuries, gold, the dollar and the yen','<b>Vol low:</b> relaxed markets that drift higher, but crowded calm can end with a sudden jolt','<b>Day to day:</b> higher vol means bigger swings in every market, including the ones you trade'],
+ k:[['VIX','S&P 500 fear gauge','How big a swing traders expect in the S&P 500 over the next 30 days.','Traders are paying more for protection. Usually goes with falling stocks. Rule of thumb: under about 20 is calm, over about 30 is stress.','Calmer and cheaper protection. Usually goes with steady or rising stocks.','VIX up tends to weigh on indices and credit and support Treasuries and the dollar.'],
+ ['VIXEQ','single-stock fear gauge','The expected 30-day swings of the individual stocks inside the S&P 500, averaged and weighted by company size. VIX prices the index as a whole; VIXEQ prices its members one by one.','Individual stocks are expected to swing more on their own, even if the index looks fine.','Individual stocks are expected to be calmer.','It normally sits above VIX, because ups and downs among single stocks cancel out inside the index. Watch the gap (VIXEQ minus VIX). A wide gap means a calm-looking index is hiding big moves underneath, which has historically flagged concentration risk and a more fragile market than VIX alone suggests. A narrow gap means stocks are moving together.'],
+ ['MOVE','bond-market fear gauge','VIX for Treasury bonds: how big a swing traders expect in interest rates.','Bond traders are unsure about inflation, the Fed or government borrowing, so bond prices swing harder.','The rate outlook feels settled.','A MOVE spike can spill into stocks and credit, because almost everything is priced off Treasury yields.']]},
+'DOLLAR':{t:'Dollar: how strong is the US currency?',
+ w:'DXY measures the US dollar against a basket of six major currencies, and the euro alone is over half of it. USDJPY is how many Japanese yen one dollar buys.',
+ m:['<b>Interest rates:</b> higher US rates than elsewhere (a tougher Fed) pull money into dollars','<b>Safe-haven demand:</b> in a panic or war, people buy dollars','<b>US growth vs the rest:</b> a stronger US economy tends to lift the dollar','<b>Japan:</b> Japanese interest rates are still well below US ones, which keeps the yen weak. But the Bank of Japan has been raising them step by step, so hints of another hike, or officials stepping in to buy yen (intervention), can drop USDJPY fast','<b>Policy and elections:</b> tariffs, deficits or election outcomes that change expected US growth, inflation or borrowing'],
+ i:['<b>Strong dollar:</b> gold, oil and copper are priced in dollars, so they get pricier for foreign buyers and tend to weaken. It also squeezes US companies that earn abroad and countries with dollar debt','<b>Weak dollar:</b> the reverse, usually supportive for commodities and big multinationals','<b>Yen carry trade:</b> investors borrow cheap yen to buy higher-yielding assets, including US stocks. A sharp yen rise forces them to sell, which can hit stocks and spike vol'],
+ k:[['DXY','dollar index','The dollar against a basket of major currencies.','Dollar stronger. Usually US rates are rising or investors want safety.','Dollar weaker. Usually rate-cut hopes or less need for safety.','DXY up tends to weigh on gold, oil, copper and global stocks. DXY down eases that pressure.'],
+ ['USDJPY','yen per dollar','How many yen one dollar buys.','Yen weaker. Usually US interest rates are well above Japan\u2019s, so holding yen earns less, or markets are calm and risk-hungry.','Yen stronger. Safe-haven buying, falling US yields, Japan signalling rate hikes, or officials intervening to buy yen. A fast drop can mean a carry-trade unwind.','A sudden yen surge is a classic trigger for stock selloffs and vol spikes. A slowly weaker yen quietly supports risk-taking.']]},
+'RATES':{t:'Rates: what does it cost the US government to borrow?',
+ w:'A yield is the interest rate the US government pays to borrow for a set time. Mortgages, business loans and stock valuations are all priced off it. Yields move opposite to bond prices: yield up means price down.',
+ m:['<b>The Fed:</b> the 2Y yield follows where traders think the Fed will set rates. Hawkish pushes it up, cut hopes push it down','<b>Inflation and jobs data:</b> hotter than expected means the Fed stays tight, so yields rise','<b>Growth fears:</b> money moves into safe bonds, so yields fall','<b>Government borrowing:</b> big deficits, heavy bond auctions, and election promises of tax cuts or spending push long yields up','<b>Geopolitics:</b> war can pull yields down (safety) or up (inflation from oil), depending on which fear wins'],
+ i:['<b>Yields up:</b> borrowing costs more, which pressures stocks (especially tech, whose profits are far off), gold (pays no interest) and housing, and supports the dollar','<b>Yields down:</b> the reverse, unless they fall because the economy is breaking, in which case stocks suffer too','<b>The curve:</b> when short yields sit above long ones (\u201cinverted\u201d), it has often signalled recession worries'],
+ k:[['USD02Y','2-year yield','What the market expects the Fed to do over the next two years. The most Fed-sensitive.','Traders expect higher rates for longer. The dollar usually firms and tech wobbles.','Cuts expected, because inflation is cooling or the economy is weakening. Ask which one.','Moves the dollar and rate-sensitive stocks, especially around Fed days.'],
+ ['USD10Y','10-year yield','The benchmark borrowing cost for the economy: mortgages, companies, stock valuations.','Borrowing is getting pricier. Stock valuations come under pressure.','Borrowing is getting cheaper, or investors are fleeing to safety.','The yield most other markets are compared to. Up is usually a headwind for NQ and gold.'],
+ ['USD30Y','30-year yield','The long-run view on inflation and government debt.','Worry about inflation or deficits. Long-end jumps are what make \u201cbond selloff\u201d headlines.','Less long-run worry, or a rush to safety.','Sharp long-end jumps tend to make headlines and can unsettle stocks.'],
+ ['ZB1!','long-bond futures (a price)','The price of long-term US Treasury bond futures, not a yield. Often called the 30-year, though it actually settles against bonds with 15 to 25 years left.','Price up means yields down: safety buying or rate-cut hopes.','Price down means yields up: inflation, heavy borrowing or a tougher Fed.','Moves opposite to long-term yields (USD30Y, and to a lesser degree USD10Y). It is the contract futures traders actually trade.']]},
+'METALS':{t:'Metals: fear and growth, side by side',
+ w:'Gold is the classic \u201cI\u2019m worried\u201d asset and an alternative to money. Copper goes into wiring, buildings, factories, power grids and data centres, so it tracks how busy the economy is.',
+ m:['<b>Real interest rates</b> (yields minus inflation): gold pays nothing, so it tends to rise when real yields fall and fall when they rise','<b>The dollar:</b> both are priced in dollars, so a stronger dollar usually weighs on them','<b>Fear:</b> war, sanctions and political uncertainty lift gold, and central bank buying has been a major support. But fear does not always win: rising yields and a stronger dollar can outweigh it','<b>China and global growth:</b> China uses well over half of the world\u2019s refined copper, so its stimulus, property news and tariffs matter','<b>Supply:</b> mine disruptions and strikes'],
+ i:['<b>Gold up:</b> often means worry, lower expected rates or a weaker dollar','<b>Copper up:</b> growth optimism, usually alongside stocks and rising yields','<b>The pair:</b> gold rising while copper falls is a fear signal; both rising is more of a weak-dollar, strong-demand story'],
+ k:[['GC1!','gold futures','The price of gold.','Investors want safety, or expect lower real rates or a weaker dollar. Gold up with stocks down means fear. Gold up with stocks up is more about easy money.','Fear is fading, or rates and the dollar are rising.','Usually moves opposite to the dollar and real yields. Strong gold during a stock selloff signals real stress.'],
+ ['HG1!','copper futures','The price of copper.','Factories and construction look busy, and China looks healthy.','Growth worries, or simply more supply than buyers need. Copper is often watched as an early read on a slowing economy.','Falling copper with falling yields reads as a slowdown. Rising copper with rising yields reads as growth. Also feeds materials and industrial stocks.']]},
+'INDICES':{t:'Indices: the mood of US stocks',
+ w:'These are futures on US stock indexes. They trade nearly around the clock, so they show how stocks are reacting to news before the cash market opens. Each one covers a different slice of the market.',
+ m:['<b>Rates and the Fed:</b> growth and tech stocks are the most rate-sensitive, and small companies depend on cheap borrowing','<b>Earnings and AI/tech spending:</b> the Nasdaq leans on a handful of mega-cap companies','<b>Economic data:</b> good news can be bad news if it means higher rates','<b>Policy and geopolitics:</b> tariffs, elections and conflicts change expected profits and which sectors win','<b>Oil and the dollar:</b> higher costs and a strong dollar squeeze profits'],
+ i:['<b>Stocks fall:</b> vol rises, and money tends to move into Treasuries, gold and the dollar','<b>Stocks rise:</b> credit spreads tighten and vol eases','<b>Confidence loop:</b> stock moves change how consumers and companies feel, which feeds back into spending'],
+ k:[['NQ1!','Nasdaq-100','Big tech and growth companies.','Appetite for growth and tech is strong, helped by lower rates.','Tech or AI sentiment is weakening, or yields are rising. It usually swings the most in both directions.','The most rate-sensitive of the four. A wide NQ lead over the others means a narrow, tech-driven market.'],
+ ['ES1!','S&P 500','500 large US companies, weighted by size: the market\u2019s overall mood.','Broad confidence.','Broad caution.','The yardstick the other groups on this tape are read against.'],
+ ['YM1!','Dow Jones','30 large, established US companies. It is price-weighted, so companies with higher share prices count for more, whatever their size. Heavy in banks and industrials (Goldman Sachs, Caterpillar), and it holds some tech too.','Strength in its big-priced names, especially financials and industrials, which can happen even when tech lags.','Those big-priced names are being sold. A handful of shares can drag the whole index.','More tied to banks and industrial companies than NQ is. YM beating NQ often points to money rotating away from tech.'],
+ ['RTY1!','Russell 2000','Small US companies, mostly domestic, and more reliant on borrowing.','The market expects domestic growth and lower borrowing costs. A healthy sign for risk appetite.','Worry about the economy or high rates. Small firms feel it first.','Rallies on rate-cut hopes. A weak RTY with a firm NQ means a narrow rally.']]},
+'ENERGY':{t:'Energy: the cost of fuel and power',
+ w:'Brent and WTI are the two main oil prices (Brent is the global benchmark, WTI the US one). Natural gas heats homes and powers the grid. Together they set the fuel and power bill for the whole economy.',
+ m:['<b>Supply decisions:</b> OPEC+ output cuts or increases, and US shale production','<b>Geopolitics:</b> Middle East or Russia tension, sanctions and shipping chokepoints can push oil up fast on supply fears','<b>Demand:</b> China, global growth and recession worries','<b>The dollar:</b> a stronger dollar makes oil pricier abroad, which can dampen demand','<b>Weather and storage:</b> natural gas follows hot and cold spells, storage levels and export demand. The weekly US inventory reports move oil and gas'],
+ i:['<b>Oil up:</b> petrol, transport and shipping cost more, which feeds inflation, makes Fed cuts harder, lifts yields and squeezes consumers (energy companies benefit)','<b>Oil down:</b> eases inflation, but a sharp drop can mean weak demand','<b>Gas up:</b> higher electricity and heating bills'],
+ k:[['BB1!','Brent crude','The global oil benchmark. Most of the world\u2019s oil is priced off it.','Supply worries or strong demand. Fuel gets pricier worldwide.','Ample supply or weak demand. Fuel gets cheaper.','Feeds into inflation expectations, then yields. Sharp spikes (for example from conflict) can hit stocks.'],
+ ['CL1!','WTI crude','The US oil benchmark, and the one most US traders watch.','Same as Brent, with a US angle: US inventories, production or demand.','Same as Brent: ample US supply or weaker demand.','Usually moves with Brent. A widening gap between them points to a US-specific supply or storage story.'],
+ ['NG1!','natural gas','Fuel for heating, power plants and industry. Mostly a regional market.','Cold or hot weather, low storage or strong exports. Power and heating bills rise.','Mild weather and plenty in storage.','Matters less to global markets than oil, but feeds electricity costs, inflation and energy-company profits.']]},
+'BONDS & CREDIT':{t:'Bonds & credit: where the money is really worried',
+ w:'This group tracks bond funds (ETFs), so these are prices, and they move opposite to yields. \u201cCredit\u201d means lending to companies. Companies borrow by issuing bonds, and the extra interest they pay above the government is the credit spread: the price of the risk of not being repaid. When times look good the spread is small. When people worry, lenders demand more and the bonds fall. Bond investors care most about getting repaid, not about upside. Credit spreads have a record of widening before major stock-market declines, though in short pullbacks credit and stocks usually fall together.',
+ m:['<b>Interest rates:</b> the Fed and inflation move all bond prices, and the longest bonds move the most','<b>Economic health:</b> recession or default worries hit riskier company bonds first','<b>Inflation expectations:</b> drive inflation-linked bonds','<b>Risk appetite:</b> stock selloffs and vol spikes push lenders to pull back','<b>Government borrowing:</b> heavy Treasury supply can push Treasury prices down'],
+ i:['<b>Credit weakens</b> (HYG falls): borrowing gets costlier, especially for weaker companies, which can slow the economy. It has a record of warning before bigger stock declines','<b>Treasuries up while credit falls:</b> a flight to safety','<b>Everything falls together:</b> usually a rates problem, not just fear'],
+ k:[['TIP','inflation-linked Treasuries','US government bonds whose principal rises with inflation.','Inflation worries are rising, or real (after-inflation) yields are falling.','Inflation worry is fading, or real yields are rising.','Compared with regular Treasuries (IEF, TLT), it shows how much inflation the market expects.'],
+ ['TLT','long-term Treasuries (20+ years)','The most interest-rate-sensitive of the group.','Yields are falling: safety buying or rate-cut hopes.','Yields are rising: inflation, heavy borrowing or a tougher Fed.','Mirror of the 30Y yield. Often rises when stocks fall in fear. If both fall together, rates are the problem.'],
+ ['IEF','mid-term Treasuries (7 to 10 years)','Same idea as TLT, with smaller swings.','Yields are falling.','Yields are rising.','A steadier read on the 10Y yield.'],
+ ['HYG','high-yield (\u201cjunk\u201d) corporate bonds','Loans to riskier companies.','Lenders are relaxed and willing to fund riskier firms: healthy risk appetite.','Lenders are getting nervous. If HYG falls while stocks still hold, that gap is worth watching, though in short pullbacks the two usually move together.','Weak HYG means tighter funding for companies, and it has a record of weakening ahead of bigger stock declines, not short dips. Strong HYG supports stocks, especially small caps (RTY).'],
+ ['LQD','investment-grade corporate bonds','Loans to large, financially strong companies.','Confidence in strong companies, or falling yields.','Yields are rising, or stress is spreading even to strong companies, which is more serious than a junk-only dip.','Compare with HYG to tell whether the problem is rates or credit worry.']]}
+};
+let gxOpen=null;
+const gxSync=()=>document.querySelectorAll('#tape .gc').forEach(e=>{const on=e.dataset.g===gxOpen;e.classList.toggle('on',on);e.setAttribute('aria-expanded',on?'true':'false')});
+function gxClose(){gxOpen=null;const p=$('#gx');if(p){p.hidden=true;p.innerHTML=''}gxSync()}
+function gxShow(g){
+  const d=GX[g];if(!d)return;
+  if(gxOpen===g){gxClose();return}
+  gxOpen=g;
+  const p=$('#gx'),c=GRPC[g]||1;
+  const li=a=>a.map(x=>'<li>'+x+'</li>').join('');
+  p.style.setProperty('--gxc','var(--a'+c+')');
+  p.innerHTML='<div class="gx-h"><h3>'+esc(d.t)+'</h3><button class="gx-x" type="button" aria-label="close explanation">\u00d7</button></div>'
+    +'<p class="gx-w">'+esc(d.w)+'</p>'
+    +'<div class="gx-cols"><div><h4>What moves it</h4><ul>'+li(d.m)+'</ul></div><div><h4>What it moves</h4><ul>'+li(d.i)+'</ul></div></div>'
+    +'<details class="gx-t"><summary>What each ticker is telling you ('+d.k.length+')</summary>'
+    +d.k.map(k=>'<div class="gx-k"><div class="nm">'+esc(k[0])+' <i>'+esc(k[1])+'</i></div><p>'+esc(k[2])+'</p><p><b>\u2191 stronger:</b> '+esc(k[3])+'</p><p><b>\u2193 weaker:</b> '+esc(k[4])+'</p><p class="hit"><b>Usually hits:</b> '+esc(k[5])+'</p></div>').join('')
+    +'</details>';
+  p.hidden=false;gxSync();
+  try{p.scrollIntoView({block:'nearest',behavior:reduceMo.matches?'auto':'smooth'})}catch(_){}
+}
+{
+  /* A tap is a pointer that goes down and up on the same chip without travelling; a drag of the tape is not a tap. The tape captures the
+     pointer on pointerdown, so the chip is remembered at pointerdown rather than read from the click target. */
+  const box=$('#tape');let dn=null;
+  box.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0){dn=null;return}
+    const c=e.target.closest('.gc');dn=c?{g:c.dataset.g,id:e.pointerId,x:e.clientX,y:e.clientY}:null;
+  });
+  box.addEventListener('pointerup',e=>{
+    if(!dn||dn.id!==e.pointerId)return;const d=dn;dn=null;
+    if(Math.abs(e.clientX-d.x)<8&&Math.abs(e.clientY-d.y)<8)gxShow(d.g);
+  });
+  box.addEventListener('pointercancel',()=>{dn=null});
+  box.addEventListener('keydown',e=>{
+    const c=e.target.closest&&e.target.closest('.gc');
+    if(c&&(e.key==='Enter'||e.key===' ')){e.preventDefault();e.stopPropagation();gxShow(c.dataset.g)}
+  },true);
+  $('#gx').addEventListener('click',e=>{if(e.target.closest('.gx-x'))gxClose()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&gxOpen)gxClose()});
+}
 function paintTape(items){
   const box=$('#tape'),sig=items.map(i=>i.label+'|'+(i.row||'A')+'|'+(i.grp||'')).join();
   const rebuilt=sig!==tapeSig;
@@ -513,16 +639,13 @@ function paintTape(items){
     box.innerHTML=Object.keys(rows).sort().map(r=>{
       let seq='',g=null;
       rows[r].forEach(i=>{
-        if(i.grp&&i.grp!==g){g=i.grp;const lb=GRPN[g]||g.toLowerCase();seq+='<span class="gc'+(lb.indexOf('\n')>-1?' gc2':'')+'" style="color:var(--a'+(GRPC[g]||1)+')">'+esc(lb)+'</span>'}
+        if(i.grp&&i.grp!==g){g=i.grp;const lb=GRPN[g]||g.toLowerCase();seq+='<span class="gc'+(lb.indexOf('\n')>-1?' gc2':'')+(g===gxOpen?' on':'')+'" role="button" tabindex="0" aria-expanded="'+(g===gxOpen)+'" aria-controls="gx" data-g="'+esc(g)+'" data-tt="what moves this group, and what it tells you" style="color:var(--a'+(GRPC[g]||1)+')">'+esc(lb)+'</span>'}
         seq+='<div class="ti" data-l="'+esc(i.label)+'"></div>';
       });
       return '<div class="tape" role="group" aria-label="market tape" tabindex="0"><div class="trk"><div class="seq">'+seq+'</div><div class="seq" aria-hidden="true">'+seq+'</div></div></div>';
     }).join('');
   }
-  /* match tiles to items by comparing the decoded attribute, not through a CSS selector: a label with & < > or a quote never matched the
-     escaped selector, left its tile unfilled, and showed as an empty 98px gap before the next group chip */
-  const by=new Map(items.map(i=>[String(i.label),i]));
-  box.querySelectorAll('.ti[data-l]').forEach(el=>{const i=by.get(el.getAttribute('data-l'));if(i)tapeFill(el,i)});
+  items.forEach(i=>box.querySelectorAll('[data-l="'+esc(i.label)+'"]').forEach(el=>tapeFill(el,i)));
   tapeLayout(); /* prices change the text width a little, so measure again */
 }
 /* The tape is moved by script, not by a CSS animation, so it can be dragged. Each row keeps an offset x (px) into its own
