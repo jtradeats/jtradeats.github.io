@@ -1920,7 +1920,7 @@ function showRelease(e){
 function syncBlock(d){ /* schedule sync status and the last changes, from the Worker's d.sync */
   const s=d.sync;if(!s||!s.sources)return '';
   const NM={bls:'BLS pages',treasury:'Treasury auctions',provider:'calendar-feed look-ahead'};
-  const st=['bls','treasury','provider'].map(k=>{const x=s.sources[k];return NM[k]+': '+(x?(x.ok?'ok, '+ago(Date.now()-x.at):(k==='provider'?'no provider data':'failed')):(k==='provider'?'not connected':'not run yet'))}).join(' · ');
+  const st=['bls','treasury','provider'].map(k=>{const x=s.sources[k];return NM[k]+': '+(x?(x.ok?'ok, '+ago(Date.now()-x.at):(k==='provider'?'no provider data':'failed'+(/HTTP \d+/.test(x.err||'')?' ('+String(x.err).match(/HTTP \d+/)[0]+': the agency site refused the request, so dates stay as in the file)':''))):'not run yet')}).join(' · ');
   const nm=c=>{const k=(d.kinds||{})[c.k];return (k&&k.name||c.k)+(c.p?' ('+c.p+')':'')};
   const ch=(s.changes||[]).slice(0,8).map(c=>'<li>'+esc(nm(c)+(c.type==='moved'?' moved from '+c.from.d+' '+c.from.t+' to '+c.to.d+' '+c.to.t+' ET':c.type==='added'?' added for '+c.to.d:' removed (was '+c.from.d+')')+' · '+ago(Date.now()-c.at))+'</li>').join('');
   return '<h4>Schedule sync</h4><p>'+esc(st)+'. It runs every night; agency dates replace the file’s dates.</p>'+(ch?'<ul class="iss">'+ch+'</ul>':'');
