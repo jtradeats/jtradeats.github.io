@@ -1,75 +1,1126 @@
 {
- "_note": "What each release kind is. name = short label in the calendar and countdown; imp = 3 high, 2 medium; time = the usual New York release time (the audit flags a schedule line whose time differs); dow = allowed weekdays for the date (0 Sun to 6 Sat, omit for any weekday); per = how often it should appear (m monthly, w weekly, q8 eight a year); dir says how to read a surprise: infl (higher is hotter), grow (higher is stronger), claims (higher is weaker labour), none (no number to compare); match = regular expressions for the Fair Economy (Forex Factory) titles of the same release, used only to cross-check times and to attach forecast and previous. The match patterns have not been checked against a live feed yet, so a miss simply means no forecast is attached. The text fields are fixed plain-English explainers written by hand, not generated and not live.",
- "kinds": {
-  "cpi": {
-   "name": "CPI", "title": "Consumer Price Index", "agency": "BLS", "imp": 3, "time": "08:30", "per": "m", "dir": "infl",
-   "match": ["^CPI\\b", "^Core CPI\\b"],
-   "what": "The Consumer Price Index tracks how much prices changed for a basket of things households buy, such as rent, food, fuel and cars. The Bureau of Labor Statistics publishes it monthly. Markets watch the month-on-month change and the core figure that strips out food and energy.",
-   "why": "It is the main inflation reading the Fed reacts to. A number above forecast raises the odds of tighter policy and tends to push yields and the dollar up; a number below forecast does the opposite.",
-   "watch": "Core month-on-month first, then the headline, then shelter. The first print is the one that moves the market."
+ "_note": "What each release kind is. kinds[k].rows lists the rows the calendar shows for one schedule line (t = title, u = unit, dir = how to colour and read a surprise: grow, infl (both green when above forecast), inv (claims and unemployment: above forecast shows red), oil (crude: above forecast shows red), none; fam = which scenario family explains it; match = regular expressions that tie a provider event to the row; ic = icon (doc, mic); off = minutes after the schedule line's time). Kind fields: name, title, agency, imp (3 high, 2 medium, 0 holiday), time = usual New York time (alt = other times that are fine), per = m monthly, w weekly, q8 eight a year, none = not audited for cadence, hz = days of schedule left before the audit warns (default 45), np = leave the period out of the title, free = no time/day checks. fams holds the hand-written 'what to expect' text for each family. The text fields are fixed plain-English explainers written by hand: not generated and not live. They describe typical reactions, not predictions.",
+ "backdrop": {
+  "asof": "2026-11-14",
+  "text": "The Fed raised rates 25 bp in September to 3.75-4.00% and held in October with two members dissenting in favour of another hike, so the market is especially sensitive to anything that changes hike odds. Edit this line when the stance changes.",
+  "src": "Federal Reserve statements, as summarised on fedratecalc.com (14 Nov 2026)"
+ },
+ "fams": {
+  "infl": {
+   "lbl": [
+    "If above forecast (hotter)",
+    "If in line",
+    "If below forecast (cooler)"
+   ],
+   "lead": "Inflation: a hotter number is the hawkish surprise.",
+   "up": {
+    "macro": "Price or wage pressure is running hotter than economists expected. If it is a core measure, inflation looks broader and stickier than hoped.",
+    "stocks": "Usually negative. Higher yields and a stronger dollar tend to hit rate-sensitive growth hardest, which means Nasdaq-heavy NQ more than the Dow.",
+    "fed": "Raises the odds of another hike or pushes any cut further out. The 2-year yield is the quickest read."
+   },
+   "eq": {
+    "macro": "Inflation is tracking expectations, so the current policy path is not challenged.",
+    "stocks": "Often a small move. The details (core, services, shelter) decide direction.",
+    "fed": "Little change to rate odds."
+   },
+   "down": {
+    "macro": "Price or wage pressure is cooler than expected, which takes some pressure off the Fed.",
+    "stocks": "Usually positive, especially for growth and small caps, as yields and the dollar ease.",
+    "fed": "Lowers hike odds and brings potential cuts closer."
+   }
   },
-  "nfp": {
-   "name": "Nonfarm Payrolls", "title": "Employment Situation (jobs report)", "agency": "BLS", "imp": 3, "time": "08:30", "per": "m", "dir": "grow", "dow": [5, 4],
-   "match": ["Non-Farm Employment Change", "^Nonfarm Payrolls", "^Unemployment Rate", "^Average Hourly Earnings"],
-   "what": "The monthly jobs report from the Bureau of Labor Statistics: how many jobs the economy added, the unemployment rate and average hourly earnings. It normally comes out on the first Friday of the month.",
-   "why": "It is the biggest regular read on the labour market, which the Fed weighs against inflation. Strong jobs with hot wages can lift yields; a weak print can raise rate-cut hopes, though a very weak one can also read as recession risk.",
-   "watch": "The headline job count, the unemployment rate, wage growth, and revisions to the two prior months."
+  "jobs": {
+   "lbl": [
+    "If above forecast (stronger)",
+    "If in line",
+    "If below forecast (weaker)"
+   ],
+   "lead": "Jobs: with inflation the Fed's worry, a stronger number is the hawkish surprise.",
+   "up": {
+    "macro": "More hiring than expected. The labour market is tighter than thought, which supports wages and spending.",
+    "stocks": "Mixed. Strong jobs are good for earnings, but when inflation is the worry they often lift yields and the dollar and can weigh on stocks, NQ especially.",
+    "fed": "Raises hike odds or delays cuts, because a tight labour market keeps wage pressure alive."
+   },
+   "eq": {
+    "macro": "Hiring in line with expectations.",
+    "stocks": "Muted. Traders look at wages and revisions to the prior months instead.",
+    "fed": "No change to the path."
+   },
+   "down": {
+    "macro": "Hiring is cooling faster than expected. A very weak print can read as recession risk.",
+    "stocks": "Mixed. Lower yields help stocks, but a sharp miss raises growth worries and can hit cyclicals and small caps.",
+    "fed": "Lowers hike odds and raises cut odds. Markets then weigh that against recession risk."
+   }
+  },
+  "unemp": {
+   "lbl": [
+    "If above forecast (rate rises)",
+    "If in line",
+    "If below forecast (rate falls)"
+   ],
+   "lead": "Unemployment rate: higher means a weaker labour market.",
+   "up": {
+    "macro": "Slack is building in the labour market. One tick is noise; a rising trend over several months is not.",
+    "stocks": "Depends on the regime. Softer labour eases rate fears, but a sharp rise brings recession worries.",
+    "fed": "Lowers hike odds and raises cut odds."
+   },
+   "eq": {
+    "macro": "Labour slack unchanged.",
+    "stocks": "Muted.",
+    "fed": "No change to the path."
+   },
+   "down": {
+    "macro": "The labour market is tighter than expected.",
+    "stocks": "Mixed. Strong labour supports earnings, but higher yields can offset it.",
+    "fed": "Raises hike odds or delays cuts."
+   }
   },
   "claims": {
-   "name": "Jobless Claims", "title": "Initial Jobless Claims", "agency": "DOL", "imp": 3, "time": "08:30", "per": "w", "dir": "claims", "dow": [4, 3],
-   "match": ["Unemployment Claims", "Jobless Claims"],
-   "what": "The number of people who filed for unemployment benefits for the first time in the latest week, published by the Department of Labor every Thursday. In weeks with a Thursday holiday the release moves to Wednesday.",
-   "why": "It is the fastest weekly signal of layoffs. A rising trend suggests the labour market is softening; the level is low by historical standards, so the direction over several weeks matters more than one print.",
-   "watch": "The headline against forecast, the four-week average, and continuing claims (people still receiving benefits)."
+   "lbl": [
+    "If above forecast (more claims)",
+    "If in line",
+    "If below forecast (fewer claims)"
+   ],
+   "lead": "Jobless claims: higher means more layoffs.",
+   "up": {
+    "macro": "More people are filing for the first time. The level is still low by historical standards, so the trend over several weeks matters more than one print.",
+    "stocks": "Small moves unless it breaks the trend. Weaker labour can ease yields.",
+    "fed": "Slightly lowers hike odds."
+   },
+   "eq": {
+    "macro": "Layoffs steady.",
+    "stocks": "Muted.",
+    "fed": "No change."
+   },
+   "down": {
+    "macro": "Fewer filings than expected. The labour market is still holding up.",
+    "stocks": "Small. A string of low prints can lift yields.",
+    "fed": "Slightly raises hike odds."
+   }
+  },
+  "act": {
+   "lbl": [
+    "If above forecast (stronger)",
+    "If in line",
+    "If below forecast (weaker)"
+   ],
+   "lead": "Activity and sentiment: higher means stronger demand.",
+   "up": {
+    "macro": "Demand or activity is stronger than expected, so growth is holding up better than feared.",
+    "stocks": "Usually supportive for cyclicals and earnings expectations. If rates are already high, rising yields can cap the gain.",
+    "fed": "Gives the Fed room to stay tight: higher hike odds or fewer cuts."
+   },
+   "eq": {
+    "macro": "Activity matches expectations.",
+    "stocks": "Muted.",
+    "fed": "No change to the path."
+   },
+   "down": {
+    "macro": "Activity is softer than expected, which raises slowdown worries.",
+    "stocks": "Cyclicals and small caps tend to suffer, defensives hold up, and falling yields cushion growth names.",
+    "fed": "Lowers hike odds and raises cut odds, unless the data is weak enough to look like a downturn."
+   }
+  },
+  "housing": {
+   "lbl": [
+    "If above forecast (stronger)",
+    "If in line",
+    "If below forecast (weaker)"
+   ],
+   "lead": "Home sales: sensitive to mortgage rates.",
+   "up": {
+    "macro": "Housing is more resilient than expected despite mortgage rates.",
+    "stocks": "Homebuilders, building materials and banks benefit. Small for the index.",
+    "fed": "Minor. Shows rate-sensitive demand holding up."
+   },
+   "eq": {
+    "macro": "In line.",
+    "stocks": "Muted.",
+    "fed": "No change."
+   },
+   "down": {
+    "macro": "High mortgage rates are biting harder than expected.",
+    "stocks": "Homebuilders and related names lag. Small for the index.",
+    "fed": "Minor. Supports the case that tight policy is working."
+   }
+  },
+  "oil": {
+   "lbl": [
+    "If above forecast (bigger build / smaller draw)",
+    "If in line",
+    "If below forecast (bigger draw / smaller build)"
+   ],
+   "lead": "Crude inventories: a bigger build than expected is bearish for crude.",
+   "up": {
+    "macro": "More crude in storage than expected, which points to weaker demand or stronger supply.",
+    "stocks": "Negative for crude and energy stocks. Little direct effect on the index.",
+    "fed": "Indirect: cheaper oil eases headline inflation pressure."
+   },
+   "eq": {
+    "macro": "In line.",
+    "stocks": "Muted.",
+    "fed": "No change."
+   },
+   "down": {
+    "macro": "A bigger draw than expected, which points to firm demand or tight supply.",
+    "stocks": "Supportive for crude and energy stocks.",
+    "fed": "Indirect: dearer oil can add to headline inflation worries."
+   }
+  },
+  "auct": {
+   "lbl": [
+    "If yield above the previous auction",
+    "If about the same",
+    "If yield below the previous auction"
+   ],
+   "lead": "Treasury auctions: how much the government pays to borrow, and how strong demand is.",
+   "up": {
+    "macro": "The Treasury is paying more to borrow. Demand was softer, or yields drifted up since the last auction. A tail against the pre-auction (when-issued) yield is the clearest sign of weak demand.",
+    "stocks": "Higher long-end yields tend to pressure equities, particularly NQ and other rate-sensitive sectors.",
+    "fed": "No direct policy effect, but tighter financial conditions do some of the Fed's work."
+   },
+   "eq": {
+    "macro": "Demand in line with the previous auction.",
+    "stocks": "Muted.",
+    "fed": "No change."
+   },
+   "down": {
+    "macro": "Borrowing costs eased, or demand was strong (look for a high bid-to-cover and an auction that cleared through when-issued).",
+    "stocks": "Lower long-end yields tend to help equities, growth names especially.",
+    "fed": "No direct policy effect; easier financial conditions."
+   }
   },
   "fomc": {
-   "name": "FOMC Rate Decision", "title": "FOMC statement and rate decision", "agency": "Fed", "imp": 3, "time": "14:00", "per": "q8", "dir": "none", "dow": [3, 2],
-   "match": ["Federal Funds Rate", "FOMC Statement", "FOMC Press Conference", "FOMC Economic Projections"],
+   "lbl": [
+    "Tighter than expected (hike, or hawkish hold)",
+    "As expected",
+    "Easier than expected (cut, or dovish hold)"
+   ],
+   "lead": "Rate decision: the surprise matters, not the decision itself.",
+   "up": {
+    "macro": "The Fed signals inflation is still the bigger problem.",
+    "stocks": "Typically negative for stocks, bonds sell off and the dollar rises. The first move at 14:00 often changes during the 14:30 press conference.",
+    "fed": "Raises the odds of further tightening."
+   },
+   "eq": {
+    "macro": "The decision matches market pricing.",
+    "stocks": "Often a non-event. The statement wording, dissents and (at SEP meetings) the dot plot carry the news.",
+    "fed": "Path unchanged until the language or projections shift."
+   },
+   "down": {
+    "macro": "The Fed signals it is more worried about growth or sees inflation easing.",
+    "stocks": "Typically positive for stocks and bonds, with a softer dollar.",
+    "fed": "Lowers hike odds and raises cut odds."
+   }
+  },
+  "fomc_txt": {
+   "lbl": [
+    "Hawkish tone",
+    "Neutral",
+    "Dovish tone"
+   ],
+   "lead": "Fed communication: tone and wording, not a number.",
+   "up": {
+    "macro": "Officials stress inflation risk or openness to more tightening.",
+    "stocks": "Yields and the dollar rise, equities fall, growth names hardest.",
+    "fed": "Raises hike odds."
+   },
+   "eq": {
+    "macro": "Nothing new relative to what is priced.",
+    "stocks": "Muted.",
+    "fed": "No change."
+   },
+   "down": {
+    "macro": "Officials stress growth risk, labour weakness or progress on inflation.",
+    "stocks": "Yields and the dollar fall, equities rise.",
+    "fed": "Lowers hike odds and raises cut odds."
+   }
+  }
+ },
+ "kinds": {
+  "cpi": {
+   "name": "CPI",
+   "title": "Consumer Price Index",
+   "agency": "BLS",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "infl",
+   "what": "The Consumer Price Index tracks how much prices changed for a basket of things households buy, such as rent, food, fuel and cars. The Bureau of Labor Statistics publishes it monthly. Markets watch the month-on-month change and the core figure that strips out food and energy.",
+   "why": "It is the main inflation reading the Fed reacts to. A number above forecast raises the odds of tighter policy and tends to push yields and the dollar up; a number below forecast does the opposite.",
+   "watch": "Core month-on-month first, then the headline, then shelter. The first print is the one that moves the market.",
+   "fam": "infl",
+   "rows": [
+    {
+     "id": "mom",
+     "t": "CPI (MoM)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^CPI (m/m|MoM)",
+      "^Inflation Rate MoM"
+     ]
+    },
+    {
+     "id": "core",
+     "t": "Core CPI (MoM)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^Core CPI (m/m|MoM)",
+      "^Core Inflation Rate MoM"
+     ]
+    },
+    {
+     "id": "yoy",
+     "t": "CPI (YoY)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^CPI (y/y|YoY)",
+      "^Inflation Rate YoY"
+     ]
+    }
+   ]
+  },
+  "ppi": {
+   "name": "PPI",
+   "title": "Producer Price Index",
+   "agency": "BLS",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "infl",
+   "hz": 14,
+   "fam": "infl",
+   "rows": [
+    {
+     "id": "mom",
+     "t": "PPI (MoM)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^PPI (m/m|MoM)",
+      "^PPI \\(MoM\\)"
+     ]
+    }
+   ],
+   "what": "The Producer Price Index measures the prices domestic producers get for what they sell: goods, services and construction. The Bureau of Labor Statistics publishes it monthly, usually the day after or within a few days of CPI.",
+   "why": "It shows price pressure earlier in the supply chain. It does not map one-for-one onto CPI or PCE, but a big surprise can move rate expectations and it feeds analysts' PCE forecasts.",
+   "watch": "The headline against forecast, the core measure, and revisions to the prior months (PPI is revised for up to four months)."
+  },
+  "nfp": {
+   "name": "Nonfarm Payrolls",
+   "title": "Employment Situation (jobs report)",
+   "agency": "BLS",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "grow",
+   "what": "The monthly jobs report from the Bureau of Labor Statistics: how many jobs the economy added, the unemployment rate and average hourly earnings. It normally comes out on the first Friday of the month.",
+   "why": "It is the biggest regular read on the labour market, which the Fed weighs against inflation. Strong jobs with hot wages can lift yields; a weak print can raise rate-cut hopes, though a very weak one can also read as recession risk.",
+   "watch": "The headline job count, the unemployment rate, wage growth, and revisions to the two prior months.",
+   "dow": [
+    5,
+    4
+   ],
+   "rows": [
+    {
+     "id": "nfp",
+     "t": "Nonfarm Payrolls",
+     "u": "K",
+     "dir": "grow",
+     "match": [
+      "Non-?Farm Employment Change",
+      "^Non-?farm Payrolls"
+     ],
+     "fam": "jobs"
+    },
+    {
+     "id": "unemp",
+     "t": "Unemployment Rate",
+     "u": "%",
+     "dir": "inv",
+     "match": [
+      "^Unemployment Rate"
+     ],
+     "fam": "unemp"
+    },
+    {
+     "id": "ahe",
+     "t": "Average Hourly Earnings (MoM)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^Average Hourly Earnings (m/m|MoM|\\(MoM\\))"
+     ],
+     "fam": "infl"
+    }
+   ]
+  },
+  "claims": {
+   "name": "Jobless Claims",
+   "title": "Initial Jobless Claims",
+   "agency": "DOL",
+   "imp": 3,
+   "time": "08:30",
+   "per": "w",
+   "dir": "claims",
+   "what": "The number of people who filed for unemployment benefits for the first time in the latest week, published by the Department of Labor every Thursday. In weeks with a Thursday holiday the release moves to Wednesday.",
+   "why": "It is the fastest weekly signal of layoffs. A rising trend suggests the labour market is softening; the level is low by historical standards, so the direction over several weeks matters more than one print.",
+   "watch": "The headline against forecast, the four-week average, and continuing claims (people still receiving benefits).",
+   "dow": [
+    4,
+    3
+   ],
+   "fam": "claims",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Initial Jobless Claims",
+     "u": "K",
+     "dir": "inv",
+     "match": [
+      "Unemployment Claims",
+      "Initial Jobless Claims",
+      "^Jobless Claims"
+     ]
+    }
+   ]
+  },
+  "fomc": {
+   "name": "FOMC Rate Decision",
+   "title": "FOMC statement and rate decision",
+   "agency": "Fed",
+   "imp": 3,
+   "time": "14:00",
+   "per": "q8",
+   "dir": "none",
    "what": "The Federal Open Market Committee announces its interest-rate decision and a written statement at 2:00 pm New York time on the second day of each meeting. The chair's press conference follows at 2:30 pm. Some meetings also publish the Summary of Economic Projections (the dot plot).",
    "why": "It sets the policy rate. The wording of the statement, the vote split and the press conference often move markets more than the decision itself, because the decision is usually priced in beforehand.",
-   "watch": "Any change in the statement wording, the dissents, the dot plot if there is one, and the tone of the 2:30 pm press conference. Expect large, fast swings between 2:00 and 3:00 pm."
+   "watch": "Any change in the statement wording, the dissents, the dot plot at the March, June, September and December meetings, and the tone of the 14:30 press conference. Expect large, fast swings between 14:00 and 15:00 ET.",
+   "dow": [
+    3,
+    2
+   ],
+   "np": true,
+   "fam": "fomc",
+   "rows": [
+    {
+     "id": "dec",
+     "t": "Fed Interest Rate Decision",
+     "u": "%",
+     "dir": "none",
+     "match": [
+      "Federal Funds Rate",
+      "Fed Interest Rate Decision"
+     ]
+    },
+    {
+     "id": "stmt",
+     "t": "FOMC Statement",
+     "u": "",
+     "dir": "none",
+     "match": [
+      "FOMC Statement"
+     ],
+     "fam": "fomc_txt",
+     "ic": "doc"
+    },
+    {
+     "id": "pc",
+     "t": "FOMC Press Conference",
+     "u": "",
+     "dir": "none",
+     "match": [
+      "FOMC Press Conference"
+     ],
+     "fam": "fomc_txt",
+     "ic": "mic",
+     "off": 30
+    }
+   ]
+  },
+  "fomc_s": {
+   "name": "FOMC strategy meeting",
+   "title": "FOMC meeting on monetary policy strategy (no rate decision)",
+   "agency": "Fed",
+   "imp": 2,
+   "time": "14:00",
+   "per": "none",
+   "dir": "none",
+   "free": true,
+   "np": true,
+   "fam": "fomc_txt",
+   "rows": [
+    {
+     "id": "main",
+     "t": "FOMC strategy meeting (no rate decision)",
+     "u": "",
+     "dir": "none",
+     "match": []
+    }
+   ],
+   "what": "The Fed's revised 2027 schedule dedicates the 26-27 October meeting to broad monetary policy strategy issues. Unlike the other meetings, it does not end with a policy decision announcement.",
+   "why": "No rate decision is expected, so the usual 14:00 reaction should not occur. Any communication that follows is the thing to watch.",
+   "watch": "Whether the Fed publishes anything afterwards, and the minutes three weeks later."
   },
   "minutes": {
-   "name": "FOMC Minutes", "title": "FOMC meeting minutes", "agency": "Fed", "imp": 2, "time": "14:00", "per": "q8", "dir": "none", "dow": [3],
-   "match": ["FOMC Meeting Minutes"],
-   "what": "A fuller account of what the committee discussed at its last meeting, published three weeks after the decision at 2:00 pm New York time.",
+   "name": "FOMC Minutes",
+   "title": "FOMC meeting minutes",
+   "agency": "Fed",
+   "imp": 3,
+   "time": "14:00",
+   "per": "q8",
+   "dir": "none",
+   "what": "A fuller account of what the committee discussed at its last meeting, published three weeks after the policy decision (not one month) at 14:00 New York time.",
    "why": "It adds colour on how divided the committee was and how close it came to a different decision. It rarely changes the rate outlook on its own, but it can move yields when the discussion is more hawkish or dovish than the statement suggested.",
-   "watch": "Language about inflation risks, the pace of balance-sheet reduction, and how many members favoured another outcome."
+   "watch": "Language about inflation risks, the pace of balance-sheet reduction, and how many members favoured another outcome.",
+   "dow": [
+    3
+   ],
+   "np": true,
+   "fam": "fomc_txt",
+   "rows": [
+    {
+     "id": "main",
+     "t": "FOMC Meeting Minutes",
+     "u": "",
+     "dir": "none",
+     "match": [
+      "FOMC Meeting Minutes",
+      "^FOMC Minutes"
+     ],
+     "ic": "doc"
+    }
+   ]
   },
   "retail": {
-   "name": "Retail Sales", "title": "Advance Monthly Retail Sales", "agency": "Census", "imp": 3, "time": "08:30", "per": "m", "dir": "grow",
-   "match": ["^Retail Sales", "^Core Retail Sales"],
+   "name": "Retail Sales",
+   "title": "Advance Monthly Retail Sales",
+   "agency": "Census",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "grow",
    "what": "The Census Bureau's first estimate of how much consumers spent at stores, restaurants and online retailers last month. The figures are in current dollars, so rising prices inflate them.",
    "why": "Consumer spending is about two thirds of US GDP, so this is a quick read on whether growth is holding up. Strong sales can lift yields; weak sales can raise growth worries.",
-   "watch": "The control group (which feeds into GDP), the headline against forecast, and revisions to the prior month."
+   "watch": "The control group (which feeds into GDP), the headline against forecast, and revisions to the prior month.",
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Retail Sales (MoM)",
+     "u": "%",
+     "dir": "grow",
+     "match": [
+      "^Retail Sales (m/m|MoM|\\(MoM\\))"
+     ]
+    },
+    {
+     "id": "core",
+     "t": "Core Retail Sales (MoM)",
+     "u": "%",
+     "dir": "grow",
+     "match": [
+      "^Core Retail Sales"
+     ]
+    }
+   ]
   },
   "gdp": {
-   "name": "GDP", "title": "Gross Domestic Product", "agency": "BEA", "imp": 3, "time": "08:30", "per": "m", "dir": "grow", "dow": [3, 4, 5],
-   "match": ["GDP q/q", "GDP Price Index"],
+   "name": "GDP",
+   "title": "Gross Domestic Product",
+   "agency": "BEA",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "grow",
    "what": "The broadest measure of US economic output, from the Bureau of Economic Analysis. Each quarter has three estimates: advance, second and third. The advance estimate is the one that moves markets; the later two are revisions.",
    "why": "It shows whether the economy is expanding or contracting. Markets care most about the surprise against forecast in the advance print and about the consumer spending and price components.",
-   "watch": "Growth against forecast, consumer spending, the GDP price index, and for revisions, how far the number moved."
+   "watch": "Growth against forecast, consumer spending, the GDP price index, and for revisions, how far the number moved.",
+   "dow": [
+    3,
+    4,
+    5
+   ],
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "GDP (QoQ)",
+     "u": "%",
+     "dir": "grow",
+     "match": [
+      "GDP q/q",
+      "^GDP \\(?QoQ",
+      "^Prelim GDP",
+      "^Final GDP",
+      "^GDP Growth Rate QoQ"
+     ]
+    }
+   ]
   },
   "pce": {
-   "name": "PCE Inflation", "title": "Personal Income and Outlays (PCE price index)", "agency": "BEA", "imp": 3, "time": "08:30", "per": "m", "dir": "infl", "dow": [3, 4, 5],
-   "match": ["PCE Price Index", "Core PCE", "^Personal Income", "^Personal Spending"],
+   "name": "Core PCE Price Index",
+   "title": "Core PCE Price Index (Personal Income and Outlays)",
+   "agency": "BEA",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "infl",
    "what": "The Bureau of Economic Analysis's monthly report on personal income, spending and the PCE price index. The PCE price index is the inflation measure the Fed targets, at 2%.",
    "why": "Because it is the Fed's preferred gauge, a surprise in core PCE can shift rate expectations. CPI and producer prices released earlier in the month usually let analysts forecast it closely, so surprises are smaller than for CPI.",
-   "watch": "Core PCE month-on-month and year-on-year, plus spending and income growth."
+   "watch": "Core PCE month-on-month and year-on-year, plus spending and income growth.",
+   "dow": [
+    3,
+    4,
+    5
+   ],
+   "fam": "infl",
+   "rows": [
+    {
+     "id": "mom",
+     "t": "Core PCE Price Index (MoM)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^Core PCE Price Index (m/m|MoM|\\(MoM\\))"
+     ]
+    },
+    {
+     "id": "yoy",
+     "t": "Core PCE Price Index (YoY)",
+     "u": "%",
+     "dir": "infl",
+     "match": [
+      "^Core PCE Price Index (y/y|YoY|\\(YoY\\))"
+     ]
+    }
+   ]
   },
   "ism_m": {
-   "name": "ISM Manufacturing PMI", "title": "ISM Manufacturing PMI", "agency": "ISM", "imp": 3, "time": "10:00", "per": "m", "dir": "grow",
-   "match": ["ISM Manufacturing PMI", "ISM Manufacturing Prices"],
+   "name": "ISM Manufacturing PMI",
+   "title": "ISM Manufacturing PMI",
+   "agency": "ISM",
+   "imp": 3,
+   "time": "10:00",
+   "per": "m",
+   "dir": "grow",
    "what": "A monthly survey of purchasing managers at US factories, published by the Institute for Supply Management on the first business day of the month at 10:00 am New York time. A reading above 50 means the sector is expanding.",
    "why": "It is one of the earliest monthly reads on the economy. The new orders, employment and prices-paid components feed growth and inflation views.",
-   "watch": "The headline against 50 and against forecast, new orders, and the prices-paid sub-index."
+   "watch": "The headline against 50 and against forecast, new orders, and the prices-paid sub-index.",
+   "rows": [
+    {
+     "id": "pmi",
+     "t": "ISM Manufacturing PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "^ISM Manufacturing PMI"
+     ],
+     "fam": "act"
+    },
+    {
+     "id": "prices",
+     "t": "ISM Manufacturing Prices",
+     "u": "",
+     "dir": "infl",
+     "match": [
+      "^ISM Manufacturing Prices"
+     ],
+     "fam": "infl"
+    }
+   ]
   },
   "ism_s": {
-   "name": "ISM Services PMI", "title": "ISM Services PMI", "agency": "ISM", "imp": 3, "time": "10:00", "per": "m", "dir": "grow",
-   "match": ["ISM Services PMI", "ISM Non-Manufacturing"],
+   "name": "ISM Services PMI",
+   "title": "ISM Services PMI",
+   "agency": "ISM",
+   "imp": 3,
+   "time": "10:00",
+   "per": "m",
+   "dir": "grow",
    "what": "The matching survey for the services sector, which is most of the US economy, published on the third business day of the month at 10:00 am New York time. A reading above 50 means expansion.",
    "why": "Services drive the bulk of jobs and spending, so a surprise here can move yields and the dollar. The prices and employment sub-indexes get attention too.",
-   "watch": "The headline against 50 and forecast, business activity, and the prices index."
+   "watch": "The headline against 50 and forecast, business activity, and the prices index.",
+   "rows": [
+    {
+     "id": "pmi",
+     "t": "ISM Non-Manufacturing PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "^ISM (Services|Non-Manufacturing) PMI"
+     ],
+     "fam": "act"
+    },
+    {
+     "id": "prices",
+     "t": "ISM Non-Manufacturing Prices",
+     "u": "",
+     "dir": "infl",
+     "match": [
+      "^ISM (Services|Non-Manufacturing) Prices"
+     ],
+     "fam": "infl"
+    }
+   ]
+  },
+  "spg_m": {
+   "name": "S&P Global Manufacturing PMI",
+   "title": "S&P Global US Manufacturing PMI (final)",
+   "agency": "S&P Global",
+   "imp": 3,
+   "time": "09:45",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "S&P Global Manufacturing PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "S&P Global Manufacturing PMI",
+      "Final Manufacturing PMI"
+     ]
+    }
+   ],
+   "what": "S&P Global's survey of purchasing managers at US factories. The final reading comes on the first business day of the month and revises the flash estimate published a week or so earlier. Above 50 means expansion.",
+   "why": "It is an early read on factory activity. The final print usually moves markets little unless it differs a lot from the flash, because ISM follows at 10:00.",
+   "watch": "The gap to the flash reading, new orders, and prices."
+  },
+  "spg_s": {
+   "name": "S&P Global Services PMI",
+   "title": "S&P Global US Services PMI (final)",
+   "agency": "S&P Global",
+   "imp": 3,
+   "time": "09:45",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "S&P Global Services PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "S&P Global Services PMI",
+      "Final Services PMI"
+     ]
+    }
+   ],
+   "what": "S&P Global's survey of purchasing managers in the services sector, which is most of the US economy. The final reading follows the flash estimate. Above 50 means expansion.",
+   "why": "A read on the biggest part of the economy, released ahead of the ISM services survey.",
+   "watch": "The gap to the flash reading, new business, and the prices index."
+  },
+  "spg_f": {
+   "name": "S&P Global flash PMIs",
+   "title": "S&P Global US flash PMIs (preliminary)",
+   "agency": "S&P Global",
+   "imp": 3,
+   "time": "09:45",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "svc",
+     "t": "S&P Global Services PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "Flash Services PMI",
+      "S&P Global Services PMI"
+     ]
+    },
+    {
+     "id": "mfg",
+     "t": "S&P Global Manufacturing PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "Flash Manufacturing PMI",
+      "S&P Global Manufacturing PMI"
+     ]
+    }
+   ],
+   "what": "The preliminary (flash) PMI surveys for manufacturing and services, published about a week before month end. They are the first monthly read on US business activity. Above 50 means expansion.",
+   "why": "As the earliest survey data for the month they can move markets, especially when they diverge from the ISM readings that follow.",
+   "watch": "New orders, employment and the input and output price indexes."
+  },
+  "adp": {
+   "name": "ADP Nonfarm Employment Change",
+   "title": "ADP National Employment Report",
+   "agency": "ADP",
+   "imp": 3,
+   "time": "08:15",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "jobs",
+   "rows": [
+    {
+     "id": "main",
+     "t": "ADP Nonfarm Employment Change",
+     "u": "K",
+     "dir": "grow",
+     "match": [
+      "^ADP Non-?Farm",
+      "^ADP Employment"
+     ]
+    }
+   ],
+   "what": "A private estimate of how many jobs US employers added, based on ADP payroll records. It is published two days before the official jobs report, usually on the Wednesday of that week.",
+   "why": "It is an early hint of the official payrolls number, though the two often differ.",
+   "watch": "The headline against forecast and revisions to the prior month.",
+   "dow": [
+    3
+   ]
+  },
+  "jolts": {
+   "name": "JOLTS Job Openings",
+   "title": "Job Openings and Labor Turnover Survey",
+   "agency": "BLS",
+   "imp": 3,
+   "time": "10:00",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "jobs",
+   "rows": [
+    {
+     "id": "main",
+     "t": "JOLTS Job Openings",
+     "u": "M",
+     "dir": "grow",
+     "match": [
+      "^JOLTS Job Openings",
+      "JOLTS"
+     ]
+    }
+   ],
+   "what": "The Bureau of Labor Statistics' count of open jobs at the end of the month, with hires and quits. It trails the economy by about five weeks.",
+   "why": "The Fed uses job openings per unemployed worker as a gauge of how tight the labour market is.",
+   "watch": "Openings against forecast, the quits rate, and revisions to the prior month.",
+   "dow": [
+    2,
+    3,
+    4
+   ]
+  },
+  "eia": {
+   "name": "Crude Oil Inventories",
+   "title": "EIA Weekly Petroleum Status Report",
+   "agency": "EIA",
+   "imp": 3,
+   "time": "10:30",
+   "per": "w",
+   "dir": "oil",
+   "hz": 14,
+   "fam": "oil",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Crude Oil Inventories",
+     "u": "M",
+     "dir": "oil",
+     "match": [
+      "Crude Oil Inventories",
+      "Crude Oil Stocks Change",
+      "EIA Crude Oil Stocks"
+     ]
+    }
+   ],
+   "what": "The Energy Information Administration's weekly change in US commercial crude oil stocks, normally released Wednesday at 10:30 ET. A holiday earlier in the week pushes it back a day.",
+   "why": "Inventories show whether supply is outrunning demand, which moves crude and energy stocks, and indirectly inflation expectations.",
+   "watch": "The headline change against forecast, Cushing stocks, refinery utilisation and gasoline and distillate stocks.",
+   "alt": [
+    "11:00",
+    "11:30",
+    "12:00"
+   ],
+   "dow": [
+    3,
+    4
+   ]
+  },
+  "philly": {
+   "name": "Philadelphia Fed Manufacturing Index",
+   "title": "Philadelphia Fed Manufacturing Business Outlook Survey",
+   "agency": "Philadelphia Fed",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Philadelphia Fed Manufacturing Index",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "Philly Fed Manufacturing",
+      "Philadelphia Fed Manufacturing"
+     ]
+    }
+   ],
+   "what": "A regional survey of factory activity in the Philadelphia Fed district, released on the third Thursday of the month. Above zero means expansion.",
+   "why": "One of the first regional surveys of the month, so it can move markets when it is a big miss.",
+   "watch": "The headline, new orders, employment and prices paid.",
+   "dow": [
+    4
+   ]
+  },
+  "dgo": {
+   "name": "Durable Goods Orders",
+   "title": "Durable Goods Orders (advance)",
+   "agency": "Census",
+   "imp": 3,
+   "time": "08:30",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Durable Goods Orders (MoM)",
+     "u": "%",
+     "dir": "grow",
+     "match": [
+      "^Durable Goods Orders (m/m|MoM|\\(MoM\\))"
+     ]
+    }
+   ],
+   "what": "The Census Bureau's advance report on new orders for long-lasting factory goods such as machinery and aircraft. It swings widely with aircraft orders.",
+   "why": "A read on business investment and manufacturing demand.",
+   "watch": "The headline against forecast, and orders excluding transportation, which strip out the aircraft noise."
+  },
+  "cb": {
+   "name": "CB Consumer Confidence",
+   "title": "Conference Board Consumer Confidence Index",
+   "agency": "Conference Board",
+   "imp": 3,
+   "time": "10:00",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "CB Consumer Confidence",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "CB Consumer Confidence",
+      "^Consumer Confidence"
+     ]
+    }
+   ],
+   "what": "A monthly survey of households by the Conference Board on how they see business conditions and jobs, released on the last Tuesday of the month.",
+   "why": "Confidence feeds into spending. The labour-market differential (jobs plentiful vs hard to get) is watched as a read on unemployment.",
+   "watch": "The headline against forecast, the expectations index and the labour differential.",
+   "dow": [
+    2
+   ]
+  },
+  "nhs": {
+   "name": "New Home Sales",
+   "title": "New Residential Sales",
+   "agency": "Census",
+   "imp": 3,
+   "time": "10:00",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "housing",
+   "rows": [
+    {
+     "id": "main",
+     "t": "New Home Sales",
+     "u": "K",
+     "dir": "grow",
+     "match": [
+      "^New Home Sales"
+     ]
+    }
+   ],
+   "what": "The Census Bureau's estimate of newly built single-family homes sold, in thousands at an annual rate.",
+   "why": "A read on rate-sensitive housing demand. It is volatile and revised heavily.",
+   "watch": "The headline against forecast and revisions to the prior month."
+  },
+  "ehs": {
+   "name": "Existing Home Sales",
+   "title": "Existing Home Sales",
+   "agency": "NAR",
+   "imp": 3,
+   "time": "10:00",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "housing",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Existing Home Sales",
+     "u": "M",
+     "dir": "grow",
+     "match": [
+      "^Existing Home Sales"
+     ]
+    }
+   ],
+   "what": "The National Association of Realtors' count of completed sales of existing homes, in millions at an annual rate.",
+   "why": "It is the biggest part of the housing market and reacts to mortgage rates with a lag.",
+   "watch": "The headline against forecast, the median price and inventory."
+  },
+  "chi": {
+   "name": "Chicago PMI",
+   "title": "MNI Chicago Business Barometer",
+   "agency": "MNI",
+   "imp": 3,
+   "time": "09:45",
+   "per": "m",
+   "dir": "grow",
+   "hz": 14,
+   "fam": "act",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Chicago PMI",
+     "u": "",
+     "dir": "grow",
+     "match": [
+      "Chicago PMI",
+      "Chicago Business Barometer"
+     ]
+    }
+   ],
+   "what": "A monthly survey of purchasing managers in the Chicago area, released on the last business day of the month. Above 50 means expansion.",
+   "why": "A late-month regional read that arrives just before the ISM manufacturing survey.",
+   "watch": "The headline against forecast, new orders and prices."
+  },
+  "auc10": {
+   "name": "10-Year Note Auction",
+   "title": "Treasury 10-Year Note Auction",
+   "agency": "Treasury",
+   "imp": 3,
+   "time": "13:00",
+   "per": "m",
+   "dir": "none",
+   "hz": 7,
+   "fam": "auct",
+   "rows": [
+    {
+     "id": "main",
+     "t": "10-Year Note Auction",
+     "u": "%",
+     "dir": "none",
+     "match": [
+      "10-Year Note Auction",
+      "10-y Bond Auction"
+     ]
+    }
+   ],
+   "what": "The Treasury sells 10-year notes at auction every month. The number shown is the high yield, which is the yield at which the Treasury sold the notes.",
+   "why": "The 10-year yield is the main benchmark for mortgage rates and equity valuations, so demand at the auction is read as a gauge of appetite for duration.",
+   "watch": "The high yield against the pre-auction (when-issued) yield, the bid-to-cover ratio and the share bought by indirect bidders.",
+   "dow": [
+    2,
+    3,
+    4
+   ]
+  },
+  "auc30": {
+   "name": "30-Year Bond Auction",
+   "title": "Treasury 30-Year Bond Auction",
+   "agency": "Treasury",
+   "imp": 3,
+   "time": "13:00",
+   "per": "m",
+   "dir": "none",
+   "hz": 7,
+   "fam": "auct",
+   "rows": [
+    {
+     "id": "main",
+     "t": "30-Year Bond Auction",
+     "u": "%",
+     "dir": "none",
+     "match": [
+      "30-Year Bond Auction",
+      "30-y Bond Auction"
+     ]
+    }
+   ],
+   "what": "The Treasury sells 30-year bonds at auction every month. The number shown is the high yield.",
+   "why": "Weak demand for long bonds can push long-end yields up sharply and weigh on equities.",
+   "watch": "The high yield against when-issued, the bid-to-cover ratio and indirect bidder share.",
+   "dow": [
+    2,
+    3,
+    4
+   ]
+  },
+  "speech": {
+   "name": "Speech",
+   "title": "Scheduled speech",
+   "agency": "",
+   "imp": 3,
+   "time": "12:00",
+   "per": "none",
+   "dir": "none",
+   "free": true,
+   "np": true,
+   "fam": "fomc_txt",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Speaks",
+     "u": "",
+     "dir": "none",
+     "match": [],
+     "ic": "mic"
+    }
+   ],
+   "what": "A scheduled public appearance. There is no data release: the market reacts to the wording.",
+   "why": "The Fed chair's remarks can move rate expectations between meetings, because they signal how the committee reads the data.",
+   "watch": "Any change of tone on inflation, the labour market or the policy path, and any answers to questions."
+  },
+  "hol": {
+   "name": "Holiday",
+   "title": "US market holiday",
+   "agency": "",
+   "imp": 0,
+   "time": "00:00",
+   "per": "none",
+   "dir": "none",
+   "free": true,
+   "hol": true,
+   "np": true,
+   "fam": "fomc_txt",
+   "rows": [
+    {
+     "id": "main",
+     "t": "Holiday",
+     "u": "",
+     "dir": "none",
+     "match": []
+    }
+   ],
+   "what": "A US market holiday or early close.",
+   "why": "Liquidity is thin around closures and data releases can shift to the neighbouring day.",
+   "watch": "The early-close time."
   }
  }
 }
