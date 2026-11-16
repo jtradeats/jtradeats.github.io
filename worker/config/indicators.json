@@ -1119,6 +1119,7 @@
    "why": "The 10-year yield is the main benchmark for mortgage rates and equity valuations, so demand at the auction is read as a gauge of appetite for duration.",
    "watch": "The high yield against the pre-auction (when-issued) yield, the bid-to-cover ratio and the share bought by indirect bidders.",
    "dow": [
+    1,
     2,
     3,
     4
@@ -1153,6 +1154,7 @@
    "why": "Weak demand for long bonds can push long-end yields up sharply and weigh on equities.",
    "watch": "The high yield against when-issued, the bid-to-cover ratio and indirect bidder share.",
    "dow": [
+    1,
     2,
     3,
     4
