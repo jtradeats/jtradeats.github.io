@@ -9,7 +9,8 @@ import RESULTS from '../config/results.json';
 import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
-import { getFeed, getFeeds, feedHealth, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
+import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
+import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
@@ -536,6 +537,24 @@ function schedule(now) {
   return schedCache;
 }
 
+// ---- FinancialJuice actuals (plan P8.19 stage 2, D117): the wire's first number fills a blank, tagged FJ, until FRED or a typed number settles it ----
+// The numbers live in a small memo (isolate memory, one KV key written only when it changes, at most every 30 s) so they outlive the 50-post window and a cold start.
+const wireSt = { memo: null, seeded: false, dirty: false, lastKv: 0, feed: 'none', err: null };
+async function wireSeed(env) {
+  if (wireSt.seeded) return;
+  wireSt.seeded = true;
+  wireSt.memo = newMemo();
+  if (!(env && env.MARKET_KV)) return;
+  try { const m = await env.MARKET_KV.get(WIRE_KV, 'json'); if (m && m.rows && Array.isArray(m.log)) wireSt.memo = m; } catch (_) { /* carry on without it */ }
+}
+async function wireSave(env, now) {
+  if (!wireSt.dirty || !(env && env.MARKET_KV) || now - wireSt.lastKv < 30000) return;
+  wireSt.lastKv = now; wireSt.dirty = false;
+  try { await env.MARKET_KV.put(WIRE_KV, JSON.stringify(wireSt.memo)); } catch (_) { wireSt.dirty = true; }
+}
+// a release the wire covers is due within 2 minutes or happened in the last 40: only then is Telegram polled for the calendar (otherwise the window is read as it is)
+const wireHot = (events, now) => events.some(e => !e.hol && e.src !== 'feed' && WIRE_KEYS.has(e.k + '|' + e.r) && e.t <= now + 120000 && e.t >= now - 40 * 60000);
+
 let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around a release, so keep the answer for 10 s
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
@@ -543,6 +562,8 @@ async function getCalendar(env, ctx, opts = {}) {
   await loadSync(env);
   const sch = schedule(now);
   syncLazy(env, ctx, now);   // an overdue sync source starts in the background (D77)
+  const pw = wireSeed(env).then(() => feedWindow(env, ctx, 'FinancialJuice', wireHot(sch.events, now)))
+    .catch(e => { wireSt.err = String(e.message).slice(0, 120); return { posts: [], status: 'broken' }; });   // polls Telegram only around a covered release
   const p = Promise.all([feedRefresh(env, ctx), fmpRefresh(env, ctx, sch), offRefresh(env, ctx, sch)]);
   if (!feedState.events && !fmpState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
@@ -553,8 +574,14 @@ async function getCalendar(env, ctx, opts = {}) {
   if (fmpState.events && now - fmpState.at < CAL_USE_MAX) feeds.push({ name: 'FMP', rows: fmpState.events });
   const o = overlay(base, feeds, INDICATORS, now);
   const nRes = applyResults(o.events, RESULTS);
+  const fw = await pw, wr = applyWire(o.events, fw.posts, now, wireSt.memo);   // blanks only; typed numbers (above) and provider numbers win
+  if (wr.changed) wireSt.dirty = true;
+  wireSt.feed = fw.status; if (fw.status !== 'broken') wireSt.err = null;
+  o.issues.push(...wr.issues);
   const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now) : { n: 0, issues: [] };   // fills blanks, flags disagreements
   o.issues.push(...off.issues);
+  if (off.wire && off.wire.length && recordConfirms(wireSt.memo, off.wire, now)) wireSt.dirty = true;   // wire against official: the agree and disagree log
+  const sv = wireSave(env, now); if (ctx) ctx.waitUntil(sv);
   o.issues.push(...sch.merged.issues, ...syncIssues(syncState.rec, now, INDICATORS, !!(env && env.FMP_KEY)));   // schedule sync: failures, overdue sources, dates that moved overnight
   chainPrevious(o.events);
 
@@ -577,6 +604,7 @@ async function getCalendar(env, ctx, opts = {}) {
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
     official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: ostat === 'ok' ? null : offState.err },
     results: { asof: RESULTS.asof || null, n: nRes },
+    wire: { status: fw.status, n: wr.n, error: wireSt.err, ...wireSummary(wireSt.memo) },   // FinancialJuice actuals filled this time, and how often the wire matched the official number so far
     sync: { ...syncSummary(syncState.rec), tiers: sch.merged.tiers, stats: sch.merged.stats },   // what the schedule check shows
     audit: { status, nIssues: a.nIssues + o.issues.length, counts: a.counts, total: a.total, first: a.first, horizon: a.horizon,
       checked: a.checked, issues: all.slice(0, 25) },
@@ -584,7 +612,8 @@ async function getCalendar(env, ctx, opts = {}) {
   };
   if (debug) out.debug = { fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
     fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
-    official: { via: offState.via, error: offState.err, series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched };
+    official: { via: offState.via, error: offState.err, series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
+    wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
   calMemo = { at: now, debug, body };
   return body;
@@ -703,7 +732,8 @@ export default {
         cached_items: itemCache.size,
         calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null,
           fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
-          official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null },
+          official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null,
+          wire: wireSt.memo ? { feed: wireSt.feed, ...wireSummary(wireSt.memo) } : null },
         sectors: sectors.health(), weekly: weekly.health(),
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
