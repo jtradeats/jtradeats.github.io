@@ -131,10 +131,21 @@ export function audit(SCHED, IND, nowMs) {
   for (const [k, list] of Object.entries(byKind)) {
     const per = IND.kinds[k].per, ds = list.map(r => r.d).sort();
     if (per === 'm') {
+      // One release per reference period, not per calendar month of the release date: JOLTS for February comes out on 30 March and the one for
+      // March on 5 May, so counting release months reported a gap in April that is not one. Lines with a period ("Feb") are counted by that period
+      // (the same reading as refYM in schedule_sync.js); a kind where any line lacks one is counted by release month as before.
+      const refMon = (p, d) => {
+        const mi = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(String(p || '').slice(0, 3).toLowerCase());
+        if (mi < 0) return null;
+        const [y, mo] = d.split('-').map(Number);
+        return `${mi + 1 > mo ? y - 1 : y}-${String(mi + 1).padStart(2, '0')}`;
+      };
+      const refs = list.map(r => refMon(r.p, r.d)), byRef = refs.every(Boolean);
+      const keys = (byRef ? refs : ds.map(monthKey)).slice().sort();
       const months = {};
-      ds.forEach(d => { months[monthKey(d)] = (months[monthKey(d)] || 0) + 1; });
-      let [y, m] = ds[0].slice(0, 7).split('-').map(Number);
-      const [ly, lm] = ds[ds.length - 1].slice(0, 7).split('-').map(Number);
+      keys.forEach(key => { months[key] = (months[key] || 0) + 1; });
+      let [y, m] = keys[0].split('-').map(Number);
+      const [ly, lm] = keys[keys.length - 1].split('-').map(Number);
       while (y < ly || (y === ly && m <= lm)) {
         const key = `${y}-${String(m).padStart(2, '0')}`;
         if (!months[key]) add('error', 'gap', `${k}: no release listed in ${key}.`, { k });
