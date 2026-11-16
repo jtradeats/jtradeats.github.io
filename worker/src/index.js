@@ -380,17 +380,30 @@ function fmpRefresh(env, ctx, sch) {
 const OFF_SLOW = 30 * 60000, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;
 const offState = { M: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
 const redact = s => String(s).replace(/api_key=[^&\s]*/gi, 'api_key=***');
+// The API call says who it is (FRED's terms ask programs to identify themselves) and, when it fails, keeps what FRED answered: status, server and the start of the body.
+// A 520 from a plain `get` tells nothing; the body and headers show whether it is a block, a bad key or an outage.
+async function fredApiGet(url) {
+  const r = await fetch(url, { headers: { 'User-Agent': 'market-dashboard/1.0 (personal dashboard; +https://jtradeats.github.io)', Accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
+  const text = await r.text();
+  if (!r.ok) {
+    const snip = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    throw new Error(`HTTP ${r.status} from ${new URL(url).host} [server=${r.headers.get('server') || '?'}${r.headers.get('cf-ray') ? ' cf-ray=' + r.headers.get('cf-ray') : ''}] ${snip}`);
+  }
+  return text;
+}
 async function loadOfficial(env) {
   const since = new Date(Date.now() - 460 * 864e5).toISOString().slice(0, 10);   // 13+ months: year-on-year needs it
   const key = env && env.FRED_KEY, M = {}, errs = [];
   await Promise.all(OFF_SERIES.map(async s => {
     try {
-      M[s] = key ? parseFredJson(await get(fredApiUrl(s, key, since), { Accept: 'application/json' }, 6000)) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
+      M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
       if (!M[s].size) throw new Error('no rows');
-    } catch (e) { delete M[s]; errs.push(`${s}: ${redact(e.message)}`); }
+    } catch (e) { delete M[s]; errs.push([s, redact(e.message)]); }
   }));
-  if (!Object.keys(M).length) throw new Error((key ? '' : 'no FRED_KEY set (the keyless CSV is usually refused): ') + errs.join(' | '));
-  return { M, errs, via: key ? 'api' : 'csv' };
+  // the same failure for every series is shown once, not seven times
+  const text = errs.length > 1 && errs.every(([, m]) => m === errs[0][1]) ? [`${errs.length} series: ${errs[0][1]}`] : errs.map(([s, m]) => `${s}: ${m}`);
+  if (!Object.keys(M).length) throw new Error((key ? '' : 'no FRED_KEY set (the keyless CSV is usually refused): ') + text.join(' | '));
+  return { M, errs: text, via: key ? 'api' : 'csv' };
 }
 async function refreshOfficial(env, sch) {
   const now = Date.now();
@@ -400,7 +413,7 @@ async function refreshOfficial(env, sch) {
   try {
     const o = await loadOfficial(env);
     offState.M = o.M; offState.at = Date.now(); offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 200) : null; offState.status = 'ok'; offState.via = o.via;
-  } catch (e) { offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 200); offState.status = 'unavailable'; }
+  } catch (e) { offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 320); offState.status = 'unavailable'; }
 }
 function offRefresh(env, ctx, sch) {
   if (!offState.inflight) {
