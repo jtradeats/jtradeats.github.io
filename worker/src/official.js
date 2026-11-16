@@ -2,6 +2,7 @@
 // Pure functions (no fetch): the Worker downloads the series and passes the parsed series in, so the tests use the same code.
 // Fills an actual (and a revised previous) only where the row has none; never overwrites a typed or provider number.
 // Where a typed or provider actual disagrees with the official one within 3 days of the print, the row is flagged instead.
+// A wire actual (sr.ac 'FJ', from wire.js) is the exception: the official number confirms it (the tag becomes FRED) or replaces it (the row keeps the wire's number in wfix and is flagged).
 import { fmtVal } from './schedule.js';
 
 // key = "<kind>|<row id>" in schedule.json / indicators.json. per: the release covers a week (claims), a month (named in the line's "p": Oct) or a quarter (Q3).
@@ -99,7 +100,7 @@ const num = s => { const m = String(s).replace(/,/g, '').match(/-?\d+(\.\d+)?/);
 // events: the calendar events (sorted by time), M: { SERIES: Map }, now: ms. Returns { n, issues }.
 export function applyOfficial(events, M, now) {
   let n = 0;
-  const issues = [], last = new Map();
+  const issues = [], last = new Map(), wire = [];
   for (const e of events) {
     const key = e.k + '|' + e.r, spec = SPEC[key], before = last.get(key);
     last.set(key, e);
@@ -108,6 +109,17 @@ export function applyOfficial(events, M, now) {
     if (a == null) continue;
     const act = fmtVal(a, spec.u);
     if (e.ac == null) { e.ac = act; (e.sr = e.sr || {}).ac = 'FRED'; n++; }
+    else if (e.sr && e.sr.ac === 'FJ') {   // first figure came from the wire: the official series settles it
+      const agree = num(e.ac) === num(act);
+      wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });
+      if (!agree) {
+        e.wfix = e.ac;
+        e.ac = act;
+        e.flag = `FinancialJuice said ${e.wfix}, FRED (official series) says ${act}; showing ${act}`;
+        issues.push({ lvl: 'warn', code: 'wire_corrected', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}.` });
+      }
+      e.sr.ac = 'FRED';
+    }
     else if (num(e.ac) !== num(act) && e.t > now - 3 * 864e5) {
       const who = e.sr && e.sr.ac ? e.sr.ac : 'this row';
       e.flag = `FRED (official series) says ${act}, ${who} says ${e.ac}`;
@@ -116,7 +128,7 @@ export function applyOfficial(events, M, now) {
     const pv = calc(S, spec, prevObs(obs, spec));
     if (pv == null) continue;
     const ps = fmtVal(pv, spec.u);
-    if (e.pv == null) { e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED'; }
+    if (e.pv == null || (e.sr && e.sr.pv === 'FJ')) { e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED'; }   // the wire's "previous" is the figure before revisions: the official series wins
     // revised previous: the official value for the prior period differs from what that release first showed
     if (!e.pvc && before && before.ac != null && num(before.ac) !== num(ps)) {
       const inv = e.dir === 'inv' || e.dir === 'oil';
@@ -124,5 +136,5 @@ export function applyOfficial(events, M, now) {
       e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED';
     }
   }
-  return { n, issues };
+  return { n, issues, wire };
 }
