@@ -394,3 +394,66 @@ test('a release that already happened is never moved: a later date in the same m
   assert.equal(line(m, 'auc10', undefined) && m.releases.find(r => r.k === 'auc10' && r.d.startsWith('2026-11')).d, '2026-11-10');
   assert.equal(m.stats.updated, 0);
 });
+
+// ---- the real layout of Treasury's tentative file (read from the Q3 2026 XML): TIPS and FRN are Y/N flag elements, never words ----
+const rec4 = ([term, type, reopen, tips, frn, d]) => `<AuctionCalendarDate><SecurityTermWeekYear>${term}</SecurityTermWeekYear><SecurityType>${type}</SecurityType>${reopen ? `<ReOpeningIndicator>${reopen}</ReOpeningIndicator>` : ''}<TIPS>${tips}</TIPS><FloatingRate>${frn}</FloatingRate><AnnouncementDate>${d.slice(0, 8)}01</AnnouncementDate><AuctionDate>${d}</AuctionDate><SettlementDate>${d.slice(0, 8)}28</SettlementDate></AuctionCalendarDate>`;
+const REAL = [
+  ['10-Year', 'NOTE', 'Y', 'Y', 'N', '2026-11-19'],   // the 10-year TIPS reopening that was read as the 10-year note
+  ['3-Year', 'NOTE', 'N', 'N', 'N', '2026-12-07'], ['10-Year', 'NOTE', 'Y', 'N', 'N', '2026-12-08'], ['30-Year', 'BOND', 'Y', 'N', 'N', '2026-12-10'],
+  ['2-Year', 'NOTE', 'N', 'N', 'Y', '2026-12-23'], ['13-Week', 'BILL', '', 'N', 'N', '2026-12-07'],
+  ['10-Year', 'NOTE', 'Y', 'N', 'N', '2027-01-12'], ['10-Year', 'NOTE', 'Y', 'Y', 'N', '2027-01-21'], ['30-Year', 'BOND', 'Y', 'N', 'N', '2027-01-13'],
+  ['10-Year', 'NOTE', 'N', 'N', 'N', '2027-02-10'], ['30-Year', 'BOND', 'N', 'N', 'N', '2027-02-11'], ['30-Year', 'BOND', 'Y', 'Y', 'N', '2027-02-18'],
+  ['10-Year', 'NOTE', 'Y', 'N', 'N', '2027-03-10'], ['10-Year', 'NOTE', 'Y', 'Y', 'N', '2027-03-18'], ['30-Year', 'BOND', 'Y', 'N', 'N', '2027-03-11'],
+  ['10-Year', 'NOTE', 'Y', 'N', 'N', '2027-04-12'], ['30-Year', 'BOND', 'Y', 'N', 'N', '2027-04-13'],
+  ['10-Year', 'NOTE', 'N', 'N', 'N', '2026-11-10'],   // already held
+];
+const xmlD = rows => `<?xml version="1.0" encoding="utf-8"?><AuctionCalendar xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><AuctionCalendarName>Nov2026 Refunding Auction Calendar</AuctionCalendarName><StartDate>2026-11-04</StartDate><EndDate>2027-04-30</EndDate>`
+  + `<AuctionCalendarDate><HolidayName>Veterans Day</HolidayName><HolidayDate>2026-11-11</HolidayDate></AuctionCalendarDate>${rows.map(rec4).join('')}`
+  + `<AuctionCalendarDate><HolidayName>Christmas</HolidayName><HolidayDate>2026-12-25</HolidayDate></AuctionCalendarDate></AuctionCalendar>`;
+
+test('the real tentative layout: a TIPS or FRN flag keeps a 10-year TIPS reopening from being read as the 10-year note or the 30-year bond', async () => {
+  const got = parseTentative(xmlD(REAL), TODAY).map(r => [r.k, r.d]).sort();
+  const want = [['auc10', '2026-12-08'], ['auc30', '2026-12-10'], ['auc10', '2027-01-12'], ['auc30', '2027-01-13'], ['auc10', '2027-02-10'], ['auc30', '2027-02-11'],
+    ['auc10', '2027-03-10'], ['auc30', '2027-03-11'], ['auc10', '2027-04-12'], ['auc30', '2027-04-13']].sort();
+  assert.deepEqual(got, want);
+  for (const bad of ['2026-11-19', '2027-01-21', '2027-02-18', '2027-03-18']) assert.ok(!got.some(([, d]) => d === bad), bad);
+  // the whole pipeline: the November 10-year stays on the 10th, and no month ends up with two dates
+  const t = await runTreasury({ get: tdGet(xmlD(REAL)), IND, now: NOW, prev: null });
+  const m = mergeSchedule(SCHED, rec({ treasury: t }), IND, TODAY);
+  assert.ok(!m.releases.some(r => r.k === 'auc10' && r.d === '2026-11-19'));
+  for (const k of ['auc10', 'auc30']) {
+    const months = m.releases.filter(r => r.k === k).map(r => r.d.slice(0, 7));
+    assert.equal(new Set(months).size, months.length, `${k}: one date per month`);
+  }
+  assert.deepEqual(audit({ ...SCHED, releases: m.releases, checked: m.checked }, IND, NOW).issues.filter(i => i.lvl === 'error'), []);
+});
+
+test('a flagged record is skipped whatever the flag element is called, and N or empty flags do not hide a real auction', () => {
+  const one = (flag, v) => `<AuctionCalendar><AuctionCalendarDate><SecurityTermWeekYear>10-Year</SecurityTermWeekYear><SecurityType>NOTE</SecurityType><${flag}>${v}</${flag}><AuctionDate>2026-12-08</AuctionDate></AuctionCalendarDate>`
+    + `<AuctionCalendarDate><SecurityTermWeekYear>30-Year</SecurityTermWeekYear><SecurityType>BOND</SecurityType><${flag}>${v}</${flag}><AuctionDate>2026-12-10</AuctionDate></AuctionCalendarDate>`
+    + `<AuctionCalendarDate><SecurityTermWeekYear>10-Year</SecurityTermWeekYear><SecurityType>NOTE</SecurityType><${flag}>${v}</${flag}><AuctionDate>2027-01-12</AuctionDate></AuctionCalendarDate></AuctionCalendar>`;
+  for (const f of ['TIPS', 'InflationIndexed', 'FloatingRate']) {
+    for (const on of ['Y', 'Yes', 'true']) assert.deepEqual(parseTentative(one(f, on), TODAY), [], `${f}=${on}`);
+    for (const off of ['N', 'No', 'false', '']) assert.equal(parseTentative(one(f, off), TODAY).length, 3, `${f}=${off}`);
+  }
+});
+
+test('audit: JOLTS lines are counted by reference month, so end-of-month release dates are not a gap or a duplicate', () => {
+  // Real BLS pattern: Feb data on 30 Mar, Mar data on 5 May (no April release), Apr data on 2 Jun; Jan data on 2 Mar, Dec data on 3 Feb.
+  const J = [['2027-02-03', 'Dec'], ['2027-03-02', 'Jan'], ['2027-03-30', 'Feb'], ['2027-05-05', 'Mar'], ['2027-06-02', 'Apr']].map(([d, p]) => ({ d, t: '10:00', k: 'jolts', p, v: 'ref' }));
+  const releases = SCHED.releases.filter(r => r.k !== 'jolts').concat(J);
+  const cad = audit({ ...SCHED, releases }, IND, NOW).issues.filter(i => i.k === 'jolts' && (i.code === 'gap' || i.code === 'extra'));
+  assert.deepEqual(cad, []);
+  // a genuinely missing period is still caught
+  const missing = audit({ ...SCHED, releases: releases.filter(r => !(r.k === 'jolts' && r.p === 'Feb')) }, IND, NOW).issues.filter(i => i.k === 'jolts' && i.code === 'gap');
+  assert.equal(missing.length, 1); assert.match(missing[0].msg, /2027-02/);
+  // and two lines for one period are still caught
+  const dup = audit({ ...SCHED, releases: releases.concat([{ d: '2027-03-31', t: '10:00', k: 'jolts', p: 'Feb', v: 'ref' }]) }, IND, NOW).issues.filter(i => i.k === 'jolts' && i.code === 'extra');
+  assert.equal(dup.length, 1);
+});
+
+test('a Monday 10-year or 30-year auction is not flagged as an unusual weekday', () => {
+  const rel = [{ d: '2027-04-12', t: '13:00', k: 'auc10', v: 'tent' }, { d: '2027-04-13', t: '13:00', k: 'auc30', v: 'tent' }];
+  const w = audit({ ...SCHED, releases: rel }, IND, NOW).issues.filter(i => i.code === 'dow');
+  assert.deepEqual(w, []);
+});
