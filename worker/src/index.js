@@ -14,6 +14,7 @@ import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } f
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
+import { tvIngest, loadTv, tvOverlay, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -190,6 +191,7 @@ const SOURCES = { yahoo: qYahoo, cboe: qCboe, fred: qFred, treasury: qTreasury }
 const MAIN = SYMBOLS.items.filter(i => !i.set || i.set === 'main');   // items with "set": "sectors" or "weekly" belong to /sectors and /weekly, not to the tape
 const ITEMS = MAIN.map(i => [i.label, i.kind, i.chain]);   // source of truth: worker/config/symbols.json
 const META = Object.fromEntries(MAIN.map(i => [i.label, { grp: i.group, row: i.row }]));   // tape placement, passed to the page
+const TV_LABELS = new Set(MAIN.filter(i => i.kind === 'fut').map(i => i.label));   // the tape futures a TradingView push may carry (src/tv.js)
 
 function fixYield(q) {
   if (q.p > 25) for (const k of ['p', 'c']) if (k in q) q[k] = +(q[k] / 10).toFixed(4); // x10 quirk
@@ -629,14 +631,16 @@ async function dataBranch() {
   return v;
 }
 
-async function build(ctx) {
+async function build(ctx, env) {
   const log = [], notes = [];
+  const tvP = loadTv(env);   // TradingView push (D1), read while the Yahoo fetches run
   const work = Promise.all([...ITEMS.map(([l, k, c]) => getItem(l, k, c, log, notes)), getFng()]);
   const done = await Promise.race([work.then(() => true), new Promise(r => setTimeout(() => r(false), DEADLINE_MS))]);
   if (ctx) ctx.waitUntil(work);   // late sources keep running and land in the cache for the next request
   if (!done) notes.push(`deadline hit (${DEADLINE_MS} ms): slow sources will show in the next response`);
 
   const now = Date.now();
+  const tv = env && env.TV_OVERLAY === 'off' ? null : await tvP;   // set the Worker variable TV_OVERLAY to "off" to stop publishing pushed prices
   let prev = {};
   if (USE_DATA_BRANCH && (!fngState.val || ITEMS.some(([l]) => !(itemCache.get(l) || {}).val))) prev = await dataBranch();
   const prevItems = Object.fromEntries((prev.items || []).map(i => [i.label, i]));
@@ -648,7 +652,7 @@ async function build(ctx) {
       return stale ? { ...c.val, stale: true } : c.val;
     }
     return prevItems[label] ? { ...prevItems[label], stale: true } : { label, kind, p: null };
-  }).map(it => ({ ...it, ...META[it.label] }));
+  }).map(it => tvOverlay(it, tv, now, quote)).map(it => ({ ...it, ...META[it.label] }));
 
   const out = {
     updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),   // when this response was built, not when the quotes were made
@@ -687,7 +691,7 @@ async function seed(env) {
 
 function refresh(env, ctx) {
   if (!inflight) {
-    inflight = build(ctx).then(async b => {
+    inflight = build(ctx, env).then(async b => {
       const body = JSON.stringify(b);
       memo = { at: Date.now(), body };
       if (env && env.MARKET_KV && Date.now() - lastKvWrite > KV_GAP) {
@@ -734,11 +738,20 @@ export default {
           fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
           official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null,
           wire: wireSt.memo ? { feed: wireSt.feed, ...wireSummary(wireSt.memo) } : null },
+        tv: tvHealth(await loadTv(env), env),
         sectors: sectors.health(), weekly: weekly.health(),
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
+    }
+    if (pathname === '/ingest') {   // TradingView webhook target (src/tv.js); the secret travels in the JSON body because TradingView cannot set headers
+      if (req.method !== 'POST') return new Response('{"error":"POST only"}', { status: 405, headers: json });
+      const r = await tvIngest(req, env, TV_LABELS);
+      return new Response(JSON.stringify(r.out), { status: r.status, headers: { ...json, 'Cache-Control': 'no-store' } });
+    }
+    if (pathname === '/tv') {   // read only: what the last push held and whether it still counts as live
+      return new Response(JSON.stringify(tvHealth(await loadTv(env), env)), { headers: { ...json, 'Cache-Control': 'no-store' } });
     }
     if (pathname === '/market') {
       try {
