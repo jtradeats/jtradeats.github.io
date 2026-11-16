@@ -6,6 +6,15 @@ compatibility_date = "2025-11-01"
 binding = "MARKET_KV"
 id = "101bd0442c804018a9880d7d4685621d"
 
+# TradingView live futures (src/tv.js): one D1 row holds the latest push. Create it with:
+#   npx wrangler d1 create market-dashboard      (paste the database_id it prints below)
+#   npx wrangler d1 execute market-dashboard --remote --command "CREATE TABLE IF NOT EXISTS tv_latest (id INTEGER PRIMARY KEY, body TEXT NOT NULL, f INTEGER NOT NULL)"
+# Secret (not stored here): TV_SECRET, the same random string you type into the Pine script. Optional variable: TV_OVERLAY = "off" stops /market from using pushed prices.
+[[d1_databases]]
+binding = "DB"
+database_name = "market-dashboard"
+database_id = "f60910f8-e46a-4122-a999-b120ba358c6e"
+
 # Nightly schedule sync (plan P2 and P3): three daily triggers, one per source, so each run gets its own 10 ms CPU budget.
 # UTC: 09:20 BLS pages, 09:30 Treasury, 09:40 calendar-feed look-ahead (about 04:20 to 04:40 in New York in winter). The strings must match SYNC_CRONS in src/index.js.
 [triggers]
