@@ -1,5 +1,5 @@
-// Official actuals (plan 3.5, first slice): the release's own number, computed from FRED series that republish BLS and DOL data. No key.
-// Pure functions (no fetch): the Worker downloads the CSVs and passes the parsed series in, so the tests use the same code.
+// Official actuals (plan 3.5, first slice): the release's own number, computed from FRED series that republish BLS and DOL data. With the secret FRED_KEY the Worker uses FRED's API; without it, the keyless CSV (which Cloudflare's addresses are refused on).
+// Pure functions (no fetch): the Worker downloads the series and passes the parsed series in, so the tests use the same code.
 // Fills an actual (and a revised previous) only where the row has none; never overwrites a typed or provider number.
 // Where a typed or provider actual disagrees with the official one within 3 days of the print, the row is flagged instead.
 import { fmtVal } from './schedule.js';
@@ -24,6 +24,22 @@ export function parseFredCsv(text) {
     const [d, v] = l.split(',');
     const x = Number(v);
     if (d && v != null && v.trim() !== '' && v.trim() !== '.' && Number.isFinite(x)) m.set(d.trim(), x);
+  }
+  return m;
+}
+
+// FRED's official API (api.stlouisfed.org, free key, secret FRED_KEY). The keyless graph CSV above is refused from Cloudflare's addresses (HTTP 520);
+// the API is meant for programs. Same Map as parseFredCsv, so everything downstream is unchanged. Missing values are "." and are skipped.
+export const fredApiUrl = (series, key, since) =>
+  `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(series)}&api_key=${encodeURIComponent(key)}&file_type=json&observation_start=${since}`;
+export function parseFredJson(text) {
+  let j;
+  try { j = JSON.parse(text); } catch (_) { throw new Error('FRED API: not JSON'); }
+  if (!j || !Array.isArray(j.observations)) throw new Error(`FRED API: ${String((j && (j.error_message || j.message)) || 'unexpected payload').slice(0, 100)}`);
+  const m = new Map();
+  for (const o of j.observations) {
+    const x = Number(o && o.value);
+    if (o && o.date && o.value != null && String(o.value).trim() !== '' && String(o.value).trim() !== '.' && Number.isFinite(x)) m.set(String(o.date).trim(), x);
   }
   return m;
 }
