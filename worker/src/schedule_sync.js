@@ -198,15 +198,21 @@ const xmlText = s => String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) =
   return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }[e.toLowerCase()] ?? m;
 }).trim();
 
-// Records out of an XML file whose layout we have not seen (the schema is unverified, R53): three readings, first one that finds auctions wins.
-//   a) leaf elements: the element that repeats most (earliest on a tie) starts a record, e.g. <Auction><Type>..</Type><Term>..</Term><AuctionDate>..</AuctionDate></Auction>
+// Records out of Treasury's tentative-auction XML. The real layout (read from the Q3 2026 file) is a flat list of
+//   <AuctionCalendarDate><SecurityTermWeekYear>10-Year</SecurityTermWeekYear><SecurityType>NOTE</SecurityType><ReOpeningIndicator>Y</ReOpeningIndicator>
+//   <TIPS>Y</TIPS><FloatingRate>N</FloatingRate><AnnouncementDate>..</AnnouncementDate><AuctionDate>2026-11-19</AuctionDate><SettlementDate>..</SettlementDate></AuctionCalendarDate>
+// A TIPS or floating-rate security is NOT named in any text: it is a "10-Year" "NOTE" with <TIPS>Y</TIPS>, so the flag must be read (that was the 19 Nov "move").
+// Holiday records (<HolidayName>, <HolidayDate>) have no auction date and are skipped. Three readings, first one that finds auctions wins; the other two cover other layouts:
+//   a) leaf elements: the element that repeats most (earliest on a tie) starts a record (the real layout)
 //   b) attributes: <Auction type="NOTE" term="10-Year" auctionDate="2026-12-08"/>
 //   c) plain text in the PDF's row order: "10-Year NOTE R Thursday, December 03, 2026 Tuesday, December 08, 2026 Tuesday, December 15, 2026"
+const FLAG_KEY = /tips|float|frn|inflation/i, FLAG_ON = /^(y|yes|true|1)$/i;
 function rowsFromRecords(recs, today) {
   const out = [];
   for (const rec of recs) {
     const ent = Object.entries(rec);
-    const dk = ent.find(([key, v]) => /auction/i.test(key) && /date|dt/i.test(key) && !/announce|issue|settle|matur|dated|original/i.test(key) && looksDate(v));
+    if (ent.some(([key, v]) => FLAG_KEY.test(key) && FLAG_ON.test(String(v).trim()))) continue;   // TIPS / floating-rate: never the plain note or bond
+    const dk =ent.find(([key, v]) => /auction/i.test(key) && /date|dt/i.test(key) && !/announce|issue|settle|matur|dated|original/i.test(key) && looksDate(v));
     if (!dk) continue;
     const k = classifyTreasury(ent.filter(([, v]) => !looksDate(v)).map(([, v]) => v).join(' ')), d = parseDateLoose(dk[1]);
     if (k && d && d >= today) out.push({ k, d });
