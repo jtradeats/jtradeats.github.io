@@ -248,6 +248,15 @@ async function feedObject(env, ctx, opts = {}) {
   return viewOf(c, S, Date.now(), !!opts.debug);
 }
 
+// The latest posts of one channel for other routes (the calendar's wire actuals, wire.js). poll = false: read the window as it is (seeded from KV on a cold start);
+// poll = true: first run a poll like /feed does (the 10 s reuse, the back-off and the 2.5 s deadline all apply, so this never hammers Telegram).
+export async function feedWindow(env, ctx, ch, poll) {
+  const c = chOf(ch || FEED_CHANNEL), S = stateOf(c.name);
+  if (!S.seeded) await seed(env, c, S);
+  if (poll) await feedObject(env, ctx, { channel: c.name });
+  return { posts: S.posts, status: statusNow(S, Date.now()), okAt: S.okAt || null };
+}
+
 // one channel, as a JSON string (the old shape: the DeItaone view by default)
 export async function getFeed(env, ctx, opts = {}) { return JSON.stringify(await feedObject(env, ctx, opts)); }
 
