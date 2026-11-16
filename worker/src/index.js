@@ -372,13 +372,13 @@ function fmpRefresh(env, ctx, sch) {
   return fmpState.inflight;
 }
 
-// ---- official actuals (plan 3.5, first slice): claims, jobs report and CPI computed from FRED series ----
+// ---- official actuals (plan 3.5): the release numbers computed from FRED series (see SPEC in official.js for which rows) ----
 // With the secret FRED_KEY (free key, the same one the BLS-date fallback uses) the series come from FRED's API. Without it they come from the keyless graph CSV,
 // which FRED refuses from Cloudflare's addresses (HTTP 520 on 16 Nov), so the key is what makes this work.
-// Polls every 30 min, and every 60 s from 90 min before to 2 min after a release it covers, so the actual lands as soon as FRED has it.
-// FRED's lag behind BLS and DOL is unmeasured: check /calendar?debug=1 on the first release. Memory only (no KV): 7 requests a poll (FRED's limit is 120 a minute).
+// Polls every 30 min, and every 60 s from 2 min before a release it covers to 90 min after it, so the actual lands as soon as FRED has it.
+// FRED's lag behind BLS and DOL is unmeasured: check /calendar?debug=1 on the first release. Memory only (no KV): one request per series (17 for a full poll).
 const OFF_SLOW = 30 * 60000, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;
-const offState = { M: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
+const offState = { M: null, at: 0, fastAt: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
 const redact = s => String(s).replace(/api_key=[^&\s]*/gi, 'api_key=***');
 // The API call says who it is (FRED's terms ask programs to identify themselves) and, when it fails, keeps what FRED answered: status, server and the start of the body.
 // A 520 from a plain `get` tells nothing; the body and headers show whether it is a block, a bad key or an outage.
@@ -391,29 +391,38 @@ async function fredApiGet(url) {
   }
   return text;
 }
-async function loadOfficial(env) {
+// `only`: a Set of series to fetch (the ones a release in the next minutes needs); omitted = every series. A partial fetch is merged into what is held.
+async function loadOfficial(env, only) {
   const since = new Date(Date.now() - 460 * 864e5).toISOString().slice(0, 10);   // 13+ months: year-on-year needs it
   const key = env && env.FRED_KEY, M = {}, errs = [];
-  await Promise.all(OFF_SERIES.map(async s => {
+  await Promise.all(OFF_SERIES.filter(s => !only || only.has(s)).map(async s => {
     try {
       M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
       if (!M[s].size) throw new Error('no rows');
     } catch (e) { delete M[s]; errs.push([s, redact(e.message)]); }
   }));
-  // the same failure for every series is shown once, not seven times
+  // the same failure for every series is shown once, not once per series
   const text = errs.length > 1 && errs.every(([, m]) => m === errs[0][1]) ? [`${errs.length} series: ${errs[0][1]}`] : errs.map(([s, m]) => `${s}: ${m}`);
   if (!Object.keys(M).length) throw new Error((key ? '' : 'no FRED_KEY set (the keyless CSV is usually refused): ') + text.join(' | '));
   return { M, errs: text, via: key ? 'api' : 'csv' };
 }
+// Every series every 30 min; in the window around a release (2 min before to 90 min after) only the series that release needs, every 60 s. That keeps a busy
+// minute to a handful of requests (the free plan allows 50 per invocation, and FRED 120 a minute) while the actual still lands within a minute of FRED having it.
 async function refreshOfficial(env, sch) {
-  const now = Date.now();
-  const near = sch.events.some(e => OFF_SPEC[e.k + '|' + e.r] && e.t > now - 90 * 60000 && e.t < now + 120000);
-  if (offState.M && now - offState.at < (near ? OFF_FAST : OFF_SLOW)) return;
+  const now = Date.now(), nearSer = new Set();
+  for (const e of sch.events) { const sp = OFF_SPEC[e.k + '|' + e.r]; if (sp && e.t > now - 90 * 60000 && e.t < now + 120000) nearSer.add(sp.s); }
   if (offState.failAt && now - offState.failAt < OFF_RETRY) return;
+  const fullDue = !offState.M || now - offState.at >= OFF_SLOW;
+  const fastDue = nearSer.size > 0 && now - Math.max(offState.at, offState.fastAt || 0) >= OFF_FAST;
+  if (!fullDue && !fastDue) return;
   try {
-    const o = await loadOfficial(env);
-    offState.M = o.M; offState.at = Date.now(); offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 200) : null; offState.status = 'ok'; offState.via = o.via;
-  } catch (e) { offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 320); offState.status = 'unavailable'; }
+    const o = await loadOfficial(env, fullDue ? null : nearSer);
+    if (fullDue) { offState.M = o.M; offState.at = Date.now(); } else { offState.M = { ...offState.M, ...o.M }; offState.fastAt = Date.now(); }
+    offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 320) : null; offState.status = 'ok'; offState.via = o.via;
+  } catch (e) {
+    offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 320);
+    if (fullDue) offState.status = 'unavailable';   // a failed quick refresh keeps the 30-minute copy and its status
+  }
 }
 function offRefresh(env, ctx, sch) {
   if (!offState.inflight) {
