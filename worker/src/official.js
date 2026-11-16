@@ -4,8 +4,11 @@
 // Where a typed or provider actual disagrees with the official one within 3 days of the print, the row is flagged instead.
 import { fmtVal } from './schedule.js';
 
-// key = "<kind>|<row id>" in schedule.json / indicators.json. per: the release covers a week (claims) or a month (named in the line's "p").
+// key = "<kind>|<row id>" in schedule.json / indicators.json. per: the release covers a week (claims), a month (named in the line's "p": Oct) or a quarter (Q3).
 // f: level = the series value; diff = change from the prior period (payrolls, thousands); mom / yoy = % change (1 decimal, as published).
+// k: multiplier into the units fmtVal expects (JOLTS is in thousands, shown as millions); auto:'persons' scales a series given in persons to thousands.
+// Not covered (no FRED series that publishes with the release): ISM, S&P Global, Chicago and Conference Board surveys, EIA crude stocks, Treasury auction yields, the Fed decision
+// and durable goods (FRED's DGORDER carries the full M3 report a week after the advance print the calendar shows, so it would fill the wrong number late).
 export const SPEC = {
   'claims|main': { s: 'ICSA', per: 'week', f: 'level', u: 'K' },
   'nfp|nfp': { s: 'PAYEMS', per: 'month', f: 'diff', u: 'K' },
@@ -14,6 +17,17 @@ export const SPEC = {
   'cpi|mom': { s: 'CPIAUCSL', per: 'month', f: 'mom', u: '%' },
   'cpi|core': { s: 'CPILFESL', per: 'month', f: 'mom', u: '%' },
   'cpi|yoy': { s: 'CPIAUCNS', per: 'month', f: 'yoy', u: '%' },   // the published year-on-year uses the not-seasonally-adjusted index
+  'ppi|mom': { s: 'PPIFIS', per: 'month', f: 'mom', u: '%' },   // final demand, seasonally adjusted
+  'retail|main': { s: 'RSAFS', per: 'month', f: 'mom', u: '%' },   // advance retail and food services
+  'retail|core': { s: 'RSFSXMV', per: 'month', f: 'mom', u: '%' },   // excluding motor vehicles and parts
+  'gdp|main': { s: 'A191RL1Q225SBEA', per: 'quarter', f: 'level', u: '%' },   // annualised real growth, as BEA publishes it
+  'pce|mom': { s: 'PCEPILFE', per: 'month', f: 'mom', u: '%' },   // core PCE price index
+  'pce|yoy': { s: 'PCEPILFE', per: 'month', f: 'yoy', u: '%' },
+  'jolts|main': { s: 'JTSJOL', per: 'month', f: 'level', u: 'M', k: 1000 },   // FRED: thousands
+  'adp|main': { s: 'ADPMNUSNERSA', per: 'month', f: 'diff', u: 'K', auto: 'persons' },
+  'nhs|main': { s: 'HSN1F', per: 'month', f: 'level', u: 'K' },   // thousands, annual rate
+  'ehs|main': { s: 'EXHOSLUSM495S', per: 'month', f: 'level', u: 'M' },   // units, annual rate
+  'philly|main': { s: 'GACDFSA066MSFRBPHI', per: 'month', f: 'level', u: '' },   // current general activity, seasonally adjusted
 };
 export const SERIES = [...new Set(Object.values(SPEC).map(x => x.s))];
 
@@ -47,14 +61,20 @@ export function parseFredJson(text) {
 const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 const shiftMonth = (iso, n) => { const [y, m] = iso.split('-').map(Number), t = y * 12 + (m - 1) + n; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}-01`; };
-const prevObs = (obs, spec) => (spec.per === 'week' ? addDays(obs, -7) : shiftMonth(obs, -1));
+const prevObs = (obs, spec) => (spec.per === 'week' ? addDays(obs, -7) : spec.per === 'quarter' ? shiftMonth(obs, -3) : shiftMonth(obs, -1));
 
 // the series date an event refers to: claims -> the Saturday before the release; monthly -> the reference month named in the line's "p" (Oct on 6 Nov)
 export function obsFor(e, spec) {
   if (spec.per === 'week') { const dow = new Date(e.d + 'T00:00:00Z').getUTCDay(); return addDays(e.d, -(((dow + 1) % 7) || 7)); }
+  const [y, mo] = e.d.split('-').map(Number);
+  if (spec.per === 'quarter') {   // "Q3" -> 1 July; the fourth quarter is reported in January to March, so it belongs to the year before
+    const q = /^Q([1-4])$/i.exec(String(e.pd || '').trim());
+    if (!q) return null;
+    const sm = (+q[1] - 1) * 3 + 1;
+    return `${sm > mo ? y - 1 : y}-${String(sm).padStart(2, '0')}-01`;
+  }
   const m = MON.indexOf(String(e.pd || '').slice(0, 3).toLowerCase());
   if (m < 0) return null;
-  const [y, mo] = e.d.split('-').map(Number);
   return `${m + 1 > mo ? y - 1 : y}-${String(m + 1).padStart(2, '0')}-01`;
 }
 
@@ -62,12 +82,13 @@ export function calc(S, spec, obs) {
   const v = S.get(obs);
   if (v == null) return null;
   let x;
-  if (spec.f === 'level') return v;
+  const k = spec.auto === 'persons' ? (v >= 1e7 ? 0.001 : 1) : (spec.k || 1);   // into the unit fmtVal expects
+  if (spec.f === 'level') return v * k;
   if (spec.f === 'yoy') { const y = S.get(shiftMonth(obs, -12)); if (y == null) return null; x = (v / y - 1) * 100; }
   else {
     const p = S.get(prevObs(obs, spec));
     if (p == null) return null;
-    if (spec.f === 'diff') return v - p;
+    if (spec.f === 'diff') return (v - p) * k;
     x = (v / p - 1) * 100;
   }
   return Math.round(x * 10) / 10 || 0;   // || 0 turns -0 into 0
