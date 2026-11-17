@@ -30,6 +30,7 @@ const FEED_TIMEOUT = 4000;       // per upstream request
 const FEED_DEADLINE = 2500;      // a request waits at most this long for a fresh poll, then answers from the window
 const FEED_KEEP = 50;            // posts kept in the rolling window
 const FEED_STALE = 90000;        // status "stale" if the last good poll is older than this
+const FEED_FULL = 60000;         // a full parse at least this often even when the newest post id has not changed (an edited older post still shows within a minute)
 const FEED_STAGGER = 350;        // the second channel's poll starts this much later, so the two requests to Telegram never go out together
 
 // ---- parsing ----
@@ -52,11 +53,17 @@ export function decodeEntities(s) {   // HTMLRewriter hands over text with entit
 }
 
 const noiseLine = ch => new RegExp(`^\\(?@${ch}\\)?$|^https?://t\\.me/${ch}(/\\d+)?/?$`, 'i');
+const RXS = new Map();   // channel name -> its two cleaning patterns, built once (they used to be rebuilt for every post of every poll)
+function rxOf(name) {
+  let x = RXS.get(name);
+  if (!x) { x = { noise: noiseLine(name), sig: new RegExp(`\\s*\\(@${name}\\)\\s*$`, 'i') }; RXS.set(name, x); }
+  return x;
+}
 export function cleanText(raw, ch = FEED_CHANNEL) {
-  const c = chOf(ch), noise = noiseLine(c.name);
+  const c = chOf(ch), { noise, sig } = rxOf(c.name);
   const lines = decodeEntities(raw).replace(/\r/g, '').split('\n').map(l => l.replace(/\s+$/, ''));
   let s = lines.filter(l => !noise.test(l.trim())).join('\n');
-  s = s.replace(new RegExp(`\\s*\\(@${c.name}\\)\\s*$`, 'i'), '');   // signature at the end of the last line
+  s = s.replace(sig, '');   // signature at the end of the last line
   if (c.tail) s = s.replace(c.tail, '');                              // the channel's own tag ("|FJ")
   s = s.replace(/\n{3,}/g, '\n\n').trim();
   return s.replace(/^\*+\s*/, '');                                    // leading "*" of the wire's headline style
@@ -138,6 +145,15 @@ async function runWorkers(html, attach) {
 let RUNNER = runWorkers;
 export function _useRunner(fn) { RUNNER = fn || runWorkers; }   // tests plug in the WASM HTMLRewriter
 
+// The highest post id of this channel on the page, found with a plain scan of the text (no HTMLRewriter): null if there is none.
+// pollOnce uses it to skip the parse when nothing new was posted.
+export function newestId(html, name) {
+  const rx = new RegExp(`data-post="${name}/(\\d+)"`, 'gi');
+  let max = 0, m;
+  while ((m = rx.exec(html))) { const n = +m[1]; if (n > max) max = n; }
+  return max || null;
+}
+
 // html -> [{id, t, text, url, media}] newest first. On a hot channel a post that starts with the red mark also has hot:true
 // (the key is absent on other posts and on other channels, so DeItaone's output is unchanged).
 export async function parseTelegram(html, run = runWorkers, ch = FEED_CHANNEL) {
@@ -167,7 +183,7 @@ export function mergePosts(win, incoming, keep = FEED_KEEP) {   // -> { posts, a
 
 // ---- state: one per channel, lives in the isolate; the page never makes Telegram wait for more than one poll at a time ----
 const newState = () => ({ posts: [], at: 0, okAt: 0, failAt: 0, err: null, rate: false, httpStatus: null, parsed: 0, withTime: 0,
-  parseMs: null, bytes: 0, sample: null, inflight: null, seeded: false, lastKv: 0, gapId: 0 });
+  parseMs: null, bytes: 0, sample: null, inflight: null, seeded: false, lastKv: 0, gapId: 0, fullAt: 0, skips: 0 });
 const STATES = { [FEED_CHANNEL]: newState() };
 const stateOf = ch => STATES[ch] || (STATES[ch] = newState());
 export const _state = STATES[FEED_CHANNEL];   // for tests: the default channel's state, as before
@@ -187,6 +203,14 @@ async function pollOnce(env, c, S) {
   if (!res.ok) return fail(res.status, `HTTP ${res.status} from t.me`, res.status === 429);
   let html;
   try { html = await res.text(); } catch (e) { return fail(res.status, `read failed: ${e.message}`); }
+  // Nothing new since the last full parse (same newest id, and that parse is under a minute old): the page differs only in view counters,
+  // so keep the window as it is and skip the HTMLRewriter. A new post, a failure, a cold start (fullAt is 0 until the first parse) or
+  // FEED_FULL seconds without a parse all fall through to the full parse below.
+  const nid = newestId(html, c.name), top = S.posts[0];
+  if (nid && top && nid === top.id && S.fullAt && Date.now() - S.fullAt < FEED_FULL) {
+    S.at = S.okAt = Date.now(); S.failAt = 0; S.err = null; S.rate = false; S.httpStatus = res.status; S.bytes = html.length; S.skips++;
+    return;
+  }
   let posts;
   const p0 = Date.now();
   try { posts = await parseTelegram(html, RUNNER, c.name); } catch (e) { S.sample = sampleOf(html); return fail(res.status, `parser error: ${e.message}`); }
@@ -197,7 +221,7 @@ async function pollOnce(env, c, S) {
   // a window that does not meet the new page (a cold isolate, or a long pause) may have missed posts in between
   if (S.posts.length && Math.min(...posts.map(p => p.id)) > S.posts[0].id + 1) S.gapId = Math.min(...posts.map(p => p.id));
   S.posts = m.posts;
-  S.at = S.okAt = now; S.failAt = 0; S.err = null; S.rate = false; S.httpStatus = res.status;
+  S.at = S.okAt = S.fullAt = now; S.failAt = 0; S.err = null; S.rate = false; S.httpStatus = res.status;
   S.parsed = posts.length; S.withTime = posts.filter(p => p.t != null).length;
   if (S.parsed === S.withTime) S.sample = null;
   if (m.added && env && env.MARKET_KV && now - S.lastKv > c.kvGap) {
@@ -245,7 +269,7 @@ function viewOf(c, S, now, debug) {
   };
   if (c.hot) out.health.hot = hotCount(S.posts);
   if (S.gapId && S.posts.some(p => p.id < S.gapId)) out.gap = true;   // the window has a hole: older posts may be missing
-  if (debug) out.sample = S.sample;
+  if (debug) { out.sample = S.sample; out.skips = S.skips; }   // skips: polls answered without a parse (nothing new)
   return out;
 }
 

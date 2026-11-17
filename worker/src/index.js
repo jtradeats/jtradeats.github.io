@@ -6,7 +6,7 @@ import SYMBOLS from '../config/symbols.json';
 import SCHEDULE from '../config/schedule.json';
 import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
-import { etToMs, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
+import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, chainPrevious } from './schedule.js';
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
@@ -242,7 +242,7 @@ const CNN_HEADERS = {
 
 async function fearGreed() {
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const attempts = [[CNN, CNN_HEADERS], [`${CNN}/${since}`, CNN_HEADERS], [CNN, {}]];
+  const attempts = [[`${CNN}/${since}`, CNN_HEADERS], [CNN, CNN_HEADERS], [CNN, {}]];   // the dated form first: same fear_and_greed block, a much smaller body to parse; the bare URL stays as the fallback
   const errs = [];
   const num = v => (v == null ? null : +Number(v).toFixed(1));
   for (const [url, hdr] of attempts) {
@@ -451,7 +451,7 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
 const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
 const syncState = { rec: null, at: 0, running: false, tried: {}, last: null };
-const nyDate = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });   // YYYY-MM-DD in New York
+const nyDate = ms => etParts(ms).iso;   // YYYY-MM-DD in New York (date arithmetic, P8.15: toLocaleDateString built a new Intl formatter on every call)
 
 async function loadSync(env, force) {
   const now = Date.now();
@@ -632,16 +632,21 @@ async function dataBranch() {
   return v;
 }
 
+const FUT_LIVE_TTL = 10 * 60000;   // while a future's price is live from the TradingView push, Yahoo is asked about it only this often (contract name, ROLLED)
 async function build(ctx, env) {
   const log = [], notes = [];
-  const tvP = loadTv(env);   // TradingView push (D1), read while the Yahoo fetches run
-  const work = Promise.all([...ITEMS.map(([l, k, c]) => getItem(l, k, c, log, notes)), getFng()]);
+  const tv = env && env.TV_OVERLAY === 'off' ? null : await loadTv(env);   // TradingView push (D1), read first so live futures need no Yahoo call; set the Worker variable TV_OVERLAY to "off" to stop publishing pushed prices
+  const t0 = Date.now(), liveFut = new Set();
+  if (tv) for (const label of TV_LABELS) {   // a future the push covers right now, with a recent Yahoo answer (it holds the contract name) in the cache
+    const c = itemCache.get(label);
+    if (c && c.val && c.val.contract && !c.failAt && t0 - c.at < FUT_LIVE_TTL && (tvOverlay(c.val, tv, t0, quote) || {}).live) liveFut.add(label);
+  }
+  const work = Promise.all([...ITEMS.filter(([l]) => !liveFut.has(l)).map(([l, k, c]) => getItem(l, k, c, log, notes)), getFng()]);
   const done = await Promise.race([work.then(() => true), new Promise(r => setTimeout(() => r(false), DEADLINE_MS))]);
   if (ctx) ctx.waitUntil(work);   // late sources keep running and land in the cache for the next request
   if (!done) notes.push(`deadline hit (${DEADLINE_MS} ms): slow sources will show in the next response`);
 
   const now = Date.now();
-  const tv = env && env.TV_OVERLAY === 'off' ? null : await tvP;   // set the Worker variable TV_OVERLAY to "off" to stop publishing pushed prices
   let prev = {};
   if (USE_DATA_BRANCH && (!fngState.val || ITEMS.some(([l]) => !(itemCache.get(l) || {}).val))) prev = await dataBranch();
   const prevItems = Object.fromEntries((prev.items || []).map(i => [i.label, i]));
@@ -649,7 +654,7 @@ async function build(ctx, env) {
   const items = ITEMS.map(([label, kind]) => {
     const c = itemCache.get(label);
     if (c && c.val) {
-      const stale = (c.failAt && c.failAt > c.at) || now - c.at > c.ttl + 60000;
+      const stale = (c.failAt && c.failAt > c.at) || now - c.at > (liveFut.has(label) ? FUT_LIVE_TTL : c.ttl) + 60000;   // a live future is not stale because Yahoo was skipped
       return stale ? { ...c.val, stale: true } : c.val;
     }
     return prevItems[label] ? { ...prevItems[label], stale: true } : { label, kind, p: null };

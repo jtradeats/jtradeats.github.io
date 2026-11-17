@@ -10,21 +10,48 @@ const NYF = new Intl.DateTimeFormat('en-US', {
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY = 864e5;
 
+// ---- New York time by date arithmetic (plan P8.15, D112) ----
+// The US rule in force since 2007: daylight time runs from the second Sunday of March, 02:00 local standard time (07:00 UTC),
+// to the first Sunday of November, 02:00 local daylight time (06:00 UTC). No Intl call: the Intl version below (etPartsIntl) stays
+// only as the test oracle. Each year's two boundaries are worked out once and kept.
+const DST_YEARS = new Map();
+function dstSpan(y) {
+  let s = DST_YEARS.get(y);
+  if (!s) {
+    const mar1 = new Date(Date.UTC(y, 2, 1)).getUTCDay(), nov1 = new Date(Date.UTC(y, 10, 1)).getUTCDay();
+    s = [Date.UTC(y, 2, 1 + ((7 - mar1) % 7) + 7, 7), Date.UTC(y, 10, 1 + ((7 - nov1) % 7), 6)];
+    DST_YEARS.set(y, s);
+  }
+  return s;
+}
+// wall clock minus UTC at the instant t, in ms (-4 h in daylight time, -5 h otherwise)
+function nyOffset(t) {
+  const [a, b] = dstSpan(new Date(t).getUTCFullYear());
+  return t >= a && t < b ? -4 * 36e5 : -5 * 36e5;
+}
+const p2 = n => (n < 10 ? '0' : '') + n;
+
 // New York wall-clock parts of an instant
 export function etParts(ms) {
+  const x = new Date(ms + nyOffset(ms)), y = x.getUTCFullYear(), mo = x.getUTCMonth() + 1, d = x.getUTCDate(), h = x.getUTCHours(), mi = x.getUTCMinutes();
+  return { y, mo, d, h, mi, s: x.getUTCSeconds(), dow: x.getUTCDay(),
+    iso: `${y}-${p2(mo)}-${p2(d)}`, hm: `${p2(h)}:${p2(mi)}` };
+}
+// the Intl version (what etParts was until P8.15): kept for the tests only
+export function etPartsIntl(ms) {
   const p = NYF.formatToParts(new Date(ms)), g = k => p.find(x => x.type === k).value;
   return { y: +g('year'), mo: +g('month'), d: +g('day'), h: +g('hour'), mi: +g('minute'), s: +g('second'), dow: DOW.indexOf(g('weekday')),
     iso: `${g('year')}-${g('month')}-${g('day')}`, hm: `${g('hour')}:${g('minute')}` };
 }
 
-// 'YYYY-MM-DDTHH:MM[:SS]' written as New York wall-clock time -> epoch ms (null if it doesn't parse). Two passes so DST edges are right.
+// 'YYYY-MM-DDTHH:MM[:SS]' written as New York wall-clock time -> epoch ms (null if it doesn't parse). Two passes so DST edges are right
+// (the same two passes as before, so the gap and overlap hours give the same answers as the Intl version).
 export function etToMs(s) {
   const m = /^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)(?::(\d\d))?$/.exec(String(s || ''));
   if (!m) return null;
   const asUTC = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
-  const off = t => { const q = etParts(t); return Date.UTC(q.y, q.mo - 1, q.d, q.h, q.mi, q.s) - t; };   // wall clock minus UTC at instant t
-  let t = asUTC - off(asUTC);
-  t = asUTC - off(t);
+  let t = asUTC - nyOffset(asUTC);
+  t = asUTC - nyOffset(t);
   return t;
 }
 
@@ -213,7 +240,18 @@ function rowRx(IND) {
   }
   return c;
 }
-export function candidates(IND, title) { return rowRx(IND).filter(x => x.rx.test(title)).map(x => ({ k: x.k, r: x.r })); }
+const CANDC = new WeakMap();   // IND -> Map(title -> candidates): the same provider titles come back on every rebuild
+export function candidates(IND, title) {
+  let m = CANDC.get(IND);
+  if (!m) { m = new Map(); CANDC.set(IND, m); }
+  let c = m.get(title);
+  if (!c) {
+    c = rowRx(IND).filter(x => x.rx.test(title)).map(x => ({ k: x.k, r: x.r }));
+    if (m.size > 500) m.clear();
+    m.set(title, c);
+  }
+  return c;   // callers only read it
+}
 
 // Fair Economy / Forex Factory weekly JSON (no key, no actuals, rate-limits shared Cloudflare IPs)
 export function normFair(rows) {

@@ -5,16 +5,24 @@
 // The six items live in worker/config/symbols.json ("set": "weekly") with their reopen time, zone and first-bar jump limit; index.js passes the list in.
 // One Yahoo chart call per symbol (10 days of 15-minute bars): 6 subrequests, 12 if every first host fails.
 import { chart, quote, makeRoute } from './route.js';
+import { etParts } from './schedule.js';   // New York time by arithmetic (P8.15): no Intl call for the zone every symbol uses
 
 const BASE_KEY = 'weekly:contracts';
 const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
 // ---- time in a named zone (no library): wall-clock parts of an instant, and the instant of a wall-clock time ----
+const DTF = new Map();   // one formatter per zone, built once (it used to be built on every call)
 function parts(ms, tz) {
-  const p = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hourCycle: 'h23', weekday: 'short',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).formatToParts(new Date(ms));
+  if (tz === 'America/New_York') { const q = etParts(ms); return { y: q.y, mo: q.mo, d: q.d, dow: q.dow, h: q.h, mi: q.mi }; }
+  let f = DTF.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23', weekday: 'short',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+    DTF.set(tz, f);
+  }
+  const p = f.formatToParts(new Date(ms));
   const g = k => p.find(x => x.type === k).value;
   return { y: +g('year'), mo: +g('month'), d: +g('day'), dow: DOW[g('weekday')], h: +g('hour'), mi: +g('minute') };
 }
@@ -38,10 +46,27 @@ function firstBar(ts, O, ro) {
   return -1;
 }
 
+// The week open cannot change once the first bar after the reopen exists, so the 10 days of 15-minute bars (about 600 per symbol, parsed and
+// scanned on every refresh) are read once per symbol per week and what they give (open, its time, the checks, the contract) is kept in this
+// isolate. Every later refresh asks Yahoo only for the current price, the same small call the tape uses. A cold isolate, a new week, a week
+// whose first bar had not arrived yet (the fall back to last week below) or a missing price all take the full read again, exactly as before.
+const WEEK = new Map();   // yahoo symbol -> { exp, ro, open, ot, n0, t0, flag, late }
 async function fetchOne(spec) {
   const hop = spec.chain.find(h => h[0] === 'yahoo');
   if (!hop) throw new Error('no yahoo entry in chain');
   const sym = hop[1];
+  const exp = lastReopen(Date.now(), spec.tz, spec.reopen, 0), wk = WEEK.get(sym);
+  if (wk && wk.exp === exp) {
+    const m = ((await chart(sym, '1d', '1d')).meta) || {};
+    if (Number.isFinite(m.regularMarketPrice) && m.regularMarketTime) {
+      const t = m.regularMarketTime * 1000, name = m.shortName || m.longName;
+      const out = { src: `yahoo:${sym}`, f: Date.now(), open: wk.open, ot: wk.ot, ro: wk.ro, n: wk.n0 + Math.max(0, Math.floor((t - wk.t0) / 900000)), ...quote(m.regularMarketPrice, wk.open, t) };
+      if (name) out.contract = String(name).slice(0, 60);
+      if (wk.flag) out.flag = wk.flag;
+      if (wk.late) out.late = true;
+      return out;
+    }
+  }
   const r = await chart(sym, '10d', '15m');                      // 10 days, not 7: the Sunday-evening fallback to last week needs the older reopen
   const ts = r.timestamp || [], q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
   const O = q.open || [], H = q.high || [], L = q.low || [], Cl = q.close || [];
@@ -78,6 +103,7 @@ async function fetchOne(spec) {
   if (name) out.contract = String(name).slice(0, 60);
   if (flags.length) out.flag = flags.join('; ');
   if (out.ot - ro > 30 * 60000) out.late = true;                  // reopened late (holiday week, or Yahoo is missing early bars): the tooltip says so
+  if (ro === exp) WEEK.set(sym, { exp, ro, open, ot: out.ot, n0: out.n, t0: t, flag: out.flag || null, late: !!out.late });   // this week's own open: keep it (not when it fell back to last week's)
   return out;
 }
 
