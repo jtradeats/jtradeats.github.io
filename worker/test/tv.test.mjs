@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { tvIngest, loadTv, tvOverlay, tvWeekly, tvHealth, TV_STALE_MS, TV_MAX_LAG_MS } from './tv.js';
+import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth, TV_STALE_MS, TV_MAX_LAG_MS } from './tv.js';
 
 // minimal D1 mock: one row table
 function mockDb() {
@@ -116,5 +116,20 @@ await t('loadTv reads the row, survives D1 errors, health reports', async () => 
   const bad = { prepare() { return { first: async () => { throw new Error('boom'); } }; } };
   assert.equal(await loadTv({ DB: bad }, NOW + 60000), null);
   assert.equal(tvHealth(null, { DB: bad }, NOW).live, false);
+});
+await t('tvMarket: a fresh push re-prices a stale memo body and keeps the contract name', async () => {
+  const body = JSON.stringify({ items: [{ label: 'NQ1!', kind: 'fut', p: 1, t: NOW - 1800000, c: 9, pc: 9, src: 'tv', live: true, contract: 'NQZ6' }, { label: 'DXY', kind: 'idx', p: 103.5, t: NOW - 600000 }] });
+  const tv = { f: NOW - 20000, ts: NOW - 25000, lag: 900, q: { 'NQ1!': [21000, 20900] } };
+  const j = JSON.parse(tvMarket(body, tv, NOW, quote));
+  assert.equal(j.items[0].p, 21000); assert.equal(j.items[0].t, NOW - 25000); assert.equal(j.items[0].c, 100); assert.equal(j.items[0].contract, 'NQZ6'); assert.equal(j.items[0].live, true);
+  assert.equal(j.items[1].p, 103.5);
+});
+await t('tvMarket: stale push, delayed push, no push and bad JSON all return the body untouched', async () => {
+  const body = JSON.stringify({ items: [{ label: 'NQ1!', p: 1 }] });
+  const tv = { f: NOW - 20000, ts: NOW - 25000, lag: 900, q: { 'NQ1!': [21000, 20900] } };
+  assert.equal(tvMarket(body, { ...tv, f: NOW - TV_STALE_MS - 1 }, NOW, quote), body);
+  assert.equal(tvMarket(body, { ...tv, lag: TV_MAX_LAG_MS + 1 }, NOW, quote), body);
+  assert.equal(tvMarket(body, null, NOW, quote), body);
+  assert.equal(tvMarket('nope', tv, NOW, quote), 'nope');
 });
 console.log(`\n${n} checks passed`);
