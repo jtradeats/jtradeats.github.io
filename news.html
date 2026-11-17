@@ -761,7 +761,7 @@ function gauge(f){
   const p=[['prev',f.prev],['1w',f.week],['1m',f.month],['1y',f.year]].filter(x=>x[1]!=null).map(x=>x[0]+' '+Math.round(x[1])).join(' \u00b7 ');
   return svg+'<div><span class="fnum">'+Math.round(f.score)+'</span><span class="frate">'+band(f.score)+'</span></div><div class="fprev">'+p+'</div>';
 }
-let haveData=false,lastData=null,busy=false,loading=false,refreshFailed=false;
+let haveData=false,lastData=null,busy=false,loading=false,loadingAt=0,refreshFailed=false;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hhmm=d=>d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 const ago=ms=>{const m=Math.round(ms/60000);return m<1?'just now':m<60?m+' min ago':m<2880?Math.floor(m/60)+' h ago':Math.floor(m/1440)+' d ago'};
@@ -836,22 +836,19 @@ function marketEmpty(){
   $('#tape').innerHTML='<p class="note">Market data unavailable: both the Worker and the fallback file failed. Open the Worker\u2019s /health URL to check it.</p>';
   $('#fbody').innerHTML='<p class="note">\u2014</p>';
 }
+const fj=async(u,ms)=>{const c=new AbortController(),k=setTimeout(()=>c.abort(),ms);try{const r=await fetch(u,{cache:'no-store',signal:c.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(k)}}; /* the timer covers the body read too: a request that hangs now fails after ms instead of freezing the tape */
 async function fetchMarket(){
-  if(window.__MK0){const p=window.__MK0;window.__MK0=null;const d=await p;if(d&&d.items)return d}
+  if(window.__MK0){const p=window.__MK0;window.__MK0=null;const d=await Promise.race([p,sleep(12000).then(()=>null)]);if(d&&d.items)return d}
   try{
-    const r=await fetch(WORKER_URL,{cache:'no-store'});
-    if(!r.ok)throw new Error(r.status);
-    const d=await r.json();
+    const d=await fj(WORKER_URL,12000);
     if(!d.items)throw new Error('bad payload');
     return d;
   }catch(e){
-    const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error(r.status);
-    return r.json();
+    return fj(DATA_URL+'?t='+Date.now(),12000);
   }
 }
 async function loadMarket(){
-  if(loading)return null;loading=true;
+  if(loading&&Date.now()-loadingAt<30000)return null;loading=true;loadingAt=Date.now(); /* a load older than 30 s is treated as dead, so one hung request can never block every later refresh */
   try{const d=await fetchMarket();refreshFailed=false;renderMarket(d);return d}
   catch(e){refreshFailed=true;marketEmpty();paintStamp();return null}
   finally{loading=false}
