@@ -391,6 +391,18 @@ html.mobile .tu b{font-size:22px}
 .toast .tag{font-size:10px;letter-spacing:.08em;color:#b24a1c;font-weight:700;margin:2px 0 4px}
 .toast p{margin:3px 0 6px;white-space:pre-line}
 .toast .x{position:absolute;top:5px;right:8px;background:none;border:0;color:#2a1d14;cursor:pointer;font-size:18px;line-height:1}
+.toast.wpan{padding:10px 12px 8px}
+.toast.wpan .wph{padding-right:22px}
+.toast.wpan .wbody{max-height:min(34vh,320px);overflow:auto;overscroll-behavior:contain}
+.toast .wi{padding:6px 0;border-top:.5px solid #e9c7ae}
+.toast .wi:first-child{border-top:0;padding-top:2px}
+.toast .wi .hd{font-weight:700;overflow-wrap:anywhere}
+.toast .wi .mk{color:#b24a1c;margin-right:4px}
+.toast .wi .bk{font-size:10px;letter-spacing:.08em;color:#b24a1c;font-weight:700;margin-right:5px}
+.toast .wi .full{margin:4px 0 2px;white-space:pre-line;overflow-wrap:anywhere}
+.toast .wi .sim{margin:4px 0 2px;padding-left:8px;border-left:2px solid #e9c7ae;font-size:var(--fsm)}
+.toast .wi .sim div{margin:2px 0;overflow-wrap:anywhere}
+.toast .wi .rd{display:inline-block;margin:2px 10px 0 0}
 .toast a,.toast .rd{color:#b24a1c;font-weight:600;font-size:var(--fsm);text-decoration:none;background:none;border:0;cursor:pointer;padding:0;font-family:var(--sans)}
 #rel{position:fixed;inset:0;z-index:2147483100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
 .relc{background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--radl);max-width:620px;width:100%;max-height:90vh;overflow:auto;padding:14px 18px 16px;line-height:1.5}
@@ -773,7 +785,7 @@ function cashOpen(){
 }
 function fresh(it){
   const tip=[];let tag='',dim=false;
-  if(it.src)tip.push(it.src.replace(':',' '));
+  if(it.live)tip.push('live from TradingView, refreshed each minute');else if(it.src)tip.push(it.src.replace(':',' '));
   if(it.contract)tip.push(it.contract);
   if(it.stale){tag='stale';dim=true;tip.push('latest fetch failed, showing the last good value')}
   if(it.cls==='prior'){
@@ -793,11 +805,13 @@ function paintStamp(msg){
   if(msg){el.textContent=msg;return}
   if(!lastData)return;
   const items=lastData.items||[];
-  const ts=items.filter(i=>i.p!=null&&!i.stale&&i.cls!=='prior'&&i.t!=null).map(i=>i.t);
+  const lv=items.filter(i=>i.live&&i.p!=null&&!i.stale).length;   // futures pushed from TradingView each minute; the rest of the tape is still the delayed feed
+  const ts=items.filter(i=>i.p!=null&&!i.stale&&!i.live&&i.cls!=='prior'&&i.t!=null).map(i=>i.t);
   const miss=items.filter(i=>i.p==null).length,stl=items.filter(i=>i.stale).length;
   let s;
   if(ts.length){const n=Math.max(...ts),age=Date.now()-n,shut=age>OLD&&futClosed();s=shut?'market closed \u00b7 last quotes '+asOf(n):'quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(age>OLD?' \u00b7 old':'')}
   else s='no timestamped quotes';
+  if(lv)s=lv+' futures live'+(ts.length?' \u00b7 rest '+s:'');
   if(stl)s+=' \u00b7 '+stl+' stale';
   if(miss)s+=' \u00b7 '+miss+' missing';
   if(lastData.via!=='worker')s+=' \u00b7 fallback file';
@@ -904,20 +918,20 @@ const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
 const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280,GROUP_MS=120000,GROUP_SIM=0.6;
 const mkWire=cfg=>({...cfg,al:LS.g(KEY+cfg.ls,'0')==='1',d:null,err:null,at:0,maxId:0,fresh:new Map(),open:new Set(),el:null,recent:[]}); /* al: alerts are off until switched on, remembered per browser */
 const WIRE=mkWire({key:'dm',ls:'al_wire',blk:a=>a,name:'Walter Bloomberg',pick:p=>true});
-const FJW=mkWire({key:'fj',ls:'al_fj',blk:a=>a.fj,name:'FinancialJuice',hot:true,pick:p=>p.hot===true}); /* only posts the channel marks with the red ❗ */
+const FJW=mkWire({key:'fj',ls:'al_fj',blk:a=>a.fj,name:'FinancialJuice',hot:true,pick:p=>p.hot===true}); /* only posts the channel marks with the red ❗ or ‼ */
 const WIRES=[WIRE,FJW];
 /* FinancialJuice posts one story several times within a minute or two. For alerts only (the card shows every post): posts within GROUP_MS of
    each other whose words overlap by GROUP_SIM or more are one story; a story already toasted is not toasted again. */
 const wtok=s=>new Set(String(s||'').toLowerCase().replace(/[^a-z0-9.%$ ]+/g,' ').split(/\s+/).filter(x=>x.length>2));
 const wsim=(a,b)=>{let i=0;for(const x of a)if(b.has(x))i++;const u=a.size+b.size-i;return u?i/u:0};
-function wireGroup(nw,recent,now){ /* nw newest first -> [{p: newest post of the story, n: posts in it, t, tk}] newest first */
+function wireGroup(nw,recent,now){ /* nw newest first -> [{p: newest post of the story, n: posts in it, t, tk, ps: every post in it, oldest first}] newest first */
   const out=[];
   for(const p of nw.slice().reverse()){
     const t=p.t||now,tk=wtok(p.text);
     const done=recent.find(r=>Math.abs(t-r.t)<=GROUP_MS&&wsim(tk,r.tk)>=GROUP_SIM);
     if(done){done.t=Math.max(done.t,t);continue}
     const g=out.find(g=>Math.abs(t-g.t)<=GROUP_MS&&wsim(tk,g.tk)>=GROUP_SIM);
-    if(g){g.p=p;g.n++;g.t=t}else out.push({p,n:1,t,tk});
+    if(g){g.p=p;g.n++;g.t=t;g.ps.push(p)}else out.push({p,n:1,t,tk,ps:[p]});
   }
   return out.reverse();
 }
@@ -953,19 +967,81 @@ function wireIngest(w,d){
   w.d=d;w.err=null;
   if(!first&&w.al){const nw=d.posts.filter(p=>p.id>prevMax&&w.pick(p));if(nw.length)wireAlert(w,nw)} /* never on the first load, so opening the page does not alert for old posts */
 }
-function wireAlert(w,nw){ /* nw is newest first; a burst is one toast (plan 4.4: a digest, not one toast per post) */
-  const line=p=>(p.text||(p.media?'[media post]':'[empty post]')).split('\n')[0].slice(0,160);
-  if(!w.hot){
-    toast({src:w.name,tag:nw.length>1?nw.length+' NEW POSTS':'NEW POST',h:line(nw[0]),s:nw.length>1?'Newest of '+nw.length+' new posts since the last check.':'',ms:20000});
+/* Alert panels: one per wire (FinancialJuice, Walter), each a stack of every alerted post, newest first, with its own close button.
+   The headline is the first line (cut at WH_CUT); "read more" opens the whole post. Third-party text goes in with textContent only (R32). */
+const WH_CUT=160,WPAN_ITEMS=30,WPAN_MS=20000,WPAN={};
+const wireSplit=p=>{
+  const full=(p.text||'').trim();
+  if(!full)return{head:p.media?'[media post]':'[empty post]',rest:'',cut:false};
+  const nl=full.indexOf('\n'),first=(nl<0?full:full.slice(0,nl)).trim();
+  if(first.length>WH_CUT)return{head:first.slice(0,WH_CUT).replace(/\s+$/,'')+'\u2026',rest:full,cut:true};
+  return{head:first,rest:nl<0?'':full.slice(nl+1).trim(),cut:false};
+};
+const wireMark=(w,p)=>w.hot?(p.bang?'\u203C':'\u2757'):'';
+function wirePanel(w,groups){ /* groups newest first: [{p, n, ps}] */
+  if(!masterOn||!groups.length)return;
+  let P=WPAN[w.key];
+  if(!P||!P.el.isConnected){
+    const el=document.createElement('div');el.className='toast wpan';
+    el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><div class="wph"><b class="src"></b><div class="tag"></div></div><div class="wbody"></div>';
+    P={w,el,items:[],open:new Set(),hover:false,t:0,n:0,tag:$('.tag',el),body:$('.wbody',el)};
+    $('.src',el).textContent=w.name;
+    P.kill=()=>{clearTimeout(P.t);el.remove();if(WPAN[w.key]===P)delete WPAN[w.key]};
+    $('.x',el).onclick=P.kill;
+    el.onmouseenter=()=>{P.hover=true;clearTimeout(P.t)};
+    el.onmouseleave=()=>{P.hover=false;wirePanArm(P)};
+    WPAN[w.key]=P;
+    /* each wire's panel sits next to the other wire's: FinancialJuice first, then Walter, then any ordinary toast */
+    const rank=k=>k==='fj'?0:1,after=[...toastBox.children].find(c=>!c.classList.contains('wpan')||rank(c.dataset.wk)>rank(w.key));
+    toastBox.insertBefore(el,after||null);el.dataset.wk=w.key;
+  }
+  P.items=groups.concat(P.items).slice(0,WPAN_ITEMS);P.n+=groups.length;
+  wirePanDraw(P,true);wirePanArm(P);
+}
+function wirePanArm(P){ /* auto-dismiss only while nobody is reading it */
+  clearTimeout(P.t);
+  if(P.hover||P.open.size)return;
+  P.t=setTimeout(P.kill,WPAN_MS);
+}
+function wirePanDraw(P,top){
+  const w=P.w,mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+  const marks=[...new Set(P.items.map(g=>wireMark(w,g.p)).filter(Boolean))].join('');
+  P.tag.textContent=w.hot?(marks?marks+' ':'')+(P.n>1?P.n+' ALERTS':'ALERT'):(P.n>1?P.n+' NEW POSTS':'NEW POST');
+  const keep=P.body.scrollTop;P.body.textContent='';
+  for(const g of P.items){
+    const p=g.p,sp=wireSplit(p),it=mk('div','wi'),open=P.open.has(p.id),hd=mk('div','hd');
+    const m=wireMark(w,p);if(m)hd.appendChild(mk('span','mk',m));
+    if(p.breaking)hd.appendChild(mk('span','bk','BREAKING'));
+    if(!(open&&sp.cut))hd.appendChild(document.createTextNode(sp.head)); /* a cut headline is replaced by the whole post when opened */
+    it.appendChild(hd);
+    if(open&&sp.rest)it.appendChild(mk('div','full',sp.rest));
+    if(sp.rest){
+      const b=mk('button','rd',open?'show less':'\u2026 read more');
+      b.onclick=()=>{open?P.open.delete(p.id):P.open.add(p.id);wirePanDraw(P);wirePanArm(P)};
+      it.appendChild(b);
+    }
+    const others=(g.ps||[]).filter(x=>x!==p).reverse();
+    if(others.length){
+      const sk='s'+p.id,so=P.open.has(sk),b=mk('button','rd',so?'hide similar':'+'+others.length+' similar');
+      b.onclick=()=>{so?P.open.delete(sk):P.open.add(sk);wirePanDraw(P);wirePanArm(P)};
+      it.appendChild(b);
+      if(so){const l=mk('div','sim');for(const x of others)l.appendChild(mk('div','',(x.text||(x.media?'[media post]':'[empty post]')).trim()));it.appendChild(l)}
+    }
+    P.body.appendChild(it);
+  }
+  P.body.scrollTop=top?0:keep;
+}
+function wireAlert(w,nw){ /* nw is newest first; a burst is one panel per wire holding every alerted post (plan 4.4: a digest, not one toast per post) */
+  const line=p=>wireSplit(p).head;
+  if(!w.hot){ /* Walter: every new post alerts */
+    wirePanel(w,nw.map(p=>({p,n:1,ps:[p]})));
     notify(w.name,line(nw[0]));return;
   }
   const now=Date.now();w.recent=w.recent.filter(r=>now-r.t<=GROUP_MS*3);
-  const gs=wireGroup(nw,w.recent,now);if(!gs.length)return; /* every post was a repeat of a story already toasted */
+  const gs=wireGroup(nw,w.recent,now);if(!gs.length)return; /* every post was a repeat of a story already alerted */
   gs.forEach(g=>w.recent.push({t:g.t,tk:g.tk}));
-  const g=gs[0],extra=gs.reduce((a,x)=>a+x.n-1,0);
-  toast({src:w.name,tag:gs.length>1?gs.length+' ❗ ALERTS':'❗ ALERT',h:line(g.p),
-    s:gs.length>1?'Newest of '+gs.length+' stories'+(extra?' (+'+extra+' similar)':'')+'.':g.n>1?'+'+(g.n-1)+' similar':'',ms:20000});
-  notify(w.name,line(g.p));
+  wirePanel(w,gs);
+  notify(w.name,line(gs[0].p));
 }
 function wirePaint(w){
   const root=wireRoot(w);if(!root)return;
@@ -984,7 +1060,7 @@ function wirePaint(w){
     if(!d.posts.length)box.appendChild(mk('div','wnote','No posts yet.'));
     for(const p of d.posts){
       const hot=w.hot&&p.hot===true,row=mk('div','wp'+(w.fresh.has(p.id)?' new':'')+(hot?' hot':'')),h=mk('div','wh');
-      if(hot)h.appendChild(mk('span','wk','❗'));
+      if(hot)h.appendChild(mk('span','wk',(p.bang?'‼':'❗')+(p.breaking?' BREAKING':'')));
       h.appendChild(mk('span','',p.t?asOf(p.t):'no time'));
       h.appendChild(mk('span','wa',p.t?fmtAge(now-p.t)+' ago':''));
       row.appendChild(h);
@@ -1403,7 +1479,8 @@ function wkoPaint(b,d,bad){
   const down=(d.items||[]).filter(i=>i.c!=null&&i.c<0&&!i.rolled).length,upn=(d.items||[]).filter(i=>i.c!=null&&i.c>0&&!i.rolled).length,half=(d.items||[]).length/2;
   const cd=b.closest('.card');if(cd){cd.classList.toggle('hr',down>half);cd.classList.toggle('hg',upn>half)} /* more than half down: red; more than half up: green; otherwise none */
   b.innerHTML='<div class="sct w6">'+(d.items||[]).map(tile).join('')+'</div>';
-  cardStamp(b,d,bad,futClosed,'delayed 10+ min');
+  const wl=(d.items||[]).filter(i=>i.live).length,wn=(d.items||[]).length;
+  cardStamp(b,d,bad,futClosed,wl?(wl===wn?'live, refreshed each minute':wl+' of '+wn+' live, rest delayed'):'delayed 10+ min');
 }
 /* ---- Treasury yield curve card (plan P6): its own Worker route /curve, official close only (never mixed with the delayed tape, R5/R44) ----
    Two views of one answer: History (2Y, 10Y and 30Y over six months) and Curve (1M to 30Y: latest close, a month ago, a year ago).
@@ -1844,7 +1921,7 @@ function toast(a){
   $('.x',el).onclick=kill;
   const rd=$('.rd',el);if(rd)rd.onclick=()=>{kill();showRelease(a.ev)};
   toastBox.appendChild(el);
-  while(toastBox.children.length>TOAST_MAX)toastBox.firstChild.remove();
+  for(let o;(o=[...toastBox.children].filter(c=>!c.classList.contains('wpan'))).length>TOAST_MAX;)o[0].remove(); /* alert panels are never evicted by ordinary toasts */
 }
 function testAlert(){const m={...MOCKS[mockI++%MOCKS.length],force:1};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
 function paintMaster(){
