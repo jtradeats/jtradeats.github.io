@@ -1215,12 +1215,12 @@ const cal=el=>{
   const paint=d=>{
     const now=NOW(),today=etP(now).iso,[lo,hi]=rngBounds(calRng,today),st=box.scrollTop;
     const ev=d.events.filter(e=>e.d>=lo&&e.d<=hi&&(e.hol||e.imp===3));
-    const nx=ev.find(e=>e.t>now&&e.src!=='feed'&&!e.hol);let h='',last='';shown=[];
+    const nx=ev.find(e=>e.t>now&&e.src!=='feed'&&!e.hol),nxT=nx?nx.t:null;let h='',last='';shown=[]; /* every official event due at the same minute as the next one is highlighted, as in the countdown card */
     ev.forEach(e=>{
       if(e.d!==last){last=e.d;h+='<tr class="day"><td colspan="6">'+esc(etDayL(e.t))+(e.d===today?'<small>today</small>':'')+'</td></tr>'}
       if(e.hol){h+='<tr class="hol"><td class="tt">'+(e.ad===1?'All Day':'')+'</td><td class="im"><span class="hl">Holiday</span></td><td class="ev">'+esc(e.title)+vmark(e)+'</td><td class="n"></td><td class="n"></td><td class="n"></td></tr>';return}
       const i=shown.push(e)-1,has=e.ac||e.fc||e.pv;
-      h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):e===nx?'next':'')+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>'+fjMark(e):'')+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
+      h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):(nxT!=null&&e.t===nxT&&e.src!=='feed'?'next':''))+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>'+fjMark(e):'')+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
     });
     box.innerHTML=ev.length?'<table class="ct"><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th class="ev">Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No high-impact USD events in this range.</p>';
     box.scrollTop=st;
