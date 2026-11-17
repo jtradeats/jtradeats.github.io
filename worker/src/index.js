@@ -453,6 +453,7 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
 // GET /sync shows the state (read only; no way to start a run from outside).
 const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
+const SYNC_TIMEOUT_TREASURY = 15000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s; home.treasury.gov files keep the 8 s limit, so a run stays near 40 s worst case
 const syncState = { rec: null, at: 0, running: false, tried: {}, last: null };
 const nyDate = ms => etParts(ms).iso;   // YYYY-MM-DD in New York (date arithmetic, P8.15: toLocaleDateString built a new Intl formatter on every call)
 
@@ -469,7 +470,11 @@ async function loadSync(env, force) {
 // Fair Economy (two weeks) and, with the FMP_KEY secret, FMP (35 days), lowest priority first. A provider that fails is reported, never thrown.
 async function gatherProvider(env) {
   const feeds = [], clean = e => String(e.message).replace(/apikey=[^&\s]*/gi, 'apikey=***').slice(0, 100);
-  try { feeds.push({ name: 'Fair Economy', rows: (await loadFeed()).events }); } catch (e) { feeds.push({ name: 'Fair Economy', rows: [], err: clean(e) }); }
+  try {   // the calendar's shared copy (memory, then KV, with its own 429 back-off): the sync never makes a second direct ask of Fair Economy, which is what kept hitting HTTP 429
+    await refreshFeed(env);
+    if (!feedState.events || Date.now() - feedState.at > CAL_USE_MAX) throw new Error(feedState.err || 'no recent Fair Economy copy');
+    feeds.push({ name: 'Fair Economy', rows: feedState.events });
+  } catch (e) { feeds.push({ name: 'Fair Economy', rows: [], err: clean(e) }); }
   if (env && env.FMP_KEY) { try { feeds.push({ name: 'FMP', rows: await loadFmp(env) }); } catch (e) { feeds.push({ name: 'FMP', rows: [], err: clean(e) }); } }
   return feeds;
 }
@@ -493,7 +498,7 @@ async function runSyncSource(name, env) {
         out.err = Object.values(out.k).filter(x => !(x.ok && x.at === now)).length ? [out.err, f.err].filter(Boolean).join(' || ').slice(0, 300) : null;
       }
     }
-    else if (name === 'treasury') out = await runTreasury({ get: u => get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+    else if (name === 'treasury') out = await runTreasury({ get: u => get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, /treasurydirect\.gov/.test(u) ? SYNC_TIMEOUT_TREASURY : SYNC_TIMEOUT), IND: INDICATORS, now, prev });
     else if (name === 'provider') out = runProvider({ feeds: await gatherProvider(env), base: SCHEDULE.releases, IND: INDICATORS, now, prev });
     else return null;
   } catch (e) {
