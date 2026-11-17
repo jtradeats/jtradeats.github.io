@@ -272,7 +272,7 @@ html.mobile .card.stretch{height:var(--hm,440px);align-self:auto;min-height:0}
 html.mobile .card.stretch.closed{height:auto}
 html.mobile .card.stretch .stk{position:static;height:100%}
 .cal{display:flex;flex-direction:column;height:100%}
-.topicon.muted{color:var(--r);width:auto;padding:0 8px;display:inline-flex;align-items:center;gap:4px}.topicon .mb{font-size:var(--fxs);font-weight:600}
+.topicon.live{color:var(--r)} /* master alerts button: red while alerts are on in at least one card (and not muted) */
 .calbar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .audit{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
 .audit:hover{border-color:var(--bdm);color:var(--t)}
@@ -342,6 +342,8 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 #remb.on{color:var(--pc1)}
 .nev{font-size:var(--fbase);font-weight:600}
 .nsub{font-size:var(--fxs);color:var(--t3)}
+.nsub .n1,.nsub .n2{display:block}.nsub .nsep{display:none} /* desktop: time on one line, forecast and previous on the next */
+html.mobile .nsub .n1,html.mobile .nsub .n2,html.mobile .nsub .nsep{display:inline} /* mobile: one line as before */
 .cbody{justify-content:stretch;gap:6px;padding:8px 10px}
 .sx{--sc:var(--s-tokyo);flex:1;min-height:40px;position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:9px;padding:5px 10px 7px;border-radius:9px;border:.5px solid var(--bd);background:var(--s2);overflow:hidden}
 @supports (background:color-mix(in srgb,red 10%,transparent)){
@@ -502,7 +504,7 @@ const I={
   play:ico('<polygon points="6 3 20 12 6 21 6 3"/>')
 };
 $('#mrefresh').innerHTML=I.refresh;
-{const b=$('#refreshall');b.innerHTML=I.refresh;b.setAttribute('aria-label','refresh everything');b.setAttribute('data-tt','refresh every card');}
+{const b=$('#refreshall');b.innerHTML=I.refresh;b.setAttribute('aria-label','refresh');b.setAttribute('data-tt','refresh');}
 
 /* ---- theme + layout (same storage keys as the journal, so both pages stay in sync) ---- */
 const dark=()=>root.getAttribute('data-theme')==='dark';
@@ -974,7 +976,6 @@ const wireSplit=p=>{
   if(first.length>WH_CUT)return{head:first.slice(0,WH_CUT).replace(/\s+$/,'')+'\u2026',rest:full,cut:true};
   return{head:first,rest:nl<0?'':full.slice(nl+1).trim(),cut:false};
 };
-const wireMark=(w,p)=>w.hot?(p.bang?'\u203C':'\u2757'):'';
 function wirePanel(w,groups){ /* groups newest first: [{p, n, ps}] */
   if(!masterOn||!groups.length)return;
   let P=WPAN[w.key];
@@ -1002,13 +1003,10 @@ function wirePanArm(P){ /* auto-dismiss only while nobody is reading it */
 }
 function wirePanDraw(P,top){
   const w=P.w,mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
-  const marks=[...new Set(P.items.map(g=>wireMark(w,g.p)).filter(Boolean))].join('');
-  P.tag.textContent=w.hot?(marks?marks+' ':'')+(P.n>1?P.n+' ALERTS':'ALERT'):(P.n>1?P.n+' NEW POSTS':'NEW POST');
+  P.tag.textContent=w.hot?(P.n>1?P.n+' ALERTS':'ALERT'):(P.n>1?P.n+' NEW POSTS':'NEW POST'); /* no marks: only red-alert posts reach this panel anyway */
   const keep=P.body.scrollTop;P.body.textContent='';
   for(const g of P.items){
     const p=g.p,sp=wireSplit(p),it=mk('div','wi'),open=P.open.has(p.id),hd=mk('div','hd');
-    const m=wireMark(w,p);if(m)hd.appendChild(mk('span','mk',m));
-    if(p.breaking)hd.appendChild(mk('span','bk','BREAKING'));
     if(!(open&&sp.cut))hd.appendChild(document.createTextNode(sp.head)); /* a cut headline is replaced by the whole post when opened */
     it.appendChild(hd);
     if(open&&sp.rest)it.appendChild(mk('div','full',sp.rest));
@@ -1057,7 +1055,6 @@ function wirePaint(w){
     if(!d.posts.length)box.appendChild(mk('div','wnote','No posts yet.'));
     for(const p of d.posts){
       const hot=w.hot&&p.hot===true,row=mk('div','wp'+(w.fresh.has(p.id)?' new':'')+(hot?' hot':'')),h=mk('div','wh');
-      if(hot)h.appendChild(mk('span','wk',(p.bang?'‼':'❗')+(p.breaking?' BREAKING':'')));
       h.appendChild(mk('span','',p.t?asOf(p.t):'no time'));
       h.appendChild(mk('span','wa',p.t?fmtAge(now-p.t)+' ago':''));
       row.appendChild(h);
@@ -1247,7 +1244,7 @@ setInterval(()=>{if(!document.hidden)calRepaint()},60000); /* keeps past/next st
 
 /* ---- next high-impact USD event countdown + session clock (row under the gauges) ---- */
 const cd=ms=>{const s=Math.max(0,Math.floor(ms/1000)),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m '+String(s%60).padStart(2,'0')+'s'};
-let calFail=false,calErr='',nxtEv=null;
+let calFail=false,calErr='',nxtEv=null,nxtSame=[];
 const p2=n=>String(n).padStart(2,'0');
 const tzName=t=>new Date(t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}); /* visitor's own zone, follows the device */
 function nxtMsg(b,k,html){if(b.dataset.k!==k){b.dataset.k=k;b.removeAttribute('data-st');b.innerHTML=html}}
@@ -1259,20 +1256,21 @@ function nxtPaint(){
   }
   const now=NOW(),hi=calData.events.filter(x=>x.imp===3&&x.src!=='feed'&&x.t>now-900000),e=hi[0]; /* official schedule only: the feed never drives the countdown */
   if(!e){nxtMsg(b,'none','<p class="note">no high-impact USD event left in the schedule<br>refresh worker/config/schedule.json</p>');return}
-  nxtEv=e;
+  nxtEv=e;nxtSame=hi.filter(x=>x.t===e.t);
   const same=hi.filter(x=>x.t===e.t),rel=e.t<=now,ms=Math.abs(e.t-now),s=Math.floor(ms/1000);
   const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sc=s%60;
   const parts=rel?[['min',m],['sec',sc]]:d?[['day',d],['hr',h],['min',m],['sec',sc]]:[['hr',h],['min',m],['sec',sc]];
-  const st=rel?'live':ms<36e5?'soon':'calm',key=e.t+'|'+same.length+'|'+st+'|'+parts.map(x=>x[0]).join()+'|'+(e.fc||'')+(e.pv||'')+(e.v||'')+(e.flag||'');
+  const st=rel?'live':ms<36e5?'soon':'calm',key=e.t+'|'+same.length+'|'+st+'|'+parts.map(x=>x[0]).join()+'|'+same.map(x=>(x.fc||'')+(x.pv||'')).join('/')+(e.v||'')+(e.flag||'');
   if(b.dataset.k!==key){
     b.dataset.k=key;b.dataset.st=st;
-    b.innerHTML='<div class="tm" role="timer" aria-live="off" aria-label="'+esc(e.title)+'">'+parts.map(x=>'<div class="tu"><b>00</b><small>'+x[0]+'</small></div>').join('')+'</div><div class="nbar"><i></i></div><div class="nev" role="button" tabindex="0" title="what is this release?">'+esc(e.title)+(same.length>1?' <span class="more">+'+(same.length-1)+' more</span>':'')+'</div><div class="nsub">'+(rel?'released ':'')+esc(etClock(e.t))+' ET · '+esc(tzName(e.t))+(e.fc?' · forecast '+esc(e.fc):'')+(e.pv?' · previous '+esc(e.pv):'')+vmark(e)+'</div>';
+    const fcl=same.map(x=>[x.fc?'forecast '+esc(x.fc):'',x.pv?'previous '+esc(x.pv):''].filter(Boolean).join(' · ')).filter(Boolean).join(' | '); /* one forecast-and-previous group per event, in the same order as the titles */
+    b.innerHTML='<div class="tm" role="timer" aria-live="off" aria-label="'+esc(e.title)+'">'+parts.map(x=>'<div class="tu"><b>00</b><small>'+x[0]+'</small></div>').join('')+'</div><div class="nbar"><i></i></div><div class="nev" role="button" tabindex="0" title="what is this release?">'+same.map((x,i)=>'<span data-i="'+i+'">'+esc(x.title)+'</span>').join(' / ')+'</div><div class="nsub"><span class="n1">'+(rel?'released ':'')+esc(etClock(e.t))+' ET · '+esc(tzName(e.t))+'</span>'+(fcl?'<span class="nsep"> · </span><span class="n2">'+fcl+'</span>':'')+vmark(e)+'</div>';
   }
   const nums=b.querySelectorAll('.tu b');
   parts.forEach((x,i)=>{const v=p2(x[1]);if(nums[i]&&nums[i].textContent!==v)nums[i].textContent=v});
   const bar=b.querySelector('.nbar i');if(bar)bar.style.width=Math.max(0,Math.min(100,100-ms/864e5*100))+'%'; /* fills over the last 24 h */
 }
-$('#nbody').addEventListener('click',e=>{if(e.target.closest('.nev')&&nxtEv)showRelease(nxtEv)});
+$('#nbody').addEventListener('click',e=>{if(!e.target.closest('.nev')||!nxtEv)return;const t=e.target.closest('[data-i]');showRelease((t&&nxtSame[+t.dataset.i])||nxtEv)}); /* each title opens its own release */
 $('#nbody').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.nev')&&nxtEv){e.preventDefault();showRelease(nxtEv)}});
 const nxtLoad=()=>calGet().then(()=>{calFail=false;calErr='';nxtPaint();relCheck()}).catch(e=>{calFail=true;calErr=String(e.message);nxtPaint()});
 function lclkPaint(){const el=$('#lclk');if(el)el.textContent='CME '+(futClosed()?'closed':'open')+' \u00b7 '+new Date(NOW()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'})}
@@ -1307,6 +1305,7 @@ function paintRem(){
   const b=$('#remb');
   if(b){const t=remOn?ALERT.cal.on:ALERT.cal.off;b.innerHTML=remOn?I.bell:I.belloff;b.classList.toggle('on',remOn);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t)}
   if(typeof C!=='undefined')for(const k in C)paintAlert(k);
+  paintMaster();
 }
 function setAlert(key,on){
   const A=ALERT[key];if(!A)return;
@@ -1428,7 +1427,8 @@ function liveCard(id,url,paint){
     }catch(e){s.bad=true}
     finally{s.busy=false;s.at=Date.now();show()}
   }
-  return {render(){show();load(false)},load,show};
+  const reset=()=>{s.d=null;s.at=0;s.busy=false;s.bad=false;try{localStorage.removeItem(s.key)}catch(e){}}; /* hard refresh: forget the last answer and any request in flight */
+  return {render(){show();load(false)},load,show,reset};
 }
 /* The status line of the sector and week-open cards sits in the card header, in the tape's own wording (see paintStamp):
    "market closed · last quotes Sat 06:00 AM" when the session is shut, otherwise "quotes as of 10:32 AM · 4 min ago". */
@@ -1871,11 +1871,24 @@ document.addEventListener('dblclick',e=>{
   const b=e.target.closest('button,input,a');if(b&&!b.matches('[data-a="f"]'))return;
   setClosed(card.id,!card.classList.contains('closed'));
 });
-let lastRefresh=0;
-function refreshAll(){ /* master refresh: re-requests every Worker-fed card; at most once per 5 s; never touches alert settings */
-  if(Date.now()-lastRefresh<5000)return;lastRefresh=Date.now();
-  calAt=0;calFailAt=0;loadMarket();nxtLoad();feedLoad();
-  for(const k in C)if(k==='cal'||k==='econ')draw(k);
+let hrBusy=false;
+async function refreshAll(){ /* header refresh = hard refresh: forgets every cached answer and in-flight flag, re-requests every Worker-fed card and rebuilds every widget. The icon spins until it is done.
+   It never reloads the page and never touches an alert switch, the seen-post lists or any setting, so refreshing cannot reset or trigger alerts. */
+  if(hrBusy)return;hrBusy=true;
+  const b=$('#refreshall'),t0=Date.now();b.classList.add('spin');b.setAttribute('aria-busy','true');
+  try{
+    loadingAt=0;calAt=0;calFailAt=0; /* the market and calendar loaders accept a new request at once */
+    try{localStorage.removeItem(KEY+'mk_last')}catch(e){}
+    for(const k in LIVE)if(LIVE[k].reset)LIVE[k].reset();
+    const jobs=[loadMarket(),nxtLoad(),feedLoad()];
+    for(const k in LIVE)jobs.push(LIVE[k].load(true));
+    for(const k in C)draw(k);
+    await Promise.race([Promise.allSettled(jobs),sleep(15000)]);
+  }catch(e){}
+  finally{
+    const rest=800-(Date.now()-t0);if(rest>0)await sleep(rest); /* long enough to be seen even when everything answers at once */
+    b.classList.remove('spin');b.removeAttribute('aria-busy');hrBusy=false;
+  }
 }
 
 /* ---- tooltips: one floating element on top of everything, mouse only, never on touch or mobile layout ---- */
@@ -1921,11 +1934,13 @@ function toast(a){
   for(let o;(o=[...toastBox.children].filter(c=>!c.classList.contains('wpan'))).length>TOAST_MAX;)o[0].remove(); /* alert panels are never evicted by ordinary toasts */
 }
 function testAlert(){const m={...MOCKS[mockI++%MOCKS.length],force:1};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
+const anyAlertOn=()=>{try{return Object.values(ALERT).some(a=>a.get())}catch(e){return false}};
 function paintMaster(){
   const b=$('#master');if(!b)return;
-  const t=masterOn?'Alerts on. Click to mute every alert. Long-press to send a test alert':'ALERTS MUTED, nothing will pop up. Click to unmute';
-  b.innerHTML=(masterOn?I.bell:I.belloff)+(masterOn?'':'<span class="mb">muted</span>');
-  b.classList.toggle('muted',!masterOn);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
+  const live=masterOn&&anyAlertOn();
+  const t=!masterOn?'ALERTS MUTED, nothing will pop up. Click to unmute':live?'Alerts are on in at least one card. Click to mute every alert. Long-press to send a test alert':'Alerts are allowed, but no card has them switched on. Click to mute every alert. Long-press to send a test alert';
+  b.innerHTML=masterOn?I.bell:I.belloff;
+  b.classList.toggle('live',live);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
 }
 {const b=$('#master');let t=null,lp=false;
   b.addEventListener('pointerdown',()=>{lp=false;clearTimeout(t);t=setTimeout(()=>{lp=true;testAlert()},600)});
