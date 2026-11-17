@@ -14,7 +14,7 @@ import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } f
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
-import { tvIngest, loadTv, tvOverlay, tvWeekly, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
+import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 
 const ALLOWED = [
@@ -736,7 +736,7 @@ export default {
     };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const { pathname } = new URL(req.url);
-    const json = { ...cors, 'Content-Type': 'application/json' };
+    const json = { ...cors, 'Content-Type': 'application/json; charset=utf-8' };   // charset so a browser's raw JSON view does not show UTF-8 text as â€™ and ðŸ”¸
     if (pathname === '/health') {
       await loadSync(env);
       return new Response(JSON.stringify({
@@ -764,7 +764,9 @@ export default {
     }
     if (pathname === '/market') {
       try {
-        return new Response(await getMarket(env, ctx), { headers: { ...json, 'Cache-Control': 'public, max-age=20' } });
+        let out = await getMarket(env, ctx);
+        if (!(env && env.TV_OVERLAY === 'off')) out = tvMarket(out, await loadTv(env), Date.now(), quote);   // live futures at response time, not at build time (src/tv.js)
+        return new Response(out, { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }

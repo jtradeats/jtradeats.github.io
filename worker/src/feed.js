@@ -248,7 +248,8 @@ const hotCount = posts => posts.reduce((n, p) => n + (p.hot ? 1 : 0), 0);
 
 export function feedHealth(now = Date.now(), ch = FEED_CHANNEL) {
   const c = chOf(ch), S = stateOf(c.name), newest = S.posts[0] || null;
-  const h = { status: statusNow(S, now), parsed: S.parsed, newest_id: newest ? newest.id : null,
+  const h = { status: !S.at && !S.okAt ? 'not polled yet' : statusNow(S, now), parsed: S.parsed,   // this isolate has not polled yet (a cold start, or /health before any /feed call): not a failure
+    newest_id: newest ? newest.id : null,
     newest_age_s: newest && newest.t ? Math.round((now - newest.t) / 1000) : null,
     poll_age_s: S.okAt ? Math.round((now - S.okAt) / 1000) : null, window: S.posts.length, parse_ms: S.parseMs, http: S.httpStatus };
   if (c.hot) h.hot = hotCount(S.posts);   // 0 for hours in a row can be normal; 0 forever means the mark is no longer detected

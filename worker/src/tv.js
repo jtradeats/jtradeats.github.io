@@ -122,6 +122,18 @@ export function tvWeekly(body, tv, now, map) {
   return hit ? JSON.stringify(j) : body;
 }
 
+// Lays the pushed prices over the /market body at response time, so the tape never waits for the memoised build (up to 30 s old, plus one poll behind).
+// Same freshness rules as tvOverlay; an item is touched only when the push is fresh, not delayed, and covers its label. Anything else is returned exactly as built.
+export function tvMarket(body, tv, now, quote) {
+  if (!tv || !tv.q || now - tv.f > TV_STALE_MS || tv.lag > TV_MAX_LAG_MS) return body;
+  let j;
+  try { j = JSON.parse(body); } catch (e) { return body; }
+  if (!j || !Array.isArray(j.items)) return body;
+  let hit = 0;
+  j.items = j.items.map(it => { const o = tvOverlay(it, tv, now, quote); if (o !== it) hit++; return o; });
+  return hit ? JSON.stringify(j) : body;
+}
+
 export function tvHealth(tv, env, now = Date.now()) {
   return {
     secret: !!(env && env.TV_SECRET), d1: !!(env && env.DB), overlay: !(env && env.TV_OVERLAY === 'off'),
