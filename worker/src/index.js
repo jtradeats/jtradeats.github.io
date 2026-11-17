@@ -14,7 +14,7 @@ import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } f
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
-import { tvIngest, loadTv, tvOverlay, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
+import { tvIngest, loadTv, tvOverlay, tvWeekly, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -191,7 +191,8 @@ const SOURCES = { yahoo: qYahoo, cboe: qCboe, fred: qFred, treasury: qTreasury }
 const MAIN = SYMBOLS.items.filter(i => !i.set || i.set === 'main');   // items with "set": "sectors" or "weekly" belong to /sectors and /weekly, not to the tape
 const ITEMS = MAIN.map(i => [i.label, i.kind, i.chain]);   // source of truth: worker/config/symbols.json
 const META = Object.fromEntries(MAIN.map(i => [i.label, { grp: i.group, row: i.row }]));   // tape placement, passed to the page
-const TV_LABELS = new Set(MAIN.filter(i => i.kind === 'fut').map(i => i.label));   // the tape futures a TradingView push may carry (src/tv.js)
+const TV_LABELS = new Set(MAIN.filter(i => i.kind === 'fut').map(i => i.label));
+const TV_WEEKLY = Object.fromEntries(SYMBOLS.items.filter(i => i.set === 'weekly' && i.roll).map(i => [i.label, i.roll]));   // weekly label -> the tape label whose pushed price and week open it uses   // the tape futures a TradingView push may carry (src/tv.js)
 
 function fixYield(q) {
   if (q.p > 25) for (const k of ['p', 'c']) if (k in q) q[k] = +(q[k] / 10).toFixed(4); // x10 quirk
@@ -771,7 +772,9 @@ export default {
       try {
         const route = pathname === '/sectors' ? sectors : weekly, fresh = new URL(req.url).searchParams.has('fresh');
         if (route === weekly && !seeded) await seed(env);   // load the tape's last snapshot first: its roll flags feed the week-open check
-        return new Response(await route.get(env, ctx, { fresh }), { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
+        let out = await route.get(env, ctx, { fresh });
+        if (route === weekly && !(env && env.TV_OVERLAY === 'off')) out = tvWeekly(out, await loadTv(env), Date.now(), TV_WEEKLY);   // live price and week open from the TradingView push, when fresh (src/tv.js)
+        return new Response(out, { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }

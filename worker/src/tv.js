@@ -2,6 +2,7 @@
 // One Pine alert (tv_push.pine) posts all prices as JSON to POST /ingest about once a minute.
 // The latest push is kept as ONE row in D1 (about 1,440 row writes a day), and /market lays it over the Yahoo values.
 // Yahoo stays the fallback and still supplies the contract name, so ROLLED detection is unchanged.
+// v2: the same push can carry each future's week open (w), so the /weekly card can run on one source for both numbers.
 
 export const TV_SCHEMA = 'CREATE TABLE IF NOT EXISTS tv_latest (id INTEGER PRIMARY KEY, body TEXT NOT NULL, f INTEGER NOT NULL)';
 export const TV_STALE_MS = 150000;     // no push for 2.5 min (the alert fires every 60 s, so two missed): fall back to Yahoo
@@ -9,6 +10,7 @@ export const TV_MAX_LAG_MS = 120000;   // alert fired more than 2 min after its 
 const TV_MAX_BODY = 4096;
 const TV_MAX_TS_SKEW = 10 * 60000;     // the alert's own clock may differ from ours by this much at most
 const TV_MAX_MOVE = 0.30;              // one symbol more than 30% from its prior close is dropped as garbage (that symbol only)
+const TV_WEEK_MAX_AGE = 8 * 86400000;  // a week open older than 8 days is not this week's
 const TV_READ_MEMO = 10000;            // /market builds at most every 30 s, so a 10 s memo of the D1 row is plenty
 
 function same(a, b) {                  // constant-time string compare
@@ -52,11 +54,24 @@ export async function tvIngest(req, env, labels, now = Date.now()) {
     const n = Object.keys(q).length;
     if (!n) return { status: 400, out: { error: 'no usable prices', rejected: rej } };
 
-    const body = JSON.stringify({ f: now, ts, lag, q, rej });
+    // Optional week opens: { "NQ1!": [open price, open time in ms] }. A bad entry drops that symbol's week open only.
+    const w = {};
+    if (j.w && typeof j.w === 'object') {
+      for (const [label, arr] of Object.entries(j.w)) {
+        const o = Array.isArray(arr) ? num(arr[0]) : null, ot = Array.isArray(arr) ? num(arr[1]) : null;
+        if (!labels.has(label)) { rej.push(`w ${label}: not a tape future`); continue; }
+        if (o === null || o <= 0 || ot === null) { rej.push(`w ${label}: bad week open`); continue; }
+        if (ot > now + 60000 || now - ot > TV_WEEK_MAX_AGE) { rej.push(`w ${label}: week open time is not this week`); continue; }
+        if (q[label] && Math.abs(q[label][0] / o - 1) > TV_MAX_MOVE) { rej.push(`w ${label}: ${o} is over ${TV_MAX_MOVE * 100}% from the price`); continue; }
+        w[label] = [o, ot];
+      }
+    }
+
+    const body = JSON.stringify({ f: now, ts, lag, q, w, rej });
     await env.DB.prepare('INSERT INTO tv_latest (id, body, f) VALUES (1, ?1, ?2) ON CONFLICT(id) DO UPDATE SET body = excluded.body, f = excluded.f')
       .bind(body, now).run();
-    console.log(`ingest ok: n=${n} lag=${lag} ms rejected=${rej.length}${rej.length ? ' ' + rej.join('; ') : ''}`);
-    return { status: 200, out: { ok: true, n, lag_ms: lag, rejected: rej } };
+    console.log(`ingest ok: n=${n} weekopens=${Object.keys(w).length} lag=${lag} ms rejected=${rej.length}${rej.length ? ' ' + rej.join('; ') : ''}`);
+    return { status: 200, out: { ok: true, n, week_opens: Object.keys(w).length, lag_ms: lag, rejected: rej } };
   } catch (e) {
     console.log('ingest error: ' + String(e && e.message));
     return { status: 500, out: { error: 'ingest failed: ' + String(e && e.message).slice(0, 160) } };
@@ -87,6 +102,26 @@ export function tvOverlay(it, tv, now, quote) {
   return { ...base, ...quote(q[0], q[1], tv.ts), src: 'tv', f: tv.f, live: true, lag_ms: tv.lag };
 }
 
+// Lays the pushed price and the pushed week open over the /weekly card. `body` is the route's JSON string; `map` is weekly label -> tape label
+// (from symbols.json "roll"). An item is replaced only when: the push is fresh and not delayed, both numbers are present, and the
+// Yahoo side did not flag a contract change this week (rolled). Anything else is left exactly as weekly.js produced it.
+export function tvWeekly(body, tv, now, map) {
+  if (!tv || !tv.q || !tv.w || now - tv.f > TV_STALE_MS || tv.lag > TV_MAX_LAG_MS) return body;
+  let j;
+  try { j = JSON.parse(body); } catch (e) { return body; }
+  if (!j || !Array.isArray(j.items)) return body;
+  let hit = 0;
+  j.items = j.items.map(it => {
+    const tl = map[it.label], q = tl && tv.q[tl], w = tl && tv.w[tl];
+    if (!q || !w || it.rolled) return it;
+    const { late, flag, was, stale, ...base } = it;
+    const c = +(q[0] - w[0]).toFixed(4), pc = +((q[0] - w[0]) / w[0] * 100).toFixed(3);
+    hit++;
+    return { ...base, p: +q[0].toFixed(4), open: w[0], ot: w[1], c, pc, t: tv.ts, f: tv.f, src: 'tv', live: true, lag_ms: tv.lag };
+  });
+  return hit ? JSON.stringify(j) : body;
+}
+
 export function tvHealth(tv, env, now = Date.now()) {
   return {
     secret: !!(env && env.TV_SECRET), d1: !!(env && env.DB), overlay: !(env && env.TV_OVERLAY === 'off'),
@@ -94,6 +129,7 @@ export function tvHealth(tv, env, now = Date.now()) {
     lag_ms: tv ? tv.lag : null,
     live: tv ? (now - tv.f <= TV_STALE_MS && tv.lag <= TV_MAX_LAG_MS) : false,
     symbols: tv ? Object.keys(tv.q) : [],
+    week_opens: tv && tv.w ? Object.keys(tv.w) : [],
     rejected: tv ? tv.rej : [],
     error: state.err,
   };

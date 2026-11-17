@@ -62,14 +62,26 @@ export function cleanText(raw, ch = FEED_CHANNEL) {
   return s.replace(/^\*+\s*/, '');                                    // leading "*" of the wire's headline style
 }
 
-// U+2757 heavy exclamation mark, with or without the emoji variation selector
-const HOT_LEAD = /^[\s*]*❗️?\s*/;
-// -> { text, hot }. hot = the cleaned text starts with the red exclamation mark (the mark is removed from the text).
-// img: the page also showed the mark as an emoji image at the start of the text but the glyph was missing from the text itself.
+// Two marks make a post hot (FinancialJuice only): U+2757 heavy exclamation mark, and U+203C double exclamation mark
+// (FinancialJuice puts it on the biggest surprises, as "‼ BREAKING: ..."), each with or without the emoji variation selector U+FE0F.
+const HOT_LEAD = /^[\s*]*(?:(\u2757)|(\u203C))\uFE0F?\s*/;
+const BREAKING_LEAD = /^BREAKING\s*:?\s*/i;
+// -> { text, hot } for the single mark (unchanged shape); the double mark adds bang:true, and breaking:true when the "BREAKING:" label
+// after it was removed too (the page shows both as a marker, and the wire fill reads the figure without a prefix, as it does for the single mark).
+// The mark is removed from the text. img: the page also showed the mark as an emoji image at the start of the text but the glyph was
+// missing from the text itself: true or '!' for U+2757, 'bang' for U+203C.
 export function splitHot(text, img = false) {
   const m = HOT_LEAD.exec(text);
-  if (m) return { text: text.slice(m[0].length), hot: true };
-  return { text, hot: !!img };
+  let rest = m ? text.slice(m[0].length) : text;
+  const bang = m ? !!m[2] : img === 'bang';
+  if (!m && !img) return { text, hot: false };
+  const out = { text: rest, hot: true };
+  if (bang) {
+    out.bang = true;
+    const b = BREAKING_LEAD.exec(rest);
+    if (b) { out.text = rest.slice(b[0].length); out.breaking = true; }
+  }
+  return out;
 }
 
 // Registers the handlers on any HTMLRewriter (Workers or WASM) and fills `posts`. One entry per [data-post] element.
@@ -96,11 +108,14 @@ export function attachParser(rw, posts, ch = FEED_CHANNEL) {
   });
   rw.on('.tgme_widget_message_text br', { element() { if (cur && inText && !skip) cur.raw += '\n'; } });
   // Telegram draws emoji as <i class="emoji" style="background-image:url(.../E29D97.png)"><b>glyph</b></i>.
-  // E29D97 is the UTF-8 byte sequence of U+2757: a second way to see the mark, if the glyph itself is ever left out of the text.
+  // E29D97 is the UTF-8 byte sequence of U+2757, E280BC that of U+203C (the file name may carry the variation selector after it):
+  // a second way to see the mark, if the glyph itself is ever left out of the text.
   rw.on('.tgme_widget_message_text i.emoji', {
     element(el) {
       if (!cur || !inText || skip || cur.raw.replace(/[\s*]+/g, '') !== '') return;   // only a mark at the very start counts
-      if (/E29D97/i.test(el.getAttribute('style') || '')) cur.hotImg = true;
+      const st = el.getAttribute('style') || '';
+      if (/E29D97/i.test(st)) cur.hotImg = true;
+      else if (/E280BC/i.test(st)) cur.hotImg = 'bang';
     },
   });
   rw.on('.tgme_widget_message_date time', {
@@ -132,10 +147,12 @@ export async function parseTelegram(html, run = runWorkers, ch = FEED_CHANNEL) {
   for (const p of raw) {
     if (seen.has(p.id)) continue;
     seen.add(p.id);
-    let text = cleanText(p.raw, c.name), hot = false;
-    if (c.hot) ({ text, hot } = splitHot(text, p.hotImg));
+    let text = cleanText(p.raw, c.name), hot = false, bang = false, breaking = false;
+    if (c.hot) ({ text, hot, bang, breaking } = splitHot(text, p.hotImg));
     const post = { id: p.id, t: p.t, text, url: `https://t.me/${c.name}/${p.id}`, media: p.media };
     if (hot) post.hot = true;
+    if (bang) post.bang = true;          // the double mark: the page shows it instead of the single one
+    if (breaking) post.breaking = true;  // "BREAKING:" followed it (removed from the text)
     out.push(post);
   }
   return out.sort((a, b) => b.id - a.id);
@@ -224,7 +241,7 @@ function viewOf(c, S, now, debug) {
     error: S.failAt ? S.err : null,
     health: { pollAt: S.at || null, okAt: S.okAt || null, httpStatus: S.httpStatus, parsed: S.parsed, withTime: S.withTime,
       newestId: newest ? newest.id : null, newestT: newest ? newest.t : null, parseMs: S.parseMs, bytes: S.bytes, rate: S.rate },
-    posts: S.posts.map(p => { const o = { id: p.id, t: p.t, text: p.text, url: p.url, media: p.media }; if (p.hot) o.hot = true; return o; }),
+    posts: S.posts.map(p => { const o = { id: p.id, t: p.t, text: p.text, url: p.url, media: p.media }; if (p.hot) o.hot = true; if (p.bang) o.bang = true; if (p.breaking) o.breaking = true; return o; }),
   };
   if (c.hot) out.health.hot = hotCount(S.posts);
   if (S.gapId && S.posts.some(p => p.id < S.gapId)) out.gap = true;   // the window has a hole: older posts may be missing
