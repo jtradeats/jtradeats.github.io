@@ -15,6 +15,7 @@ import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
+import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -224,7 +225,9 @@ async function getItem(label, kind, chain, log, notes) {
           notes.push(`${label} contract changed: ${prior.contract} -> ${got.contract}`);
         } else if (prior && prior.rolledAt && Date.now() - prior.rolledAt < ROLL_MS) got.rolledAt = prior.rolledAt;
       }
-      itemCache.set(label, { val: got, at: Date.now(), ttl: TTL_BY_SRC[src] });
+      // a cash-market quote frozen at the close is reused for 5 min instead of 30 s; futures, FX and DXY (they trade around the clock) and the 15-minute sources keep their own times
+      const base = TTL_BY_SRC[src], ttl = src === 'yahoo' || src === 'cboe' ? backoffTtl({ kind, label }, got.t, Date.now(), base) : base;
+      itemCache.set(label, { val: got, at: Date.now(), ttl });
       return;
     } catch (e) { log.push(`${label} ${src}:${sym} failed: ${e.message}`.slice(0, 200)); }
   }
@@ -381,7 +384,7 @@ function fmpRefresh(env, ctx, sch) {
 // which FRED refuses from Cloudflare's addresses (HTTP 520 on 16 Nov), so the key is what makes this work.
 // Polls every 30 min, and every 60 s from 2 min before a release it covers to 90 min after it, so the actual lands as soon as FRED has it.
 // FRED's lag behind BLS and DOL is unmeasured: check /calendar?debug=1 on the first release. Memory only (no KV): one request per series (17 for a full poll).
-const OFF_SLOW = 30 * 60000, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;
+const OFF_SLOW = 3 * 3600e3, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;   // the full 17-series download every 3 h (was 30 min): a finished release does not change, and a release window has its own 60 s tier below
 const offState = { M: null, at: 0, fastAt: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
 const redact = s => String(s).replace(/api_key=[^&\s]*/gi, 'api_key=***');
 // The API call says who it is (FRED's terms ask programs to identify themselves) and, when it fails, keeps what FRED answered: status, server and the start of the body.

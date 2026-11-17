@@ -3,6 +3,8 @@
 // a short response memo that is served at once while a refresh runs, and a throttled KV snapshot for cold starts.
 // index.js is not touched by this file; later cleanup (plan P8.8) can fold its own get() and qYahoo() into this one.
 
+import { etParts } from './schedule.js';   // New York time by arithmetic (P8.15)
+
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const SRC_TIMEOUT = 4000;   // per upstream request
 
@@ -29,6 +31,27 @@ export async function chart(sym, range, interval) {
   throw err;
 }
 
+// Closed-market back-off. A cash-market quote (ETF, index, VIX) whose own timestamp is more than CLOSED_AGE old is from a closed session and cannot
+// change until the market reopens, so asking Yahoo for it every 30 s is wasted work: it may be reused for CLOSED_TTL instead. No back-off on weekdays from
+// 09:00 to 16:30 New York time (the open is near, or the market is open and the feed is simply slow), so the first quotes of the day are never held back.
+// t: the quote's own time in ms (null = unknown, no back-off); base: the normal reuse time. Returns the reuse time to use.
+export const CLOSED_AGE = 30 * 60000, CLOSED_TTL = 5 * 60000;
+export function closedTtl(t, now, base) {
+  if (t == null || now - t <= CLOSED_AGE) return base;
+  const p = etParts(now), m = p.h * 60 + p.mi;
+  if (p.dow >= 1 && p.dow <= 5 && m >= 540 && m < 990) return base;
+  return Math.max(base, CLOSED_TTL);
+}
+
+// Which tape items may back off at all. Futures, FX and the dollar index trade almost around the clock on weekdays, so a quote that looks old
+// after the weekend is about to move at the Sunday-evening reopen: they always keep their normal reuse time. Cash-market items (ETFs, VIX, the
+// yields) back off. item: { kind, label }.
+const ROUND_THE_CLOCK_KINDS = new Set(['fut', 'fx']), ROUND_THE_CLOCK_LABELS = new Set(['DXY']);
+export function backoffTtl(item, t, now, base) {
+  if (ROUND_THE_CLOCK_KINDS.has(item.kind) || ROUND_THE_CLOCK_LABELS.has(item.label)) return base;
+  return closedTtl(t, now, base);
+}
+
 export function quote(price, prev, t) {
   price = Number(price);
   const out = { p: +price.toFixed(4), t: t ?? null };
@@ -41,10 +64,10 @@ export function quote(price, prev, t) {
 }
 
 // cfg: { name, kvKey, specs, fetchOne(spec, env) -> item, finish?(items, env, now, notes) -> { items?, extra? },
-//        ttl, negTtl, deadline, staleOk, kvGap }
+//        ttl, ttlFor?(val, now) -> ms (a per-item reuse time, e.g. closedTtl; falls back to ttl), negTtl, deadline, staleOk, kvGap }
 // fetchOne must throw on a bad answer; it never has to catch. The returned item needs at least { p, t }.
 export function makeRoute(cfg) {
-  const { name, kvKey, specs, fetchOne, finish,
+  const { name, kvKey, specs, fetchOne, finish, ttlFor,
     ttl = 30000,                 // reuse a fetched item for 30 s (Yahoo is delayed 10 min or more anyway)
     negTtl = 60000,              // after a failure leave that item alone for 60 s
     deadline = 5000,             // never make the page wait longer than this for a build
@@ -55,12 +78,13 @@ export function makeRoute(cfg) {
 
   const cache = new Map();       // label -> { val, at, failAt }
   let memo = null, inflight = null, seeded = false, lastKv = 0, lastSig = '';
+  const ttlOf = c => (ttlFor && c.val ? ttlFor(c.val, Date.now()) || ttl : ttl);   // how long this item's value stays fresh
   const sigOf = items => String(Math.max(0, ...items.map(i => i.t || 0)));
 
   async function load(spec, env, log) {
     const c = cache.get(spec.label) || {};
     const now = Date.now();
-    if (c.val && now - c.at < ttl) return;
+    if (c.val && now - c.at < ttlOf(c)) return;
     if (c.failAt && now - c.failAt < negTtl) return;
     try {
       const val = await fetchOne(spec, env);
@@ -83,7 +107,7 @@ export function makeRoute(cfg) {
     let items = specs.map(s => {
       const c = cache.get(s.label);
       if (c && c.val) {
-        const stale = (c.failAt && c.failAt > c.at) || now - c.at > ttl + 60000;
+        const stale = (c.failAt && c.failAt > c.at) || now - c.at > ttlOf(c) + 60000;
         return stale ? { ...c.val, stale: true } : c.val;
       }
       return { label: s.label, name: s.name, kind: s.kind, p: null };

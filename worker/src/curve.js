@@ -22,13 +22,18 @@ const YIELDS = ['3M', '2Y', '5Y', '10Y', '30Y'];
 // CSV text -> [{ Date: '11/13/2026', '1 Mo': '4.01', ... }] (keyed by header name; the same shape the tape's loader returned)
 export function parseTreasuryCsv(text) {
   const lines = String(text).trim().split(/\r?\n/);
-  const clean = s => s.replace(/"/g, '').trim();
-  const head = lines[0].split(',').map(clean);
-  return lines.slice(1).filter(l => l.trim()).map(l => {
-    const c = l.split(',').map(clean), o = {};
-    head.forEach((h, i) => { o[h] = c[i]; });
-    return o;
-  });
+  // quotes are removed once per line (the same cells come out: the split is on the same commas), not once per cell
+  const cells = l => l.replace(/"/g, '').split(',');
+  const head = cells(lines[0]).map(h => h.trim()), n = head.length;
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l.trim()) continue;
+    const c = cells(l), o = {};
+    for (let j = 0; j < n; j++) o[head[j]] = c[j] === undefined ? undefined : c[j].trim();
+    out.push(o);
+  }
+  return out;
 }
 
 const isoOf = s => {            // "11/13/2026" -> "2026-11-13"; an ISO date passes through
@@ -44,6 +49,9 @@ const addMonths = (iso, n) => {   // same day of the month, clamped (31 Mar - 1 
 };
 const bp = x => Math.round(x * 100 + 1e-9 * Math.sign(x));   // yields are published to 2 decimals: round away float noise
 
+const TK = new Map();   // header text -> tenor key: there are about 15 distinct headers, so the pattern runs 15 times, not once per cell
+const tenorOf = h => { let k = TK.get(h); if (k === undefined) { k = tenorKey(h); TK.set(h, k); } return k; };
+
 // rows (objects keyed by header, from any number of years) -> sessions [{ d, y: { '2Y': 4.1, ... } }] oldest first, one per date
 export function normalize(rows) {
   const by = new Map();
@@ -53,9 +61,9 @@ export function normalize(rows) {
     const y = {};
     for (const h in r) {
       if (h === 'Date') continue;
-      const k = tenorKey(h), v = r[h];
-      if (!k || v == null || v === '' || /^n\/?a$/i.test(v)) continue;
-      const x = Number(v);
+      const k = tenorOf(h), v = r[h];
+      if (!k || v == null || v === '') continue;
+      const x = Number(v);   // "N/A" is NaN, so it is skipped here (this used to be a separate pattern test on every cell)
       if (Number.isFinite(x)) y[k] = x;
     }
     if (Object.keys(y).length) by.set(d, { d, y });

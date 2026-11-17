@@ -2,7 +2,7 @@
 // The list lives in worker/config/symbols.json (items with "set": "sectors"), so there is still one item list; index.js passes it in.
 // One Yahoo chart call per symbol: 12 subrequests, 24 if every first host fails (limit 50). No substitute source:
 // a failed item shows STALE with its last good value (principle 1); KV keeps the last good snapshot across cold starts.
-import { chart, quote, makeRoute } from './route.js';
+import { chart, quote, makeRoute, closedTtl } from './route.js';
 
 async function fetchOne(spec) {
   const hop = spec.chain.find(h => h[0] === 'yahoo');
@@ -15,5 +15,6 @@ async function fetchOne(spec) {
 }
 
 export function makeSectors(items) {
-  return makeRoute({ name: 'sectors', kvKey: 'sectors:snapshot', specs: items.filter(i => i.set === 'sectors'), fetchOne });
+  // ttlFor: the ETFs do not move while the cash market is shut, so after the close and over the weekend a quote is reused for 5 min, not 30 s
+  return makeRoute({ name: 'sectors', kvKey: 'sectors:snapshot', specs: items.filter(i => i.set === 'sectors'), fetchOne, ttlFor: (val, now) => closedTtl(val.t, now, 30000) });
 }
