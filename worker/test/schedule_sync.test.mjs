@@ -466,3 +466,19 @@ test('a "move" away from a date that already happened raises no warning (a TIPS 
   assert.equal(moved(past).length, 0);
   assert.equal(moved(real).length, 1);
 });
+
+test('Treasury: a hanging TreasuryDirect never delays the tentative files: both start together, the tentative dates are kept, and the failure is recorded', async () => {
+  const order = [], xml = xmlD(REAL);
+  let tdSettled = false;
+  const get = async u => {
+    if (/treasurydirect\.gov/.test(u)) { order.push('td start'); await new Promise(r => setTimeout(r, 80)); tdSettled = true; order.push('td fail'); throw new Error('The operation was aborted due to timeout (gave up after 80 ms)'); }
+    order.push(tdSettled ? 'tentative after td' : 'tentative while td waits');
+    if (/TentativeAuctionScheduleQ42026\.xml/.test(u)) return xml;
+    throw new Error('HTTP 404 from home.treasury.gov');
+  };
+  const out = await runTreasury({ get, IND, now: NOW, prev: null });
+  assert.ok(order.includes('tentative while td waits'), order.join(' > '));
+  assert.ok(!order.includes('tentative after td'), order.join(' > '));
+  assert.equal(out.ok, true); assert.equal(out.k.auc10.parts.announced, 'failed'); assert.equal(out.k.auc10.parts.tentative, 'ok');
+  assert.match(out.err, /announced Notes: .*gave up after 80 ms/);
+});
