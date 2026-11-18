@@ -203,7 +203,7 @@ const SOURCES = { yahoo: qYahoo, cboe: qCboe, fred: qFred, treasury: qTreasury }
 const MAIN = SYMBOLS.items.filter(i => !i.set || i.set === 'main');   // items with "set": "sectors" or "weekly" belong to /sectors and /weekly, not to the tape
 const ITEMS = MAIN.map(i => [i.label, i.kind, i.chain]);   // source of truth: worker/config/symbols.json
 const META = Object.fromEntries(MAIN.map(i => [i.label, { grp: i.group, row: i.row }]));   // tape placement, passed to the page
-const TV_LABELS = new Set(MAIN.filter(i => i.kind === 'fut').map(i => i.label));
+const TV_LABELS = new Map(SYMBOLS.items.filter(i => i.tv || ((!i.set || i.set === 'main') && i.kind === 'fut')).map(i => [i.label, i.kind]));   // label -> kind of everything the TradingView push may supply: the tape futures and the items flagged "tv" in symbols.json (never VIX or VIXEQ: TradingView shows them delayed)
 const TV_WEEKLY = Object.fromEntries(SYMBOLS.items.filter(i => i.set === 'weekly' && i.roll).map(i => [i.label, i.roll]));   // weekly label -> the tape label whose pushed price and week open it uses   // the tape futures a TradingView push may carry (src/tv.js)
 
 function fixYield(q) {
@@ -683,9 +683,9 @@ async function build(ctx, env) {
   fredKey = (env && env.FRED_KEY) || null;
   const tv = env && env.TV_OVERLAY === 'off' ? null : await loadTv(env);   // TradingView push (D1), read first so live futures need no Yahoo call; set the Worker variable TV_OVERLAY to "off" to stop publishing pushed prices
   const t0 = Date.now(), liveFut = new Set();
-  if (tv) for (const label of TV_LABELS) {   // a future the push covers right now, with a recent Yahoo answer (it holds the contract name) in the cache
+  if (tv) for (const [label, kind] of TV_LABELS) {   // an item the push covers right now (a future needs a recent Yahoo answer in the cache: it holds the contract name; the others need only a cached value), so it costs no source call
     const c = itemCache.get(label);
-    if (c && c.val && c.val.contract && !c.failAt && t0 - c.at < FUT_LIVE_TTL && (tvOverlay(c.val, tv, t0, quote) || {}).live) liveFut.add(label);
+    if (c && c.val && (kind !== 'fut' || c.val.contract) && !c.failAt && t0 - c.at < FUT_LIVE_TTL && (tvOverlay(c.val, tv, t0, quote) || {}).live) liveFut.add(label);
   }
   const work = Promise.all([...ITEMS.filter(([l]) => !liveFut.has(l)).map(([l, k, c]) => getItem(l, k, c, log, notes)), getFng()]);
   const done = await Promise.race([work.then(() => true), new Promise(r => setTimeout(() => r(false), DEADLINE_MS))]);
@@ -700,7 +700,7 @@ async function build(ctx, env) {
   const items = ITEMS.map(([label, kind]) => {
     const c = itemCache.get(label);
     if (c && c.val) {
-      const stale = (c.failAt && c.failAt > c.at) || now - c.at > (liveFut.has(label) ? FUT_LIVE_TTL : c.ttl) + 60000;   // a live future is not stale because Yahoo was skipped
+      const stale = (c.failAt && c.failAt > c.at) || now - c.at > (liveFut.has(label) ? FUT_LIVE_TTL : c.ttl) + 60000;   // a live item is not stale because its source was skipped
       return stale ? { ...c.val, stale: true } : c.val;
     }
     return prevItems[label] ? { ...prevItems[label], stale: true } : { label, kind, p: null };
@@ -826,7 +826,9 @@ export default {
         const route = pathname === '/sectors' ? sectors : weekly, fresh = new URL(req.url).searchParams.has('fresh');
         if (route === weekly && !seeded) await seed(env);   // load the tape's last snapshot first: its roll flags feed the week-open check
         let out = await route.get(env, ctx, { fresh });
-        if (route === weekly && !(env && env.TV_OVERLAY === 'off')) out = tvWeekly(out, await loadTv(env), Date.now(), TV_WEEKLY);   // live price and week open from the TradingView push, when fresh (src/tv.js)
+        if (!(env && env.TV_OVERLAY === 'off')) out = route === weekly
+          ? tvWeekly(out, await loadTv(env), Date.now(), TV_WEEKLY)   // live price and week open from the TradingView push, when fresh (src/tv.js)
+          : tvMarket(out, await loadTv(env), Date.now(), quote);      // live sector ETFs, each only while its own bar is recent (P8.28)
         return new Response(out, { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
