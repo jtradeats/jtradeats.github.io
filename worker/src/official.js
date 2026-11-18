@@ -97,8 +97,9 @@ export function calc(S, spec, obs) {
 
 const num = s => { const m = String(s).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : NaN; };
 
-// events: the calendar events (sorted by time), M: { SERIES: Map }, now: ms. Returns { n, issues }.
-export function applyOfficial(events, M, now) {
+// events: the calendar events (sorted by time), M: { SERIES: Map }, now: ms. Returns { n, issues, wire }.
+// opts.pv0(id) / opts.ac0(id): the remembered "previous" a release showed before any revision, and the first actual of a release (src/firstprint.js). Without them the earlier release in the list is used.
+export function applyOfficial(events, M, now, opts = {}) {
   let n = 0;
   const issues = [], last = new Map(), wire = [];
   for (const e of events) {
@@ -109,7 +110,7 @@ export function applyOfficial(events, M, now) {
     if (a == null) continue;
     const act = fmtVal(a, spec.u);
     // blank, or only a hand-typed placeholder. A typed actual is replaced only in the first 3 days: the series later carries revised vintages, and a past release's actual is its first print.
-    if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = act; (e.sr = e.sr || {}).ac = 'FRED'; n++; }
+    if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = e.ac != null && num(e.ac) === num(act) ? e.ac : act; (e.sr = e.sr || {}).ac = 'FRED'; n++; }   // the same number typed another way ("7.190M" and "7.19M") keeps its text
     else if (e.sr && e.sr.ac === 'FJ') {   // first figure came from the wire: the official series settles it
       const agree = num(e.ac) === num(act);
       wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });
@@ -128,17 +129,18 @@ export function applyOfficial(events, M, now) {
     }
     const pv = calc(S, spec, prevObs(obs, spec));
     if (pv == null) continue;
-    const ps = fmtVal(pv, spec.u);
-    if (e.pv == null || (e.sr && (e.sr.pv === 'FJ' || e.sr.pv === 'ref'))) {   // the wire's "previous" is the figure before revisions, a typed one is a placeholder: the official series wins
-      if (e.sr && e.sr.pv === 'ref') delete e.pvc;   // the typed revision mark went with the typed number; it is worked out again below
-      e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED';
-    }
-    // revised previous: the official value for the prior period differs from what that release first showed
-    if (!e.pvc && before && before.ac != null && num(before.ac) !== num(ps)) {
+    const ps = fmtVal(pv, spec.u), sr = e.sr = e.sr || {};
+    // what the market saw as "previous" before this release: remembered before any revision, else the earlier release's first actual
+    const ref = (opts.pv0 && opts.pv0(e.id)) ?? (before ? ((opts.ac0 && opts.ac0(before.id)) ?? before.ac) : null);
+    // The official series carries the revisions, so for a released row its previous replaces a feed, wire or typed one (a provider's file can lag the revised number by hours).
+    // The same number spelled another way keeps its text. A typed revision mark went with the typed number; it is worked out again here.
+    if (sr.pv === 'ref') delete e.pvc;
+    if (e.pv == null || num(e.pv) !== num(ps)) e.pv = ps;
+    sr.pv = 'FRED';
+    if (ref != null && num(ref) !== num(ps)) {   // revised: shown underlined, green when the revision is good news for the row
       const inv = e.dir === 'inv' || e.dir === 'oil';
-      e.pvc = (num(ps) > num(before.ac)) !== inv ? 'g' : 'r';
-      e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED';
-    }
+      e.pvc = (num(ps) > num(ref)) !== inv ? 'g' : 'r';
+    } else delete e.pvc;
   }
   return { n, issues, wire };
 }

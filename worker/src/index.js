@@ -7,6 +7,8 @@ import SCHEDULE from '../config/schedule.json';
 import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
 import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
+import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
+import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
@@ -288,19 +290,17 @@ async function getFng() {
 //   3. worker/config/results.json: numbers typed in by hand. PLACEHOLDERS: they fill only what no real source has supplied, and the wire and FRED replace them.
 // A failure in any layer leaves the schedule untouched and only changes the status fields.
 const CAL_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
-const CAL_TTL = 30 * 60000;          // one upstream round per 30 min
-const CAL_RETRY = 5 * 60000;         // after a failure
-const CAL_RETRY_429 = 15 * 60000;    // after a 429, leave the feed alone for longer
+// Refresh times live in src/feedpoll.js: both files every 30 min in quiet hours; around a release (10 min before to 45 min after) only this week's file, every 5 min.
 const CAL_USE_MAX = 12 * 3600e3;     // never lay a feed copy older than this over the schedule
 const CAL_WAIT = 1200;               // a first request waits at most this long for the providers, then answers without them
 const CAL_WINDOW = [-31 * 864e5, 60 * 864e5];   // "this month" and "yesterday" need the past, "next week" the future
 const CAL_KEY = 'calendar:last';
 const feedState = { events: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null };
 
-async function loadFeed() {
+async function loadFeed(urls = CAL_FEEDS) {
   const notes = [], raw = [];
   let ok = 0, rate = false;
-  await Promise.all(CAL_FEEDS.map(async u => {
+  await Promise.all(urls.map(async u => {
     try { raw.push(...JSON.parse(await get(u, { Accept: 'application/json' }))); ok++; }
     catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
@@ -309,30 +309,33 @@ async function loadFeed() {
 }
 
 // Bring the Fair Economy copy up to date if it is due. Never throws; records the outcome in feedState.
-async function refreshFeed(env) {
-  const now = Date.now();
-  if (feedState.events && now - feedState.at < CAL_TTL) return;
+async function refreshFeed(env, hot = false) {
+  const now = Date.now(), ttl = ffTtl(hot);
+  if (feedState.events && now - feedState.at < ttl) return;
   // every isolate would otherwise ask the feed on its own, so share one good copy through KV
   if (env && env.MARKET_KV) {
     try {
       const sn = await env.MARKET_KV.get(CAL_KEY, 'json');
       if (sn && sn.events && sn.at > feedState.at) { feedState.events = sn.events; feedState.at = sn.at; feedState.status = 'ok'; }
     } catch (e) { /* KV unavailable: carry on */ }
-    if (feedState.events && Date.now() - feedState.at < CAL_TTL) return;
+    if (feedState.events && Date.now() - feedState.at < ttl) return;
   }
-  if (feedState.failAt && now - feedState.failAt < (feedState.rate ? CAL_RETRY_429 : CAL_RETRY)) return;
+  if (feedState.failAt && now - feedState.failAt < ffRetry(feedState.rate, hot)) return;
   try {
-    const f = await loadFeed();
+    const f = await loadFeed(hot ? CAL_FEEDS.slice(0, 1) : CAL_FEEDS);   // a release window asks for this week's file only: the 429 limit is per file and per address
+    if (hot) f.events = mergeFeed(feedState.events, f.events);          // next week's events from the last full poll stay
     feedState.events = f.events; feedState.at = Date.now(); feedState.failAt = 0; feedState.err = null; feedState.rate = false; feedState.status = 'ok';
+    // The shared copy is written on every successful poll, so other isolates see a fresh `at` and do not ask Forex Factory themselves (each extra ask risks a 429).
+    // Cost: about 100 writes a day (30-minute polls in quiet hours, 5-minute polls in release windows) of the 1,000 free ones.
     if (env && env.MARKET_KV) { try { await env.MARKET_KV.put(CAL_KEY, JSON.stringify({ at: feedState.at, events: f.events })); } catch (e) { /* ignore */ } }
   } catch (e) {
     feedState.failAt = Date.now(); feedState.err = String(e.message).slice(0, 200); feedState.rate = !!e.rate;
     feedState.status = e.rate ? 'rate-limited' : 'unavailable';
   }
 }
-function feedRefresh(env, ctx) {
+function feedRefresh(env, ctx, hot) {
   if (!feedState.inflight) {
-    feedState.inflight = refreshFeed(env).finally(() => { feedState.inflight = null; });
+    feedState.inflight = refreshFeed(env, hot).finally(() => { feedState.inflight = null; });
     if (ctx) ctx.waitUntil(feedState.inflight);
   }
   return feedState.inflight;
@@ -462,7 +465,7 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
 // GET /sync shows the state (read only; no way to start a run from outside).
 const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
-const SYNC_TIMEOUT_TREASURY = 15000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s; home.treasury.gov files keep the 8 s limit, so a run stays near 40 s worst case
+const SYNC_TIMEOUT_TREASURY = 25000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s and again at 15 s. runTreasury runs them beside the tentative-file reads, so a run is about 25 s at worst: inside the 30 s a background (waitUntil) run is allowed
 const syncState = { rec: null, at: 0, running: false, tried: {}, last: null };
 const nyDate = ms => etParts(ms).iso;   // YYYY-MM-DD in New York (date arithmetic, P8.15: toLocaleDateString built a new Intl formatter on every call)
 
@@ -507,7 +510,11 @@ async function runSyncSource(name, env) {
         out.err = Object.values(out.k).filter(x => !(x.ok && x.at === now)).length ? [out.err, f.err].filter(Boolean).join(' || ').slice(0, 300) : null;
       }
     }
-    else if (name === 'treasury') out = await runTreasury({ get: u => get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, /treasurydirect\.gov/.test(u) ? SYNC_TIMEOUT_TREASURY : SYNC_TIMEOUT), IND: INDICATORS, now, prev });
+    else if (name === 'treasury') out = await runTreasury({ IND: INDICATORS, now, prev, get: async u => {
+      const td = /treasurydirect\.gov/.test(u), t0 = Date.now();
+      try { return await get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, td ? SYNC_TIMEOUT_TREASURY : SYNC_TIMEOUT); }
+      catch (e) { if (td) e.message += ` (gave up after ${Date.now() - t0} ms)`; throw e; }   // a hang and a quick refusal need different fixes: /sync now says which it was
+    } });
     else if (name === 'provider') out = runProvider({ feeds: await gatherProvider(env), base: SCHEDULE.releases, IND: INDICATORS, now, prev });
     else return null;
   } catch (e) {
@@ -575,16 +582,32 @@ async function wireSave(env, now) {
 // a release the wire covers is due within 2 minutes or happened in the last 40: only then is Telegram polled for the calendar (otherwise the window is read as it is)
 const wireHot = (events, now) => events.some(e => !e.hol && e.src !== 'feed' && WIRE_KEYS.has(e.k + '|' + e.r) && e.t <= now + 120000 && e.t >= now - 40 * 60000);
 
+// ---- first prints (plan P8.23): the "previous" and the first actual each release showed before revisions, so a revised previous can be underlined (green or red) without typed marks ----
+const firstSt = { mem: null, seeded: false, dirty: false, lastKv: 0 };
+async function firstSeed(env) {
+  if (firstSt.seeded) return;
+  firstSt.seeded = true;
+  firstSt.mem = newFirst();
+  if (!(env && env.MARKET_KV)) return;
+  try { firstSt.mem = fromKv(await env.MARKET_KV.get(FP_KV, 'json')); } catch (_) { /* carry on without it */ }
+}
+async function firstSave(env, now) {
+  if (!firstSt.dirty || !(env && env.MARKET_KV) || now - firstSt.lastKv < 30000) return;
+  firstSt.lastKv = now; firstSt.dirty = false;
+  try { await env.MARKET_KV.put(FP_KV, JSON.stringify(firstSt.mem)); } catch (_) { firstSt.dirty = true; }   // an entry is added a few times a day, so this is a handful of the 1,000 free writes
+}
+
 let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around a release, so keep the answer for 10 s
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
   if (calMemo && calMemo.debug === debug && now - calMemo.at < 10000) return calMemo.body;
-  await loadSync(env);
+  await Promise.all([loadSync(env), firstSeed(env)]);
   const sch = schedule(now);
   syncLazy(env, ctx, now);   // an overdue sync source starts in the background (D77)
   const pw = wireSeed(env).then(() => feedWindow(env, ctx, 'FinancialJuice', wireHot(sch.events, now)))
     .catch(e => { wireSt.err = String(e.message).slice(0, 120); return { posts: [], status: 'broken' }; });   // polls Telegram only around a covered release
-  const p = Promise.all([feedRefresh(env, ctx), fmpRefresh(env, ctx, sch), offRefresh(env, ctx, sch)]);
+  const ffFast = ffHot(sch.events, now);   // a scheduled release is about to happen or just happened
+  const p = Promise.all([feedRefresh(env, ctx, ffFast), fmpRefresh(env, ctx, sch), offRefresh(env, ctx, sch)]);
   if (!feedState.events && !fmpState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
   const [lo, hi] = CAL_WINDOW;
@@ -598,16 +621,20 @@ async function getCalendar(env, ctx, opts = {}) {
   if (wr.changed) wireSt.dirty = true;
   wireSt.feed = fw.status; if (fw.status !== 'broken') wireSt.err = null;
   o.issues.push(...wr.issues);
-  const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now) : { n: 0, issues: [] };   // fills blanks, flags disagreements
+  if (recordPrev(firstSt.mem, o.events, now)) firstSt.dirty = true;   // the previous as the feeds and the wire show it: still before any revision
+  const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now, firstLookups(firstSt.mem)) : { n: 0, issues: [] };   // fills blanks, replaces typed placeholders, flags disagreements
+  if (recordActual(firstSt.mem, o.events, now)) firstSt.dirty = true;
+  if (firstSt.dirty && pruneFirst(firstSt.mem, now)) firstSt.dirty = true;
   o.issues.push(...off.issues);
   if (off.wire && off.wire.length && recordConfirms(wireSt.memo, off.wire, now)) wireSt.dirty = true;   // wire against official: the agree and disagree log
   const sv = wireSave(env, now); if (ctx) ctx.waitUntil(sv);
+  const fv = firstSave(env, now); if (ctx) ctx.waitUntil(fv);
   o.issues.push(...sch.merged.issues, ...syncIssues(syncState.rec, now, INDICATORS, !!(env && env.FMP_KEY)));   // schedule sync: failures, overdue sources, dates that moved overnight
   chainPrevious(o.events);
   const repl = typedReplaced(o.events, RESULTS);   // typed placeholders a real source has replaced: safe to delete from results.json
 
   let fstat = feedState.status;
-  if (feedState.events && now - feedState.at > CAL_TTL * 2) fstat = 'stale';
+  if (feedState.events && ffStale(now - feedState.at, ffFast)) fstat = 'stale';
   else if (fstat === 'none' && feedState.failAt) fstat = 'unavailable';
   let mstat = fmpState.status;
   if (mstat === 'ok' && now - fmpState.at > FMP_SLOW * 2) mstat = 'stale';
@@ -621,17 +648,17 @@ async function getCalendar(env, ctx, opts = {}) {
     now,                                                  // the page compares this with its own clock
     src: 'official release schedule',
     sources: SCHEDULE.sources, checked: sch.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop: INDICATORS.backdrop,   // what the page needs to explain each release
-    feed: { status: fstat, at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
+    feed: { status: fstat, mode: ffFast ? 'release window (5 min, this week only)' : 'normal (30 min)', at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
     official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: ostat === 'ok' ? null : offState.err },
-    results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length },
+    results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length, first: Object.keys(firstSt.mem.rows).length },
     wire: { status: fw.status, n: wr.n, error: wireSt.err, ...wireSummary(wireSt.memo) },   // FinancialJuice actuals filled this time, and how often the wire matched the official number so far
     sync: { ...syncSummary(syncState.rec), tiers: sch.merged.tiers, stats: sch.merged.stats },   // what the schedule check shows
     audit: { status, nIssues: a.nIssues + o.issues.length, counts: a.counts, total: a.total, first: a.first, horizon: a.horizon,
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
   };
-  if (debug) out.debug = { replaced: repl.slice(0, 40), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
+  if (debug) out.debug = { replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
     fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
     official: { via: offState.via, error: offState.err, series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };

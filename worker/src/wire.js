@@ -40,7 +40,7 @@ export const RULES = [
   R('UNEMPLOYMENT RATE', 'nfp|unemp', 1, 25),
   R('AVERAGE HOURLY EARNINGS MOM', 'nfp|ahe', -2, 3),
   R('CPI YOY', 'cpi|yoy', -3, 25),
-  R(['RETAIL SALES EX AUTOS MOM', 'CORE RETAIL SALES MOM'], 'retail|core', -6, 6),
+  R(['RETAIL SALES EX AUTOS MOM', 'CORE RETAIL SALES MOM'], 'retail|core', -6, 6, { seen: 1 }),   // "RETAIL SALES EX AUTOS MOM" seen on 17 Nov 2026: filled 0.6% (FRED agreed)
   R('CORE PCE PRICE INDEX MOM', 'pce|mom', -2, 3),
   R('CORE PCE PRICE INDEX YOY', 'pce|yoy', -1, 15),
   R('GDP QOQ', 'gdp|main', -15, 15),

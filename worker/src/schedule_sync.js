@@ -271,8 +271,8 @@ export async function runTreasury({ get, IND, now, prev }) {
   const out = { at: now, day: today, ok: false, err: null, k: {}, debug: null };
   const errs = [], ann = [], tent = [], files = [];
   let annOk = false, tentOk = false;
-  // announced: exact dates, about a week ahead
-  await Promise.all(['Note', 'Bond'].map(async type => {
+  // announced: exact dates, about a week ahead. Started now and awaited after the tentative files, so a slow TreasuryDirect never adds its wait to theirs
+  const annP = Promise.all(['Note', 'Bond'].map(async type => {
     try { ann.push(...parseTreasuryJson(JSON.parse(await get(TD_URL(type))), today)); annOk = true; }
     catch (e) { errs.push(`announced ${type}s: ${e.message}`); }
   }));
@@ -287,9 +287,10 @@ export async function runTreasury({ get, IND, now, prev }) {
       got++; tentOk = true; files.push(`Q${q.q}${q.y}`); tent.push(...rows);
     } catch (e) { if (!/HTTP 404/.test(e.message)) errs.push(`tentative schedule Q${q.q} ${q.y}: ${e.message}`); }
   };
-  await readQ(tryOrder[0]);
-  await readQ(tryOrder[1]);
+  await Promise.all([readQ(tryOrder[0]), readQ(tryOrder[1])]);
   if (!got) await readQ(prevQuarter(cur));
+  await annP;
+  files.sort();
   out.debug = { ...(sample ? { tentativeSample: sample } : {}), announced: ann.map(r => `${r.d} ${r.k} (${r.s || '?'})`).slice(0, 12) };
   for (const [k, ind] of kinds) {
     const old = (prev && prev.k && prev.k[k]) || { lines: [] }, byKey = new Map();
