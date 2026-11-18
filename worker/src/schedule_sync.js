@@ -452,7 +452,7 @@ export function syncIssues(rec, now, IND, haveProviderKey) {
   }
   const today = etParts(now).iso;
   for (const c of rec.changes || []) {
-    if (c.type !== 'moved' || now - c.at > 2 * DAY || daysBetween(today, c.to.d) > 45 || c.to.d < today) continue;
+    if (c.type !== 'moved' || now - c.at > 2 * DAY || daysBetween(today, c.to.d) > 45 || c.to.d < today || c.from.d < today) continue;   // a release that already happened did not "move": the later date is another release (e.g. a TIPS auction)
     out.push({ lvl: 'warn', code: 'sync_moved', k: c.k, d: c.to.d, msg: `${changeTitle(c, IND)} moved from ${c.from.d} ${c.from.t} to ${c.to.d} ${c.to.t} ET (${label[c.src] || c.src}).` });
   }
   return out;

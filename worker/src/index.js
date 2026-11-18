@@ -95,13 +95,20 @@ async function qCboe(sym) {
   return out;
 }
 
+let fredKey = null;   // the secret FRED_KEY, copied from env when a tape build starts (getItem has no env); null = use the keyless CSV
 async function qFred(series) {
   // cosd limits the CSV to recent rows; the full history is ~17k rows and would blow the CPU limit
   const since = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
-  const text = await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${series}&cosd=${since}`);
-  const vals = text.trim().split(/\r?\n/).slice(1).map(l => l.split(','))
-    .filter(r => r.length > 1 && r[1].trim() !== '' && r[1].trim() !== '.')
-    .map(r => [r[0], Number(r[1])]);
+  let vals;
+  if (fredKey) {   // FRED's API: the keyless CSV is refused from Cloudflare (HTTP 520), the API is not
+    vals = [...parseFredJson(await fredApiGet(fredApiUrl(series, fredKey, since)))].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  } else {
+    const text = await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${series}&cosd=${since}`);
+    vals = text.trim().split(/\r?\n/).slice(1).map(l => l.split(','))
+      .filter(r => r.length > 1 && r[1].trim() !== '' && r[1].trim() !== '.')
+      .map(r => [r[0], Number(r[1])]);
+  }
+  if (vals.length < 2) throw new Error(`FRED ${series}: fewer than 2 observations`);
   const [d1, v1] = vals[vals.length - 1];
   const v0 = vals[vals.length - 2][1];
   return quote(v1, v0, Date.parse(d1 + 'T00:00:00Z'));
@@ -147,11 +154,13 @@ async function buildCurveNow(env) {
   const y = new Date().getUTCFullYear();
   const since = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10);
   const [cur, prev, fred] = await Promise.allSettled([
-    treasuryRows(y), treasuryRows(y - 1), get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y&cosd=${since}`),
+    treasuryRows(y), treasuryRows(y - 1),
+    // cross-check series: FRED's API when the secret FRED_KEY is set (the keyless CSV is refused from Cloudflare), the CSV otherwise
+    env && env.FRED_KEY ? fredApiGet(fredApiUrl('T10Y2Y', env.FRED_KEY, since)).then(parseFredJson) : get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y&cosd=${since}`).then(parseFredCsv),
   ]);
   if (cur.status !== 'fulfilled') throw new Error(`Treasury CSV: ${cur.reason && cur.reason.message}`);
   const rows = [...(prev.status === 'fulfilled' ? prev.value : []), ...cur.value];
-  const out = buildCurve(rows, fred.status === 'fulfilled' ? parseFredCsv(fred.value) : null);
+  const out = buildCurve(rows, fred.status === 'fulfilled' ? fred.value : null);
   out.updated = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   if (prev.status !== 'fulfilled') out.partial = 'last year\'s file was not reached: the 12-month change may be missing';
   const body = JSON.stringify(out);
@@ -643,6 +652,7 @@ async function dataBranch() {
 const FUT_LIVE_TTL = 10 * 60000;   // while a future's price is live from the TradingView push, Yahoo is asked about it only this often (contract name, ROLLED)
 async function build(ctx, env) {
   const log = [], notes = [];
+  fredKey = (env && env.FRED_KEY) || null;
   const tv = env && env.TV_OVERLAY === 'off' ? null : await loadTv(env);   // TradingView push (D1), read first so live futures need no Yahoo call; set the Worker variable TV_OVERLAY to "off" to stop publishing pushed prices
   const t0 = Date.now(), liveFut = new Set();
   if (tv) for (const label of TV_LABELS) {   // a future the push covers right now, with a recent Yahoo answer (it holds the contract name) in the cache
