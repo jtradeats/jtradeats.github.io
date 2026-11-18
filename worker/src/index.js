@@ -513,7 +513,7 @@ async function runSyncSource(name, env) {
     else if (name === 'treasury') out = await runTreasury({ IND: INDICATORS, now, prev, get: async u => {
       const td = /treasurydirect\.gov/.test(u), t0 = Date.now();
       try { return await get(u, { Accept: 'application/json, application/xml, text/xml, */*' }, td ? SYNC_TIMEOUT_TREASURY : SYNC_TIMEOUT); }
-      catch (e) { if (td) e.message += ` (gave up after ${Date.now() - t0} ms)`; throw e; }   // a hang and a quick refusal need different fixes: /sync now says which it was
+      catch (e) { if (td) throw new Error(`${e && e.message} (gave up after ${Date.now() - t0} ms)`); throw e; }   // a hang and a quick refusal need different fixes: /sync now says which it was. A NEW error: the runtime's timeout error has a read-only message, and assigning to it hid the real error (18 Nov /sync)
     } });
     else if (name === 'provider') out = runProvider({ feeds: await gatherProvider(env), base: SCHEDULE.releases, IND: INDICATORS, now, prev });
     else return null;
