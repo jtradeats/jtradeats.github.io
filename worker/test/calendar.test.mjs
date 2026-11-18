@@ -73,7 +73,7 @@ test('hand-typed results fill the columns, win over a provider, and chain to the
   const win = ev.filter(e => e.t > NOW - 31 * 864e5 && e.t < NOW + 60 * 864e5);
   const o = overlay(win, [{ name: 'Fair Economy', rows: [{ t: etToMs('2026-11-17T08:30'), title: 'Retail Sales m/m', imp: 3, fc: '0.3%', pv: '0.7%', ac: null }] }], IND, NOW);
   assert.equal(o.matched, 1);
-  applyResults(o.events, RES);
+  applyResults(o.events, { ...RES, rows: { ...RES.rows, 'retail|2026-11-17|main': { fc: '0.0%', pv: '0.8%' } } });   // a typed forecast, whatever results.json holds today
   chainPrevious(o.events);
   const g = id => o.events.find(e => e.id === id);
   assert.equal(g('retail|2026-11-17|main').fc, '0.0%');        // typed value beats the feed

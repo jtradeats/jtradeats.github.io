@@ -52,7 +52,7 @@ test('official numbers fill blanks: claims, payrolls, unemployment, earnings, CP
   assert.equal(get(ev, 'cpi|2026-11-10|mom').sr.ac, 'FRED');
   assert.equal(get(ev, 'claims|2026-11-19|main').ac, null);   // not released yet
   assert.ok(r.n >= 7 && r.issues.length === 0);
-  assert.deepEqual(SERIES.length, 7);
+  assert.equal(SERIES.length, 17);   // P8.17: every series the SPEC reads
 });
 
 test('a typed number is never overwritten; a disagreement is flagged within 3 days of the print', () => {

@@ -457,3 +457,12 @@ test('a Monday 10-year or 30-year auction is not flagged as an unusual weekday',
   const w = audit({ ...SCHED, releases: rel }, IND, NOW).issues.filter(i => i.code === 'dow');
   assert.deepEqual(w, []);
 });
+
+test('a "move" away from a date that already happened raises no warning (a TIPS auction misread as the note moving); a real future move still does', () => {
+  const day = etToMs('2026-11-17T09:00');
+  const past = { type: 'moved', k: 'auc10', p: null, from: { d: '2026-11-10', t: '13:00' }, to: { d: '2026-11-19', t: '13:00' }, v: 'tent', at: day - 3600e3, src: 'treasury' };
+  const real = { type: 'moved', k: 'auc10', p: null, from: { d: '2026-12-10', t: '13:00' }, to: { d: '2026-12-08', t: '13:00' }, v: 'tent', at: day - 3600e3, src: 'treasury' };
+  const moved = ch => syncIssues(rec({}, [ch]), day, IND, false).filter(i => i.code === 'sync_moved');
+  assert.equal(moved(past).length, 0);
+  assert.equal(moved(real).length, 1);
+});
