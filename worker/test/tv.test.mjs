@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth, TV_STALE_MS, TV_MAX_LAG_MS } from './tv.js';
+import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth, TV_STALE_MS, TV_MAX_LAG_MS } from '../src/tv.js';
 
 // minimal D1 mock: one row table
 function mockDb() {
