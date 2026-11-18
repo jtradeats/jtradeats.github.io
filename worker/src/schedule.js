@@ -343,7 +343,9 @@ export function overlay(events, feeds, IND, nowMs) {
   return { events: evs.concat(extras).sort((a, b) => a.t - b.t), issues, matched: hit.size, extras: extras.length, unmatched: [...new Set(unmatched)].slice(0, 20) };
 }
 
-// hand-typed numbers (worker/config/results.json) win over the providers for the fields they define
+// Hand-typed numbers (worker/config/results.json) are PLACEHOLDERS: they fill a field only when no real source has supplied it, and are tagged sr = 'ref'.
+// Every later layer (the wire, the official FRED series) treats a 'ref' field as blank and replaces it, and a provider number has already replaced it by the time this runs.
+// The revision mark (pvc) belongs to a typed previous, so it is kept only while that typed previous is the one showing.
 export function applyResults(events, RES) {
   const rows = (RES && RES.rows) || {};
   let n = 0;
@@ -351,10 +353,24 @@ export function applyResults(events, RES) {
     const x = rows[e.id];
     if (!x) continue;
     n++;
-    for (const f of ['fc', 'pv', 'ac']) if (x[f] != null && x[f] !== '') { e[f] = x[f]; (e.sr = e.sr || {})[f] = 'ref'; }
-    if (x.pvc) e.pvc = x.pvc;
+    for (const f of ['fc', 'pv', 'ac']) if (x[f] != null && x[f] !== '' && (e[f] == null || e[f] === '')) { e[f] = x[f]; (e.sr = e.sr || {})[f] = 'ref'; }
+    if (x.pvc && e.sr && e.sr.pv === 'ref') e.pvc = x.pvc;
   }
   return n;
+}
+
+// Typed numbers a real source has replaced with a different value: [{ id, f, typed, now, src }]. For /calendar?debug=1: these lines can be deleted from results.json.
+export function typedReplaced(events, RES) {
+  const rows = (RES && RES.rows) || {}, out = [];
+  for (const e of events) {
+    const x = rows[e.id];
+    if (!x) continue;
+    for (const f of ['fc', 'pv', 'ac']) {
+      if (x[f] == null || x[f] === '' || (e.sr && e.sr[f] === 'ref')) continue;
+      if (e[f] != null && String(e[f]) !== String(x[f])) out.push({ id: e.id, f, typed: x[f], now: e[f], src: (e.sr && e.sr[f]) || null });
+    }
+  }
+  return out;
 }
 
 // "previous" with nothing better: the actual of the release before it (not revised, so labelled as carried over)

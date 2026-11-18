@@ -108,7 +108,8 @@ export function applyOfficial(events, M, now) {
     const S = M && M[spec.s], obs = S && obsFor(e, spec), a = obs && calc(S, spec, obs);
     if (a == null) continue;
     const act = fmtVal(a, spec.u);
-    if (e.ac == null) { e.ac = act; (e.sr = e.sr || {}).ac = 'FRED'; n++; }
+    // blank, or only a hand-typed placeholder. A typed actual is replaced only in the first 3 days: the series later carries revised vintages, and a past release's actual is its first print.
+    if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = act; (e.sr = e.sr || {}).ac = 'FRED'; n++; }
     else if (e.sr && e.sr.ac === 'FJ') {   // first figure came from the wire: the official series settles it
       const agree = num(e.ac) === num(act);
       wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });
@@ -128,7 +129,10 @@ export function applyOfficial(events, M, now) {
     const pv = calc(S, spec, prevObs(obs, spec));
     if (pv == null) continue;
     const ps = fmtVal(pv, spec.u);
-    if (e.pv == null || (e.sr && e.sr.pv === 'FJ')) { e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED'; }   // the wire's "previous" is the figure before revisions: the official series wins
+    if (e.pv == null || (e.sr && (e.sr.pv === 'FJ' || e.sr.pv === 'ref'))) {   // the wire's "previous" is the figure before revisions, a typed one is a placeholder: the official series wins
+      if (e.sr && e.sr.pv === 'ref') delete e.pvc;   // the typed revision mark went with the typed number; it is worked out again below
+      e.pv = ps; (e.sr = e.sr || {}).pv = 'FRED';
+    }
     // revised previous: the official value for the prior period differs from what that release first showed
     if (!e.pvc && before && before.ac != null && num(before.ac) !== num(ps)) {
       const inv = e.dir === 'inv' || e.dir === 'oil';

@@ -138,13 +138,10 @@ export function applyWire(events, posts, now, memo) {
     const r = memo.rows[e.id];
     if (!r || e.hol) continue;
     const sr = e.sr = e.sr || {};
-    if (e.ac == null) { e.ac = r.ac; sr.ac = 'FJ'; n++; }
-    else if (sr.ac === 'ref' && num(e.ac) !== num(r.ac) && e.t > now - 3 * 864e5) {
-      if (!e.flag) e.flag = `FinancialJuice says ${r.ac}, the typed number says ${e.ac}`;
-      issues.push({ lvl: 'warn', code: 'wire_diff', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}. Check the agency release.` });
-    }
-    if (e.fc == null && r.fc != null) { e.fc = r.fc; sr.fc = 'FJ'; }
-    if (e.pv == null && r.pv != null) { e.pv = r.pv; sr.pv = 'FJ'; }
+    const typed = f => sr[f] === 'ref';   // a hand-typed placeholder counts as blank: the wire's number replaces it
+    if (e.ac == null || typed('ac')) { e.ac = r.ac; sr.ac = 'FJ'; n++; }
+    if ((e.fc == null || typed('fc')) && r.fc != null) { e.fc = r.fc; sr.fc = 'FJ'; }
+    if ((e.pv == null || typed('pv')) && r.pv != null) { e.pv = r.pv; sr.pv = 'FJ'; delete e.pvc; }
     if (r.alt && sr.ac === 'FJ') {
       e.flag = `FinancialJuice posted ${r.ac} and then ${r.alt}; showing the first`;
       issues.push({ lvl: 'warn', code: 'wire_conflict', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}.` });
