@@ -807,13 +807,13 @@ function paintStamp(msg){
   if(msg){el.textContent=msg;return}
   if(!lastData)return;
   const items=lastData.items||[];
-  const lv=items.filter(i=>i.live&&i.p!=null&&!i.stale).length;   // futures pushed from TradingView each minute; the rest of the tape is still the delayed feed
+  const lv=items.filter(i=>i.live&&i.p!=null&&!i.stale).length;   // items pushed from TradingView each minute (futures, and while their bars are fresh yields, DXY, MOVE, USDJPY and ETFs); the rest of the tape is still the delayed feed
   const ts=items.filter(i=>i.p!=null&&!i.stale&&!i.live&&i.cls!=='prior'&&i.t!=null).map(i=>i.t);
   const miss=items.filter(i=>i.p==null).length,stl=items.filter(i=>i.stale).length;
   let s;
   if(ts.length){const n=Math.max(...ts),age=Date.now()-n,shut=age>OLD&&futClosed();s=shut?'market closed \u00b7 last quotes '+asOf(n):'quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(age>OLD?' \u00b7 old':'')}
   else s='no timestamped quotes';
-  if(lv)s=lv+' futures live'+(ts.length?' \u00b7 rest '+s:'');
+  if(lv)s=lv+' live'+(ts.length?' \u00b7 rest '+s:'');
   if(stl)s+=' \u00b7 '+stl+' stale';
   if(miss)s+=' \u00b7 '+miss+' missing';
   if(lastData.via!=='worker')s+=' \u00b7 fallback file';
@@ -1456,7 +1456,8 @@ function secPaint(b,d,bad){
       +'<div class="p '+(hp?(it.pc>0?'up':it.pc<0?'dn':''):'')+'">'+(hp?sg(it.pc)+fmt(Math.abs(it.pc),2)+'%':'\u2014')+'</div><div class="c">'+(has?fmt(it.p,2):'&nbsp;')+'</div></div>';
   };
   b.innerHTML='<div class="sct s12">'+rows.map(tile).join('')+'</div>';
-  cardStamp(b,d,bad,()=>!cashOpen(),'delayed');
+  const sl=(d.items||[]).filter(i=>i.live).length,sn=(d.items||[]).length;   // ETFs the TradingView push covers while their bars are fresh
+  cardStamp(b,d,bad,()=>!cashOpen(),sl?(sl===sn?'live, refreshed each minute':sl+' of '+sn+' live, rest delayed'):'delayed');
 }
 function wkoPaint(b,d,bad){
   const tile=it=>{
