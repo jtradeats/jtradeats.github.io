@@ -104,16 +104,13 @@ test('a post fills the blank actual, forecast and previous of the row it follows
   for (const e of rows) assert.equal(e.sr.ac, 'FJ', e.id);
 });
 
-test('typed numbers and provider numbers are never overwritten; an actual that disagrees with a typed one is flagged', () => {
-  const e = ev('nfp', 'nfp', '2026-11-06', '08:30', 'Nonfarm Payrolls (Oct)', 'K', { ac: '165K', fc: '65K', pv: '60K', sr: { ac: 'ref', fc: 'ref', pv: 'ref' } });
+test('a typed number is a placeholder: the wire replaces it; a provider number is not overwritten', () => {
+  const e = ev('nfp', 'nfp', '2026-11-06', '08:30', 'Nonfarm Payrolls (Oct)', 'K', { ac: '150K', fc: '65K', pv: '60K', pvc: 'g', sr: { ac: 'ref', fc: 'ref', pv: 'ref' } });
   const memo = newMemo(), now = at(e, 60);
-  let r = applyWire([e], [post(P.nfp, at(e, 4))], now, memo);
-  assert.deepEqual([e.ac, e.fc, e.pv, e.sr.ac, e.sr.fc, e.sr.pv], ['165K', '65K', '60K', 'ref', 'ref', 'ref']);
-  assert.equal(r.n, 0); assert.equal(e.flag, undefined);
-  const e2 = ev('nfp', 'nfp', '2026-11-06', '08:30', 'Nonfarm Payrolls (Oct)', 'K', { ac: '150K', sr: { ac: 'ref' } });
-  r = applyWire([e2], [post(P.nfp, at(e2, 4))], now, newMemo());
-  assert.equal(e2.ac, '150K'); assert.match(e2.flag, /FinancialJuice says 165K, the typed number says 150K/);
-  assert.equal(r.issues[0].code, 'wire_diff');
+  const r = applyWire([e], [post(P.nfp, at(e, 4))], now, memo);
+  assert.deepEqual([e.ac, e.fc, e.pv, e.sr.ac, e.sr.fc, e.sr.pv], ['165K', '70K', '29K', 'FJ', 'FJ', 'FJ']);
+  assert.equal(e.pvc, undefined, 'the typed revision mark goes with the typed previous');
+  assert.equal(r.n, 1); assert.equal(e.flag, undefined); assert.deepEqual(r.issues, []);
   const e3 = ev('nfp', 'nfp', '2026-11-06', '08:30', 'Nonfarm Payrolls (Oct)', 'K', { fc: '65K', sr: { fc: 'Fair Economy' } });
   applyWire([e3], [post(P.nfp, at(e3, 4))], now, newMemo());
   assert.deepEqual([e3.ac, e3.fc, e3.sr.fc, e3.pv], ['165K', '65K', 'Fair Economy', '29K']);

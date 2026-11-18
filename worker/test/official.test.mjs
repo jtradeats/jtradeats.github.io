@@ -55,17 +55,20 @@ test('official numbers fill blanks: claims, payrolls, unemployment, earnings, CP
   assert.equal(SERIES.length, 17);   // P8.17: every series the SPEC reads
 });
 
-test('a typed number is never overwritten; a disagreement is flagged within 3 days of the print', () => {
+test('a typed number is a placeholder: the official series replaces it, with no flag; a provider number that disagrees is still flagged', () => {
   const ev = fresh(); applyResults(ev, RES);
   const M = { ICSA: parseFredCsv(csv('ICSA', [['2026-10-31', 191000], ['2026-11-07', 201000]])) };
   const day = etToMs('2026-11-13T09:00');   // one day after the 12 Nov print
   const r = applyOfficial(ev, M, day);
   const c = get(ev, 'claims|2026-11-12|main');
-  assert.equal(c.ac, '200K');
-  assert.match(c.flag, /201K/);
-  assert.equal(r.issues[0].code, 'official_diff');
-  const ev2 = fresh(); applyResults(ev2, RES);
-  assert.equal(applyOfficial(ev2, M, etToMs('2026-11-30T09:00')).issues.length, 0);   // old rows: later vintages are not compared
+  assert.equal(c.ac, '201K'); assert.equal(c.sr.ac, 'FRED');   // typed 200K was only a placeholder
+  assert.equal(c.flag, undefined); assert.equal(r.issues.length, 0);
+  const ev2 = fresh(); const p = get(ev2, 'claims|2026-11-12|main'); p.ac = '200K'; p.sr = { ac: 'Fair Economy' };   // a real provider number
+  const r2 = applyOfficial(ev2, M, day);
+  assert.equal(p.ac, '200K'); assert.match(p.flag, /201K/); assert.equal(r2.issues[0].code, 'official_diff');
+  const ev3 = fresh(); applyResults(ev3, RES);
+  applyOfficial(ev3, M, etToMs('2026-11-30T09:00'));   // old rows: later vintages are not compared, so the typed number stays
+  assert.equal(get(ev3, 'claims|2026-11-12|main').ac, '200K'); assert.equal(get(ev3, 'claims|2026-11-12|main').sr.ac, 'ref');
 });
 
 test('revised previous: official value differs from the earlier first print, so it is shown underlined (red for claims)', () => {
@@ -77,11 +80,13 @@ test('revised previous: official value differs from the earlier first print, so 
   assert.equal(c.pv, '191K'); assert.equal(c.pvc, 'r'); assert.equal(c.sr.pv, 'FRED');
 });
 
-test('typed previous and its revision mark win over the official one', () => {
+test('a typed previous is a placeholder: the official one replaces it, and the typed revision mark is worked out again', () => {
   const ev = fresh(); applyResults(ev, RES);
   const M = { ICSA: parseFredCsv(csv('ICSA', [['2026-10-31', 195000], ['2026-11-07', 200000]])) };
   applyOfficial(ev, M, AFTER);
-  assert.equal(get(ev, 'claims|2026-11-12|main').pv, '191K');
+  const c = get(ev, 'claims|2026-11-12|main');
+  assert.equal(c.pv, '195K'); assert.equal(c.sr.pv, 'FRED');
+  assert.equal(c.pvc, 'r');   // 5 Nov printed 189K, the official series now says 195K: revised up, red for claims
 });
 
 test('chained previous still works after official fills', () => {

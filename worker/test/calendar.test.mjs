@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { expand, audit, overlay, etToMs, normFair, normFmp, fmtVal, applyResults, chainPrevious, candidates } from '../src/schedule.js';
+import { expand, audit, overlay, etToMs, normFair, normFmp, fmtVal, applyResults, typedReplaced, chainPrevious, candidates } from '../src/schedule.js';
 
 const J = f => JSON.parse(readFileSync(new URL('../config/' + f, import.meta.url)));
 const SCHED = J('schedule.json'), IND = J('indicators.json'), RES = J('results.json');
@@ -69,19 +69,37 @@ test('results.json keys all exist in the schedule', () => {
   for (const k of Object.keys(RES.rows)) assert.ok(ids.has(k), 'unknown key ' + k);
 });
 
-test('hand-typed results fill the columns, win over a provider, and chain to the next previous', () => {
+test('hand-typed results are placeholders: they fill blanks, a provider number replaces them, and chaining still works', () => {
   const win = ev.filter(e => e.t > NOW - 31 * 864e5 && e.t < NOW + 60 * 864e5);
-  const o = overlay(win, [{ name: 'Fair Economy', rows: [{ t: etToMs('2026-11-17T08:30'), title: 'Retail Sales m/m', imp: 3, fc: '0.3%', pv: '0.7%', ac: null }] }], IND, NOW);
+  const o = overlay(win, [{ name: 'Fair Economy', rows: [{ t: etToMs('2026-11-17T08:30'), title: 'Retail Sales m/m', imp: 3, fc: '0.1%', pv: '0.7%', ac: null }] }], IND, NOW);
   assert.equal(o.matched, 1);
-  applyResults(o.events, { ...RES, rows: { ...RES.rows, 'retail|2026-11-17|main': { fc: '0.0%', pv: '0.8%' } } });   // a typed forecast, whatever results.json holds today
+  applyResults(o.events, RES);
   chainPrevious(o.events);
   const g = id => o.events.find(e => e.id === id);
-  assert.equal(g('retail|2026-11-17|main').fc, '0.0%');        // typed value beats the feed
-  assert.equal(g('retail|2026-11-17|main').pv, '0.8%');
+  assert.equal(g('retail|2026-11-17|main').fc, '0.1%');          // the feed's number, whatever results.json holds
+  assert.equal(g('retail|2026-11-17|main').pv, '0.7%');          // the feed's revised previous beats the typed 0.8%
+  assert.equal(g('retail|2026-11-17|main').sr.fc, 'Fair Economy');
+  assert.equal(g('retail|2026-11-17|core').pv, '0.9%');          // no feed row for it: the typed placeholder shows
+  assert.equal(g('retail|2026-11-17|core').sr.pv, 'ref');
   assert.equal(g('cpi|2026-11-10|mom').ac, '0.4%');
   assert.equal(g('claims|2026-11-12|main').pvc, 'r');
-  assert.equal(g('ppi|2026-12-15|mom').pv, '0.3%');            // carried from 13 Nov
+  assert.equal(g('ppi|2026-12-15|mom').pv, '0.3%');              // carried from 13 Nov
   assert.equal(g('ppi|2026-12-15|mom').sr.pv, 'last release');
+  const rep = typedReplaced(o.events, RES);
+  assert.ok(rep.some(x => x.id === 'retail|2026-11-17|main' && x.f === 'pv' && x.typed === '0.8%' && x.now === '0.7%'), JSON.stringify(rep));
+  assert.ok(!rep.some(x => x.id === 'cpi|2026-11-10|mom'), 'a typed number that is still showing is not reported as replaced');
+});
+
+test('17 Nov retail case: typed 0.0% forecast and 0.9% core previous (14 Nov) give way to Forex Factory\'s 0.1% and 1.1%', () => {
+  const typed = { rows: { 'retail|2026-11-17|main': { fc: '0.0%', pv: '0.8%' }, 'retail|2026-11-17|core': { fc: '0.4%', pv: '0.9%', pvc: 'g' } } };
+  const win = ev.filter(e => e.t > NOW - 31 * 864e5 && e.t < NOW + 60 * 864e5);
+  const t = etToMs('2026-11-17T08:30');
+  const o = overlay(win, [{ name: 'Fair Economy', rows: [{ t, title: 'Retail Sales m/m', imp: 3, fc: '0.1%', pv: '0.8%' }, { t, title: 'Core Retail Sales m/m', imp: 3, fc: '0.4%', pv: '1.1%' }] }], IND, NOW);
+  applyResults(o.events, typed);
+  const g = id => o.events.find(e => e.id === id);
+  assert.deepEqual([g('retail|2026-11-17|main').fc, g('retail|2026-11-17|main').sr.fc], ['0.1%', 'Fair Economy']);
+  assert.deepEqual([g('retail|2026-11-17|core').pv, g('retail|2026-11-17|core').sr.pv, g('retail|2026-11-17|core').pvc], ['1.1%', 'Fair Economy', undefined]);
+  assert.deepEqual(typedReplaced(o.events, typed).map(x => x.id + ' ' + x.f).sort(), ['retail|2026-11-17|core pv', 'retail|2026-11-17|main fc']);
 });
 
 test('provider rows: Forex Factory titles and FMP numbers map to rows with units applied', () => {
