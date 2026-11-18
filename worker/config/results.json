@@ -1,5 +1,5 @@
 {
- "_note": "Numbers typed in by hand from the reference calendar screenshots (14 Nov 2026). Key = kind|date (New York)|row id. Fields: ac actual, fc forecast, pv previous (all as displayed text), pvc g or r when the previous was revised (shown underlined in that colour). These win over the feed for the fields they define. They are the manual fallback (plan 3.4 overrides): edit this file on GitHub and the Worker redeploys. It is not a data feed. Before the next release, remove or replace any line you no longer trust.",
+ "_note": "PLACEHOLDERS, not a data feed. Numbers typed in by hand from the reference calendar screenshots (14 Nov 2026). Key = kind|date (New York)|row id. Fields: ac actual, fc forecast, pv previous (all as displayed text), pvc g or r when the previous was revised (shown underlined in that colour). A typed number shows only while no real source has supplied that field: the calendar feeds (Forex Factory, FMP), the FinancialJuice wire and the official FRED series all replace it as soon as they have a number. /calendar?debug=1 lists the typed numbers that were replaced (replaced), and those lines can be deleted. Edit this file on GitHub and the Worker redeploys.",
  "asof": "2026-11-14",
  "src": "reference calendar screenshots, typed in by hand",
  "rows": {
