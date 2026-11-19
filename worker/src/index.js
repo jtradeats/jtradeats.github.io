@@ -11,7 +11,7 @@ import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // 
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { beat, beats, prunePosts, postsSummary, postsError } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
-import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial } from './official.js';
+import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
@@ -415,10 +415,11 @@ async function fredApiGet(url) {
 // `only`: a Set of series to fetch (the ones a release in the next minutes needs); omitted = every series. A partial fetch is merged into what is held.
 async function loadOfficial(env, only) {
   const since = new Date(Date.now() - 460 * 864e5).toISOString().slice(0, 10);   // 13+ months: year-on-year needs it
-  const key = env && env.FRED_KEY, M = {}, errs = [];
+  const key = env && env.FRED_KEY, eiaKey = env && env.EIA_KEY, M = {}, errs = [];
   await Promise.all(OFF_SERIES.filter(s => !only || only.has(s)).map(async s => {
     try {
-      M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
+      if (s.startsWith('EIA:')) { if (!eiaKey) throw new Error('no EIA_KEY set'); M[s] = parseEiaJson(await fredApiGet(eiaApiUrl(s.slice(4), eiaKey, since))); }   // EIA's own API (P8.33)
+      else M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
       if (!M[s].size) throw new Error('no rows');
     } catch (e) { delete M[s]; errs.push([s, redact(e.message)]); }
   }));

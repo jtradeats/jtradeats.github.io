@@ -10,7 +10,7 @@ export const LG_AFTER_MAX = 45 * 864e5;   // only releases from the last 45 days
 export const LG_KEEP = 60 * 864e5;        // rows older than this are dropped
 
 // who gave the number. The wire fills blanks only, so a calendar-feed copy outranks it; FRED outranks both. A typed placeholder ('ref') is not a source.
-const RANK = { FRED: 4, 'Fair Economy': 3, FMP: 3, FJ: 2 };
+const RANK = { FRED: 4, EIA: 4, 'Fair Economy': 3, FMP: 3, FJ: 2 };   // EIA: the agency's own API (official.js, P8.33), same rank as FRED
 export const rankOf = tag => RANK[tag] || 0;
 
 export const newLedger = () => ({ v: 1, rows: {} });
@@ -31,9 +31,9 @@ export function recordLedger(mem, events, now) {
       if (!has(r.ac) || ar > rankOf(r.sa) || (ar === rankOf(r.sa) && String(r.ac) !== String(e.ac))) { r.ac = e.ac; r.sa = sr.ac; r.at = now; changed = true; }
     }
     // the revised previous the official series gave (it carries the green or red underline)
-    if (has(e.pv) && sr.pv === 'FRED') {
+    if (has(e.pv) && rankOf(sr.pv) === 4) {
       const r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
-      if (String(r.pv) !== String(e.pv) || (r.pvc || null) !== (e.pvc || null)) { r.pv = e.pv; r.pvc = e.pvc || null; r.at = now; changed = true; }
+      if (String(r.pv) !== String(e.pv) || (r.pvc || null) !== (e.pvc || null) || (r.sp || 'FRED') !== sr.pv) { r.pv = e.pv; r.pvc = e.pvc || null; r.sp = sr.pv; r.at = now; changed = true; }
     }
   }
   return changed;
@@ -50,8 +50,8 @@ export function applyLedger(events, mem, now) {
     if (has(r.ac) && (!has(e.ac) || rankOf(r.sa) > rankOf(sr.ac))) {
       e.ac = r.ac; (e.sr = e.sr || {}).ac = r.sa; n++;
     }
-    if (has(r.pv) && (e.sr ? e.sr.pv : undefined) !== 'FRED') {
-      e.pv = r.pv; (e.sr = e.sr || {}).pv = 'FRED';
+    if (has(r.pv) && rankOf(e.sr ? e.sr.pv : undefined) < 4) {
+      e.pv = r.pv; (e.sr = e.sr || {}).pv = r.sp || 'FRED';
       if (r.pvc) e.pvc = r.pvc; else delete e.pvc;
       n++;
     }
