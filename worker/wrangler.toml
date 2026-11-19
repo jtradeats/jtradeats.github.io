@@ -15,13 +15,14 @@ binding = "DB"
 database_name = "market-dashboard"
 database_id = "f60910f8-e46a-4122-a999-b120ba358c6e"
 
+# Cron Triggers (five is the free plan's limit for the whole account; all five are now used by this Worker).
 # Nightly schedule sync (plan P2 and P3): three daily triggers, one per source, so each run gets its own 10 ms CPU budget.
-# UTC: 09:20 BLS pages, 09:30 Treasury, 09:40 calendar-feed look-ahead (about 04:20 to 04:40 in New York in winter). The strings must match SYNC_CRONS in src/index.js.
+# UTC: 09:20 BLS pages, 09:30 Treasury, 09:40 calendar-feed look-ahead (about 04:20 to 04:40 in New York in winter).
+# Background pollers (plan P8.32), so nothing depends on a page being open: "* * * * *" reads both Telegram wires every minute and stores new posts in D1;
+# "*/2 * * * *" builds the calendar like a page would (every 2 minutes from 3 minutes before a release until 90 minutes after it, every 10 minutes otherwise).
+# The strings must match SYNC_CRONS, POLL_FEEDS and POLL_CAL in src/index.js. The D1 tables tg_posts and poll_meta are created by the Worker itself on first use.
 [triggers]
-crons = ["20 9 * * *", "30 9 * * *", "40 9 * * *"]
+crons = ["20 9 * * *", "30 9 * * *", "40 9 * * *", "* * * * *", "*/2 * * * *"]
 
-# Phase 3 and 4 (one dispatcher, not yet used):
-# [triggers]
-# crons = ["* * * * *"]
 # Secrets (not stored in this file): add FMP_KEY in the Cloudflare dashboard (Settings > Variables and Secrets > Secret).
 # It enables actual/forecast/previous from Financial Modeling Prep. Without it the calendar still works (schedule + results.json).
