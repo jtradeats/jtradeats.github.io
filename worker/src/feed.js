@@ -8,6 +8,8 @@
 // Parsing is kept apart from fetching: parseTelegram() takes the page HTML and a "runner" that feeds it through an
 // HTMLRewriter. In the Worker the runner uses the built-in HTMLRewriter; the tests plug in the WASM build of the same engine.
 
+import { savePosts, loadPosts } from './posts.js';   // posts kept in D1 (plan P8.31)
+
 export const FEED_CHANNEL = 'WalterBloomberg';   // the default channel: every export below behaves as before when no channel is given
 
 // One entry per verified channel (D47: scraping is allowed for these only; an unknown name is refused by the route).
@@ -28,7 +30,8 @@ const FEED_RETRY = 15000;        // after a failed poll
 const FEED_RETRY_429 = 60000;    // after HTTP 429, leave Telegram alone for longer
 const FEED_TIMEOUT = 4000;       // per upstream request
 const FEED_DEADLINE = 2500;      // a request waits at most this long for a fresh poll, then answers from the window
-const FEED_KEEP = 50;            // posts kept in the rolling window
+const FEED_KEEP = 120;           // posts kept in the rolling window (the page shows all of them; D1 keeps more, see posts.js)
+const FEED_FILL_PAGES = 2;       // when a poll does not meet the window (a long pause), up to this many older pages (?before=) are read to close the hole
 const FEED_STALE = 90000;        // status "stale" if the last good poll is older than this
 const FEED_FULL = 60000;         // a full parse at least this often even when the newest post id has not changed (an edited older post still shows within a minute)
 const FEED_STAGGER = 350;        // the second channel's poll starts this much later, so the two requests to Telegram never go out together
@@ -183,7 +186,7 @@ export function mergePosts(win, incoming, keep = FEED_KEEP) {   // -> { posts, a
 
 // ---- state: one per channel, lives in the isolate; the page never makes Telegram wait for more than one poll at a time ----
 const newState = () => ({ posts: [], at: 0, okAt: 0, failAt: 0, err: null, rate: false, httpStatus: null, parsed: 0, withTime: 0,
-  parseMs: null, bytes: 0, sample: null, inflight: null, seeded: false, lastKv: 0, gapId: 0, fullAt: 0, skips: 0 });
+  parseMs: null, bytes: 0, sample: null, inflight: null, seeded: false, lastKv: 0, gapId: 0, fullAt: 0, skips: 0, saved: 0, filled: 0, fromDb: false });
 const STATES = { [FEED_CHANNEL]: newState() };
 const stateOf = ch => STATES[ch] || (STATES[ch] = newState());
 export const _state = STATES[FEED_CHANNEL];   // for tests: the default channel's state, as before
@@ -217,22 +220,54 @@ async function pollOnce(env, c, S) {
   S.parseMs = Date.now() - p0;   // Workers' clock only moves on I/O, so this can read 0 for pure CPU time
   S.bytes = html.length;
   if (!posts.length) { S.sample = sampleOf(html); return fail(res.status, 'parsed 0 posts: the page markup may have changed'); }
-  const now = Date.now(), m = mergePosts(S.posts, posts);
-  // a window that does not meet the new page (a cold isolate, or a long pause) may have missed posts in between
-  if (S.posts.length && Math.min(...posts.map(p => p.id)) > S.posts[0].id + 1) S.gapId = Math.min(...posts.map(p => p.id));
+  // a window that does not meet the new page (a cold isolate, or a long pause) has missed posts in between: read older pages to close the hole
+  const prevTop = S.posts.length ? S.posts[0].id : 0, minNew = Math.min(...posts.map(p => p.id));
+  let incoming = posts;
+  if (prevTop && minNew > prevTop + 1) {
+    const more = await fillGap(c, S, prevTop, minNew);
+    if (more.length) incoming = posts.concat(more);
+    const lowest = Math.min(...incoming.map(p => p.id));
+    if (lowest > prevTop + 1) S.gapId = lowest;   // a hole remains below this id: the page shows it
+  }
+  const now = Date.now(), m = mergePosts(S.posts, incoming);
+  const held = new Map(S.posts.map(p => [p.id, p]));
+  const changed = incoming.filter(p => { const o = held.get(p.id); return !o || o.text !== p.text || !!o.hot !== !!p.hot || !!o.bang !== !!p.bang || !!o.breaking !== !!p.breaking; });   // what D1 has not seen
   S.posts = m.posts;
   S.at = S.okAt = S.fullAt = now; S.failAt = 0; S.err = null; S.rate = false; S.httpStatus = res.status;
   S.parsed = posts.length; S.withTime = posts.filter(p => p.t != null).length;
   if (S.parsed === S.withTime) S.sample = null;
-  if (m.added && env && env.MARKET_KV && now - S.lastKv > c.kvGap) {
+  const saved = changed.length ? await savePosts(env, c.name, changed) : 0;   // D1 first: a row per new post, nothing for a re-read
+  S.saved += saved;
+  if (!saved && m.added && env && env.MARKET_KV && now - S.lastKv > c.kvGap) {   // no D1 (or it failed): the old KV snapshot, at most every kvGap
     S.lastKv = now;
     try { await env.MARKET_KV.put(c.kv, JSON.stringify({ at: now, posts: S.posts })); } catch (_) { /* ignore */ }
   }
 }
 
+// Reads older pages of the preview (?before=<id>) until the hole between the window's newest post and this page is closed, at most FEED_FILL_PAGES.
+async function fillGap(c, S, prevTop, from) {
+  const out = [];
+  let before = from;
+  for (let i = 0; i < FEED_FILL_PAGES && before > prevTop + 1; i++) {
+    try {
+      const res = await fetch(`https://t.me/s/${c.name}?before=${before}`, { headers: { 'User-Agent': UA, Accept: 'text/html,*/*' }, signal: AbortSignal.timeout(FEED_TIMEOUT) });
+      if (!res.ok) break;
+      const page = (await parseTelegram(await res.text(), RUNNER, c.name)).filter(p => p.id < before);
+      if (!page.length) break;
+      out.push(...page);
+      before = Math.min(...page.map(p => p.id));
+    } catch (_) { break; }
+  }
+  S.filled += out.length;
+  return out;
+}
+
 async function seed(env, c, S) {
   S.seeded = true;
-  if (S.posts.length || !env || !env.MARKET_KV) return;
+  if (S.posts.length) return;
+  const rows = await loadPosts(env, c.name, FEED_KEEP);   // D1 holds every post seen, so a cold isolate starts with a full window
+  if (rows && rows.length) { S.posts = rows; S.fromDb = true; return; }
+  if (!env || !env.MARKET_KV) return;
   try {
     const snap = await env.MARKET_KV.get(c.kv, 'json');
     if (snap && Array.isArray(snap.posts)) S.posts = snap.posts.slice(0, FEED_KEEP);   // shown as stale until the first poll succeeds
@@ -270,7 +305,7 @@ function viewOf(c, S, now, debug) {
   };
   if (c.hot) out.health.hot = hotCount(S.posts);
   if (S.gapId && S.posts.some(p => p.id < S.gapId)) out.gap = true;   // the window has a hole: older posts may be missing
-  if (debug) { out.sample = S.sample; out.skips = S.skips; }   // skips: polls answered without a parse (nothing new)
+  if (debug) { out.sample = S.sample; out.skips = S.skips; out.saved = S.saved; out.filled = S.filled; out.fromDb = S.fromDb; }   // skips: polls answered without a parse (nothing new)
   return out;
 }
 

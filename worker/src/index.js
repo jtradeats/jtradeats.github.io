@@ -9,6 +9,8 @@ import RESULTS from '../config/results.json';
 import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
+import { beat, beats, prunePosts, postsSummary, postsError } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
+import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
@@ -463,7 +465,36 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
 //   bls = the BLS release pages (CPI, jobs report, PPI, JOLTS), treasury = TreasuryDirect plus Treasury's tentative auction schedule, provider = the calendar feeds' look-ahead.
 // Lazy safety net (D77): a source that is overdue (never run, or not refreshed for 36 h) is started in the background by the next /calendar request, one source at a time.
 // GET /sync shows the state (read only; no way to start a run from outside).
+async function pollerHealth(env) {
+  const [b, p] = await Promise.all([beats(env), postsSummary(env)]), now = Date.now(), age = k => (b && b[k] ? Math.round((now - b[k]) / 1000) : null);
+  return { d1: !!(env && env.DB), feeds_run_age_s: age('feeds_run'), feeds_ok_age_s: age('feeds_ok'), calendar_age_s: age('cal'), calendar_near_age_s: age('cal_near'), posts: p, error: postsError() };
+}
 const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
+// The background pollers (plan P8.32): nothing may depend on a page being open. Two more triggers, each its own invocation and so its own 10 ms CPU budget.
+//   every minute:    both Telegram wires are read, new posts are stored in D1, a hole left by a long pause is closed (feed.js); once an hour old rows are pruned
+//   every 2 minutes: the calendar is built as a page would build it (calendar feeds, FRED, the wire's numbers, the ledger), every 2 minutes from 3 minutes before
+//                    a release until 90 minutes after it and every 10 minutes otherwise, so an actual is captured and stored with nobody watching
+// The strings must match wrangler.toml.
+const POLL_FEEDS = '* * * * *', POLL_CAL = '*/2 * * * *';
+const CAL_NEAR = [3 * 60000, 90 * 60000];   // a release is "near" from 3 minutes before to 90 minutes after (the official series' own fast tier is 2 to 90)
+async function pollFeeds(env, ctx, at) {
+  const body = JSON.parse(await getFeeds(env, ctx, {}));
+  const ok = [body, body.fj].some(v => v && v.status === 'ok');
+  const now = Date.now(), min = Math.floor(at / 60000);
+  if (min % 5 === 0) {   // a heartbeat every 5 minutes: 288 rows a day for each of the two, not 1,440
+    await beat(env, 'feeds_run', now);
+    if (ok) await beat(env, 'feeds_ok', now);
+  }
+  if (min % 60 === 0) await Promise.all(Object.keys(CHANNELS).map(n => prunePosts(env, n)));
+}
+async function pollCalendar(env, ctx, at) {
+  await loadSync(env);
+  const sch = schedule(at), min = Math.floor(at / 60000);
+  const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
+  if (!near && min % 10 !== 0) return;
+  await getCalendar(env, ctx, {});
+  await beat(env, near ? 'cal_near' : 'cal', Date.now());
+}
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
 const SYNC_TIMEOUT_TREASURY = 25000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s and again at 15 s. runTreasury runs them beside the tentative-file reads, so a run is about 25 s at worst: inside the 30 s a background (waitUntil) run is allowed
 const syncState = { rec: null, at: 0, running: false, tried: {}, last: null };
@@ -597,11 +628,26 @@ async function firstSave(env, now) {
   try { await env.MARKET_KV.put(FP_KV, JSON.stringify(firstSt.mem)); } catch (_) { firstSt.dirty = true; }   // an entry is added a few times a day, so this is a handful of the 1,000 free writes
 }
 
+// ---- actuals ledger (plan P8.30): the floor under the live sources, so a lapsed or cold source never drops a row back to the wire's number ----
+const ledgerSt = { mem: null, seeded: false, dirty: false, lastKv: 0, restored: 0 };
+async function ledgerSeed(env) {
+  if (ledgerSt.seeded) return;
+  ledgerSt.seeded = true;
+  ledgerSt.mem = newLedger();
+  if (!(env && env.MARKET_KV)) return;
+  try { ledgerSt.mem = ledgerFromKv(await env.MARKET_KV.get(LG_KV, 'json')); } catch (_) { /* carry on without it */ }
+}
+async function ledgerSave(env, now) {
+  if (!ledgerSt.dirty || !(env && env.MARKET_KV) || now - ledgerSt.lastKv < 30000) return;
+  ledgerSt.lastKv = now; ledgerSt.dirty = false;
+  try { await env.MARKET_KV.put(LG_KV, JSON.stringify(ledgerSt.mem)); } catch (_) { ledgerSt.dirty = true; }   // an entry is added or revised a few times a day
+}
+
 let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around a release, so keep the answer for 10 s
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
   if (calMemo && calMemo.debug === debug && now - calMemo.at < 10000) return calMemo.body;
-  await Promise.all([loadSync(env), firstSeed(env)]);
+  await Promise.all([loadSync(env), firstSeed(env), ledgerSeed(env)]);
   const sch = schedule(now);
   syncLazy(env, ctx, now);   // an overdue sync source starts in the background (D77)
   const pw = wireSeed(env).then(() => feedWindow(env, ctx, 'FinancialJuice', wireHot(sch.events, now)))
@@ -625,10 +671,14 @@ async function getCalendar(env, ctx, opts = {}) {
   const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now, firstLookups(firstSt.mem)) : { n: 0, issues: [] };   // fills blanks, replaces typed placeholders, flags disagreements
   if (recordActual(firstSt.mem, o.events, now)) firstSt.dirty = true;
   if (firstSt.dirty && pruneFirst(firstSt.mem, now)) firstSt.dirty = true;
+  ledgerSt.restored = applyLedger(o.events, ledgerSt.mem, now);   // what the live sources lost (a cold start, a lapse) comes back from the ledger, with its original tag
+  if (recordLedger(ledgerSt.mem, o.events, now)) ledgerSt.dirty = true;
+  if (ledgerSt.dirty) pruneLedger(ledgerSt.mem, now);
   o.issues.push(...off.issues);
   if (off.wire && off.wire.length && recordConfirms(wireSt.memo, off.wire, now)) wireSt.dirty = true;   // wire against official: the agree and disagree log
   const sv = wireSave(env, now); if (ctx) ctx.waitUntil(sv);
   const fv = firstSave(env, now); if (ctx) ctx.waitUntil(fv);
+  const lv = ledgerSave(env, now); if (ctx) ctx.waitUntil(lv);
   o.issues.push(...sch.merged.issues, ...syncIssues(syncState.rec, now, INDICATORS, !!(env && env.FMP_KEY)));   // schedule sync: failures, overdue sources, dates that moved overnight
   chainPrevious(o.events);
   const repl = typedReplaced(o.events, RESULTS);   // typed placeholders a real source has replaced: safe to delete from results.json
@@ -651,6 +701,7 @@ async function getCalendar(env, ctx, opts = {}) {
     feed: { status: fstat, mode: ffFast ? 'release window (5 min, this week only)' : 'normal (30 min)', at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
     official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: ostat === 'ok' ? null : offState.err },
+    ledger: { rows: Object.keys(ledgerSt.mem.rows).length, restored: ledgerSt.restored },   // restored: fields put back this time because a live source had none or a lesser one
     results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length, first: Object.keys(firstSt.mem.rows).length },
     wire: { status: fw.status, n: wr.n, error: wireSt.err, ...wireSummary(wireSt.memo) },   // FinancialJuice actuals filled this time, and how often the wire matched the official number so far
     sync: { ...syncSummary(syncState.rec), tiers: sch.merged.tiers, stats: sch.merged.stats },   // what the schedule check shows
@@ -794,6 +845,7 @@ export default {
         sectors: sectors.health(), weekly: weekly.health(),
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
+        poller: await pollerHealth(env),
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
     }
@@ -866,7 +918,9 @@ export default {
     return new Response('{"error":"not found"}', { status: 404, headers: json });
   },
   async scheduled(event, env, ctx) {   // Cron Triggers (wrangler.toml): the nightly schedule sync, one source per trigger
-    const name = SYNC_CRONS[event.cron];
+    const name = SYNC_CRONS[event.cron], at = event.scheduledTime || Date.now();
     if (name) ctx.waitUntil(runSyncSource(name, env).catch(() => {}));
+    else if (event.cron === POLL_FEEDS) ctx.waitUntil(pollFeeds(env, ctx, at).catch(e => console.log('poll feeds: ' + String(e && e.message))));
+    else if (event.cron === POLL_CAL) ctx.waitUntil(pollCalendar(env, ctx, at).catch(e => console.log('poll calendar: ' + String(e && e.message))));
   },
 };
