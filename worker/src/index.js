@@ -307,7 +307,7 @@ async function loadFeed(urls = CAL_FEEDS) {
     catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
   if (!ok) { const err = new Error(notes.join(' | ')); err.rate = rate; throw err; }
-  return { events: normFair(raw), notes };
+  return { events: normFair(raw, INDICATORS), notes };   // INDICATORS: keeps Forex Factory's Low-rated crude row (P8.33)
 }
 
 // Bring the Fair Economy copy up to date if it is due. Never throws; records the outcome in feedState.

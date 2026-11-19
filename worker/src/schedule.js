@@ -254,12 +254,17 @@ export function candidates(IND, title) {
 }
 
 // Fair Economy / Forex Factory weekly JSON (no key, no actuals, rate-limits shared Cloudflare IPs)
-export function normFair(rows) {
+// IND (optional, indicators.json): a "Low" row is kept when its title matches a row of a release the dashboard shows. Forex Factory rates Crude Oil Inventories "Low",
+// so without this its forecast never arrived (P8.33). Everything else rated Low is still dropped. imp 1 = Low (never drives a countdown or an "extras" line).
+export function normFair(rows, IND) {
   const out = [];
   for (const r of rows || []) {
     const t = Date.parse(r.date);
-    if (r.country !== 'USD' || !t || (r.impact !== 'High' && r.impact !== 'Medium')) continue;
-    out.push({ t, title: String(r.title).slice(0, 80), imp: r.impact === 'High' ? 3 : 2, fc: r.forecast || null, pv: r.previous || null, ac: r.actual || null });
+    if (r.country !== 'USD' || !t) continue;
+    const title = String(r.title).slice(0, 80);
+    const imp = r.impact === 'High' ? 3 : r.impact === 'Medium' ? 2 : r.impact === 'Low' && IND && candidates(IND, title).length ? 1 : 0;
+    if (!imp) continue;
+    out.push({ t, title, imp, fc: r.forecast || null, pv: r.previous || null, ac: r.actual || null });
   }
   return out.sort((a, b) => a.t - b.t);
 }
@@ -330,7 +335,9 @@ export function overlay(events, feeds, IND, nowMs) {
       const ev = byId.get(`${c.k}|${p.iso}|${c.r}`);
       hit.add(ev.id);
       for (const f of ['fc', 'pv', 'ac']) {
-        const v = fmtVal(row[f], ev.u);
+        let v = fmtVal(row[f], ev.u);
+        // a row may ask for fixed decimals on a forecast (indicators.json "dp"): Forex Factory writes crude as 0.4M, the reference calendar as 0.400M
+        if (v !== null && f === 'fc' && ev.u === 'M') { const dp = (IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).dp; if (dp != null && /^-?\d+(\.\d+)?M$/.test(v)) v = parseFloat(v).toFixed(dp) + 'M'; }
         if (v !== null) { ev[f] = v; (ev.sr = ev.sr || {})[f] = feed.name; }
       }
       const dt = Math.round((row.t - ev.t) / 60000);

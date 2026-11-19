@@ -34,7 +34,7 @@ export const RULES = [
   R('JOLTS JOB OPENINGS', 'jolts|main', 3, 15, { seen: 1 }),
   R('ADP EMPLOYMENT CHANGE', 'adp|main', -800, 1000, { seen: 1 }),
   R('RETAIL SALES MOM', 'retail|main', -6, 6, { seen: 1 }),
-  R('EIA CRUDE OIL INVENTORIES', 'eia|main', -30, 30, { seen: 1 }),
+  R('EIA CRUDE OIL INVENTORIES', 'eia|main', -30, 30, { seen: 1, dp: 3 }),   // dp: three decimals, as the reference calendar shows (0.400M, 3.380M)
   R('INTEREST RATE DECISION', 'fomc|dec', 0, 12, { seen: 1, dp: 2 }),
   // wording not yet seen: send the posts and these become seen:1 (or get corrected)
   R('UNEMPLOYMENT RATE', 'nfp|unemp', 1, 25),
@@ -90,7 +90,7 @@ export function inRowUnit(t, u) {
   if (u === 'M') return t.s === 'M' ? t.n : t.s === 'K' ? t.n / 1000 : null;
   return t.s === '' ? t.n : null;   // plain index (PMIs)
 }
-const show = (x, u, dp) => (x == null ? null : dp != null ? x.toFixed(dp) + (u === '%' ? '%' : '') : fmtVal(x, u));
+const show = (x, u, dp) => (x == null ? null : dp != null ? x.toFixed(dp) + (u === '%' || u === 'M' ? u : '') : fmtVal(x, u));
 const num = s => { const m = String(s).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : NaN; };
 
 export const newMemo = () => ({ v: 1, rows: {}, log: [] });

@@ -81,6 +81,9 @@ export function parseEiaJson(text) {
   return m;
 }
 
+// how a computed number is written: EIA rows keep three decimals as the reference calendar does (3.380M, not 3.38M); every other row uses fmtVal as before
+const fv = (x, sp) => (sp.dp != null && sp.u === 'M' ? x.toFixed(sp.dp) + 'M' : fmtVal(x, sp.u));
+
 const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 const shiftMonth = (iso, n) => { const [y, m] = iso.split('-').map(Number), t = y * 12 + (m - 1) + n; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}-01`; };
@@ -131,7 +134,7 @@ export function applyOfficial(events, M, now, opts = {}) {
     if (!spec || e.hol || e.src === 'feed' || e.t > now || e.t < now - 45 * 864e5) continue;   // not released yet, or too old to trust a later vintage
     const S = M && M[spec.s], obs = S && obsFor(e, spec), a = obs && calc(S, spec, obs);
     if (a == null) continue;
-    const act = fmtVal(a, spec.u), tag = spec.tag || 'FRED', who0 = tag === 'FRED' ? 'FRED (official series)' : tag;   // tag: the source the row shows
+    const act = fv(a, spec), tag = spec.tag || 'FRED', who0 = tag === 'FRED' ? 'FRED (official series)' : tag;   // tag: the source the row shows
     // blank, or only a hand-typed placeholder. A typed actual is replaced only in the first 3 days: the series later carries revised vintages, and a past release's actual is its first print.
     if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = e.ac != null && num(e.ac) === num(act) ? e.ac : act; (e.sr = e.sr || {}).ac = tag; n++; }   // the same number typed another way ("7.190M" and "7.19M") keeps its text
     else if (e.sr && e.sr.ac === 'FJ') {   // first figure came from the wire: the official series settles it
@@ -152,7 +155,7 @@ export function applyOfficial(events, M, now, opts = {}) {
     }
     const pv = calc(S, spec, prevObs(obs, spec));
     if (pv == null) continue;
-    const ps = fmtVal(pv, spec.u), sr = e.sr = e.sr || {};
+    const ps = fv(pv, spec), sr = e.sr = e.sr || {};
     // what the market saw as "previous" before this release: remembered before any revision, else the earlier release's first actual
     const ref = (opts.pv0 && opts.pv0(e.id)) ?? (before ? ((opts.ac0 && opts.ac0(before.id)) ?? before.ac) : null);
     // The official series carries the revisions, so for a released row its previous replaces a feed, wire or typed one (a provider's file can lag the revised number by hours).
