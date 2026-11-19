@@ -886,6 +886,7 @@
      "id": "main",
      "t": "Crude Oil Inventories",
      "u": "M",
+     "dp": 3,
      "dir": "oil",
      "match": [
       "Crude Oil Inventories",
