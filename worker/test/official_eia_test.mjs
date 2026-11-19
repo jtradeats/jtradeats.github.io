@@ -88,3 +88,22 @@ test('FRED rows keep their old behaviour in the ledger (pv tag FRED when none is
 test('the EIA series is the only non-FRED series', () => {
   assert.deepEqual(SERIES.filter(s => !/^[A-Z0-9]+$/.test(s)), ['EIA:WCESTUS1']);
 });
+
+// ---- display: three decimals like the reference calendar, from both the official number and the wire ----
+import { applyWire, newMemo } from '../src/wire.js';
+
+test('EIA numbers keep three decimals: 3.380M (not 3.38M), -1.500M, 0.000M; other M rows are untouched', () => {
+  for (const [diff, want] of [[3380, '3.380M'], [-1500, '-1.500M'], [0, '0.000M'], [4657, '4.657M']]) {
+    const e = ev('2026-11-18');
+    applyOfficial([e], { 'EIA:WCESTUS1': parseEiaJson(api([['2026-11-06', 400000], ['2026-11-13', 400000 + diff]])) }, T('2026-11-19', '04:30'));
+    assert.equal(e.ac, want);
+  }
+});
+
+test('wire: the EIA post fills actual, forecast and previous with three decimals and the M suffix', () => {
+  const e = ev('2026-11-18', { id: 'eia|2026-11-18|main', u: 'M' });   // real events carry the row's unit
+  const posts = [{ id: 1, t: e.t + 20e3, text: 'EIA CRUDE OIL INVENTORIES ACTUAL 3.38M (FORECAST 0.4M, PREVIOUS 4.657M) $MACRO' }];
+  applyWire([e], posts, e.t + 60e3, newMemo());
+  assert.equal(e.ac, '3.380M'); assert.equal(e.fc, '0.400M'); assert.equal(e.pv, '4.657M');
+  assert.deepEqual([e.sr.ac, e.sr.fc, e.sr.pv], ['FJ', 'FJ', 'FJ']);
+});
