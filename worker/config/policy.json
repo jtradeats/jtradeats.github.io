@@ -1,0 +1,5 @@
+{
+ "_note": "FOMC decision dates the Worker needs for the policy backdrop (plan P8.9). schedule.json keeps only upcoming meetings, so the meetings already held live here (the second day of each meeting, 14:00 ET; Fed calendar, federalreserve.gov/monetarypolicy/fomccalendars.htm). The facts job reads what each decision DID from FRED's target-range series; this file only says WHEN decisions were due. Add a date when the Fed confirms one; audit sitting 3 re-checks the list.",
+ "time": "14:00",
+ "decisions": ["2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09"]
+}
