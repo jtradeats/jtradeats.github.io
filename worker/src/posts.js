@@ -7,6 +7,7 @@
 export const POSTS_SCHEMA = [
   'CREATE TABLE IF NOT EXISTS tg_posts (ch TEXT NOT NULL, id INTEGER NOT NULL, t INTEGER, j TEXT NOT NULL, PRIMARY KEY (ch, id))',
   'CREATE TABLE IF NOT EXISTS poll_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS actual_lag (id TEXT PRIMARY KEY, rel INTEGER NOT NULL, seen INTEGER NOT NULL, src TEXT)',
 ];
 export const POSTS_KEEP_ROWS = 800;   // per channel: about two to three days of FinancialJuice
 
@@ -82,4 +83,24 @@ export async function beats(env) {
   const d = db(env);
   if (!d || !(await ensurePosts(env))) return null;
   try { const r = await d.prepare('SELECT k, v FROM poll_meta').all(); return Object.fromEntries((r.results || []).map(x => [x.k, x.v])); } catch (e) { state.err = String(e && e.message).slice(0, 120); return null; }
+}
+
+// ---- the actuals lag log (plan P8.18, O60): per release row, when it came out, when any source first returned an actual, and which one ----
+// INSERT OR IGNORE: the first sighting is kept and a later isolate that sees the same actual writes nothing. About 5 to 15 rows a day; the newest 200 are kept.
+export async function recordLag(env, rows) {
+  const d = db(env);
+  if (!d || !rows.length || !(await ensurePosts(env))) return false;
+  try {
+    await d.batch(rows.map(r => d.prepare('INSERT OR IGNORE INTO actual_lag (id, rel, seen, src) VALUES (?1, ?2, ?3, ?4)').bind(r.id, r.rel, r.seen, r.src)));
+    if (Math.floor(rows[0].seen / 60000) % 60 === 0) await d.prepare('DELETE FROM actual_lag WHERE seen < COALESCE((SELECT seen FROM actual_lag ORDER BY seen DESC LIMIT 1 OFFSET 200), 0)').run();
+    return true;
+  } catch (e) { state.err = String(e && e.message).slice(0, 120); return false; }
+}
+export async function loadLag(env, n = 30) {
+  const d = db(env);
+  if (!d || !(await ensurePosts(env))) return null;
+  try {
+    const r = await d.prepare('SELECT id, rel, seen, src FROM actual_lag ORDER BY seen DESC LIMIT ?1').bind(n).all();
+    return (r.results || []).map(x => ({ id: x.id, release: new Date(x.rel).toISOString().replace(/\.\d+Z$/, 'Z'), lag_s: Math.round((x.seen - x.rel) / 1000), src: x.src }));
+  } catch (e) { state.err = String(e && e.message).slice(0, 120); return null; }
 }

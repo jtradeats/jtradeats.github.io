@@ -6,12 +6,14 @@ import SYMBOLS from '../config/symbols.json';
 import SCHEDULE from '../config/schedule.json';
 import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
+import POLICY_CFG from '../config/policy.json';   // FOMC decision dates already held (plan P8.9)
 import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
-import { beat, beats, prunePosts, postsSummary, postsError } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
+import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
-import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial } from './official.js';
+import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
+import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
@@ -307,7 +309,7 @@ async function loadFeed(urls = CAL_FEEDS) {
     catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
   if (!ok) { const err = new Error(notes.join(' | ')); err.rate = rate; throw err; }
-  return { events: normFair(raw, INDICATORS), notes };   // INDICATORS: keeps Forex Factory's Low-rated crude row (P8.33)
+  return { events: normFair(raw), notes };
 }
 
 // Bring the Fair Economy copy up to date if it is due. Never throws; records the outcome in feedState.
@@ -385,6 +387,8 @@ async function refreshFmp(env, sch) {
     fmpState.status = /HTTP (401|402|403)|invalid|plan|subscription/i.test(fmpState.err) ? 'rejected' : fmpState.limited ? 'rate-limited' : 'unavailable';
   }
 }
+// never "no-key" while a key is set (a cold isolate has not asked yet); FMP's free plan was rejected (HTTP 402) and the design no longer depends on it (D114)
+const fmpStatus = env => (fmpState.status === 'no-key' && env && env.FMP_KEY ? 'not polled yet' : fmpState.status);
 function fmpRefresh(env, ctx, sch) {
   if (!fmpState.inflight) {
     fmpState.inflight = refreshFmp(env, sch).finally(() => { fmpState.inflight = null; });
@@ -399,7 +403,7 @@ function fmpRefresh(env, ctx, sch) {
 // Polls every 30 min, and every 60 s from 2 min before a release it covers to 90 min after it, so the actual lands as soon as FRED has it.
 // FRED's lag behind BLS and DOL is unmeasured: check /calendar?debug=1 on the first release. Memory only (no KV): one request per series (17 for a full poll).
 const OFF_SLOW = 3 * 3600e3, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;   // the full 17-series download every 3 h (was 30 min): a finished release does not change, and a release window has its own 60 s tier below
-const offState = { M: null, at: 0, fastAt: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
+const offState = { M: null, V: {}, at: 0, fastAt: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
 const redact = s => String(s).replace(/api_key=[^&\s]*/gi, 'api_key=***');
 // The API call says who it is (FRED's terms ask programs to identify themselves) and, when it fails, keeps what FRED answered: status, server and the start of the body.
 // A 520 from a plain `get` tells nothing; the body and headers show whether it is a block, a bad key or an outage.
@@ -415,18 +419,21 @@ async function fredApiGet(url) {
 // `only`: a Set of series to fetch (the ones a release in the next minutes needs); omitted = every series. A partial fetch is merged into what is held.
 async function loadOfficial(env, only) {
   const since = new Date(Date.now() - 460 * 864e5).toISOString().slice(0, 10);   // 13+ months: year-on-year needs it
-  const key = env && env.FRED_KEY, eiaKey = env && env.EIA_KEY, M = {}, errs = [];
+  const key = env && env.FRED_KEY, M = {}, V = {}, errs = [];
+  // P8.18: for a series that BEA revises (GDP), also ask when each value began, from 47 days back (the 45-day window of applyOfficial plus a margin), so an unrevised quarter is never read as the new estimate
+  const vFrom = new Date(Date.now() - 47 * 864e5).toISOString().slice(0, 10), vSince = new Date(Date.now() - 200 * 864e5).toISOString().slice(0, 10);
   await Promise.all(OFF_SERIES.filter(s => !only || only.has(s)).map(async s => {
+    const vp = key && VINTAGE_SERIES.has(s) ? fredApiGet(fredVintageUrl(s, key, vSince, vFrom)).then(parseFredVintage).then(m => { V[s] = m; }, e => { errs.push([`${s} vintages`, redact(e.message)]); }) : null;
     try {
-      if (s.startsWith('EIA:')) { if (!eiaKey) throw new Error('no EIA_KEY set'); M[s] = parseEiaJson(await fredApiGet(eiaApiUrl(s.slice(4), eiaKey, since))); }   // EIA's own API (P8.33)
-      else M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
+      M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
       if (!M[s].size) throw new Error('no rows');
     } catch (e) { delete M[s]; errs.push([s, redact(e.message)]); }
+    if (vp) await vp;
   }));
   // the same failure for every series is shown once, not once per series
   const text = errs.length > 1 && errs.every(([, m]) => m === errs[0][1]) ? [`${errs.length} series: ${errs[0][1]}`] : errs.map(([s, m]) => `${s}: ${m}`);
   if (!Object.keys(M).length) throw new Error((key ? '' : 'no FRED_KEY set (the keyless CSV is usually refused): ') + text.join(' | '));
-  return { M, errs: text, via: key ? 'api' : 'csv' };
+  return { M, V, errs: text, via: key ? 'api' : 'csv' };
 }
 // Every series every 30 min; in the window around a release (2 min before to 90 min after) only the series that release needs, every 60 s. That keeps a busy
 // minute to a handful of requests (the free plan allows 50 per invocation, and FRED 120 a minute) while the actual still lands within a minute of FRED having it.
@@ -439,7 +446,7 @@ async function refreshOfficial(env, sch) {
   if (!fullDue && !fastDue) return;
   try {
     const o = await loadOfficial(env, fullDue ? null : nearSer);
-    if (fullDue) { offState.M = o.M; offState.at = Date.now(); } else { offState.M = { ...offState.M, ...o.M }; offState.fastAt = Date.now(); }
+    if (fullDue) { offState.M = o.M; offState.V = o.V; offState.at = Date.now(); } else { offState.M = { ...offState.M, ...o.M }; offState.V = { ...offState.V, ...o.V }; offState.fastAt = Date.now(); }
     offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 320) : null; offState.status = 'ok'; offState.via = o.via;
   } catch (e) {
     offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 320);
@@ -468,7 +475,7 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
 // GET /sync shows the state (read only; no way to start a run from outside).
 async function pollerHealth(env) {
   const [b, p] = await Promise.all([beats(env), postsSummary(env)]), now = Date.now(), age = k => (b && b[k] ? Math.round((now - b[k]) / 1000) : null);
-  return { d1: !!(env && env.DB), feeds_run_age_s: age('feeds_run'), feeds_ok_age_s: age('feeds_ok'), calendar_age_s: age('cal'), calendar_near_age_s: age('cal_near'), posts: p, error: postsError() };
+  return { d1: !!(env && env.DB), feeds_run_age_s: age('feeds_run'), feeds_ok_age_s: age('feeds_ok'), calendar_age_s: age('cal'), calendar_near_age_s: age('cal_near'), policy_ok_age_s: age('policy_ok'), posts: p, error: postsError() };
 }
 const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
 // The background pollers (plan P8.32): nothing may depend on a page being open. Two more triggers, each its own invocation and so its own 10 ms CPU budget.
@@ -492,7 +499,7 @@ async function pollCalendar(env, ctx, at) {
   await loadSync(env);
   const sch = schedule(at), min = Math.floor(at / 60000);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
-  if (!near && min % 10 !== 0) return;
+  if (!near && min % 10 !== 0) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
   await getCalendar(env, ctx, {});
   await beat(env, near ? 'cal_near' : 'cal', Date.now());
 }
@@ -644,13 +651,92 @@ async function ledgerSave(env, now) {
   try { await env.MARKET_KV.put(LG_KV, JSON.stringify(ledgerSt.mem)); } catch (_) { ledgerSt.dirty = true; }   // an entry is added or revised a few times a day
 }
 
+// ---- policy facts (plan P8.9): the target range, the last change and decision, built from FRED and the FOMC schedule, no AI and nothing typed by hand ----
+// Runs once a day from the 2-minute poller (on a tick that builds nothing else, so it has its own CPU) and, on a decision day, from the first calendar build after the
+// decision time (at most every 10 minutes) until FRED's series shows the decision. One KV key, written when the facts change or the day turns (at most 2 a day).
+const POLICY_GAP = 10 * 60000, POLICY_DAILY = 23 * 3600e3;
+const policySt = { facts: null, vote: null, seeded: false, tryAt: 0, running: false, err: null, kvSig: '', okAt: 0 };
+async function policySeed(env) {
+  if (policySt.seeded) return;
+  policySt.seeded = true;
+  if (!(env && env.MARKET_KV)) return;
+  try { const r = await env.MARKET_KV.get(POLICY_KV, 'json'); if (r && r.facts) { policySt.facts = r.facts; policySt.vote = r.vote || null; policySt.kvSig = JSON.stringify({ ...r.facts, at: 0 }) + JSON.stringify(r.vote || null); } } catch (_) { /* carry on without it */ }
+}
+const policyDecs = sch => decisionList(POLICY_CFG, sch.events);
+const policyVote = () => (policySt.facts && policySt.facts.decision && policySt.vote && policySt.vote.d === policySt.facts.decision.d ? policySt.vote.v : null);
+async function runPolicy(env) {
+  const key = env && env.FRED_KEY;
+  if (!key) return false;
+  const now = Date.now();
+  policySt.tryAt = now;
+  try {
+    const since = new Date(now - 800 * 864e5).toISOString().slice(0, 10);
+    const [U, L] = await Promise.all([SERIES_U, SERIES_L].map(sr => fredApiGet(fredApiUrl(sr, key, since)).then(parseFredJson)));
+    const f = computeFacts(U, L, policyDecs(schedule(now)), now, nyDate(now));
+    if (!f) throw new Error('the target-range series is too short to read');
+    // the vote: from the Fed's statement page for the last decision, once the series shows it; a page that cannot be read is tried again later (4 times at most, 6 hours apart), never guessed
+    let vt = policySt.vote && f.decision && policySt.vote.d === f.decision.d ? policySt.vote : null;
+    if (f.decision && f.decision.reflected && (!vt || (vt.v == null && vt.tries < 4 && now - vt.at > 6 * 3600e3))) {
+      let v = null;
+      try { v = parseVotes(await get(statementUrl(f.decision.d), { Accept: 'text/html' }, 8000)); } catch (_) { /* the page is not reachable: no vote sentence */ }
+      vt = { d: f.decision.d, v, at: now, tries: (vt ? vt.tries : 0) + 1 };
+    }
+    policySt.facts = f; policySt.vote = vt; policySt.err = null; policySt.okAt = now;
+    const sig = JSON.stringify({ ...f, at: 0 }) + JSON.stringify(vt);
+    if (sig !== policySt.kvSig && env.MARKET_KV) { await env.MARKET_KV.put(POLICY_KV, JSON.stringify({ facts: f, vote: vt })); policySt.kvSig = sig; }
+    return true;
+  } catch (e) { policySt.err = redact(e.message).slice(0, 200); return false; }
+}
+// a decision whose time has passed that the facts do not show yet (and is under 4 days old): refresh now, then every 10 minutes
+function policyPending(sch, now) {
+  const f = policySt.facts, latest = policyDecs(sch).filter(x => x.t <= now).pop();
+  return !f || (latest && now - latest.t < 4 * 864e5 && (!f.decision || f.decision.d < latest.d || !f.decision.reflected));
+}
+function policyLazy(env, ctx, sch, now) {
+  if (!(env && env.FRED_KEY) || policySt.running || now - policySt.tryAt < POLICY_GAP || !policyPending(sch, now)) return;
+  policySt.running = true;
+  const p = runPolicy(env).finally(() => { policySt.running = false; });
+  if (ctx) ctx.waitUntil(p);
+}
+async function policyDaily(env, sch, at) {
+  if (!(env && env.FRED_KEY) || policySt.running) return;
+  await policySeed(env);
+  const vt = policySt.vote, retry = !!(policySt.facts && policySt.facts.decision && policySt.facts.decision.reflected && (!vt || vt.d !== policySt.facts.decision.d || (vt.v == null && vt.tries < 4 && at - vt.at > 6 * 3600e3)));   // the statement could not be read last time: ask again, 6 hours apart, 4 times at most
+  if (policySt.facts && at - policySt.facts.at < POLICY_DAILY && !policyPending(sch, at) && !retry) return;
+  const b = await beats(env);
+  if (b && b.policy_try && Date.now() - b.policy_try < POLICY_GAP) return;   // another isolate tried a moment ago
+  await beat(env, 'policy_try', Date.now());
+  policySt.running = true;
+  try { if (await runPolicy(env)) await beat(env, 'policy_ok', Date.now()); } finally { policySt.running = false; }
+}
+function policyHealth(env) {
+  const f = policySt.facts, now = Date.now();
+  return { key: !!(env && env.FRED_KEY), loaded: !!f, checked: f ? f.checked : null, age_s: f ? Math.round((now - f.at) / 1000) : null, range: f ? `${f.lower.toFixed(2)}-${f.upper.toFixed(2)}%` : null,
+    decision: f && f.decision ? f.decision : null, vote: policySt.vote ? (policySt.vote.v ? 'found' : `not found (${policySt.vote.tries} tries)`) : 'not tried', error: policySt.err };
+}
+
+// ---- actuals lag log (plan P8.18, O60) ----
+const lagSt = { seen: new Set() };
+function lagDetect(events, live, now) {
+  const out = [];
+  for (const e of events) {
+    if (e.hol || e.src === 'feed' || !live.has(e.id) || e.t > now || now - e.t > 3 * 36e5 || lagSt.seen.has(e.id)) continue;
+    const src = (e.sr && e.sr.ac) || 'feed';
+    if (src === 'ref') continue;   // a hand-typed placeholder is not a source
+    lagSt.seen.add(e.id);
+    out.push({ id: e.id, rel: e.t, seen: now, src });
+  }
+  return out;
+}
+
 let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around a release, so keep the answer for 10 s
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
   if (calMemo && calMemo.debug === debug && now - calMemo.at < 10000) return calMemo.body;
-  await Promise.all([loadSync(env), firstSeed(env), ledgerSeed(env)]);
+  await Promise.all([loadSync(env), firstSeed(env), ledgerSeed(env), policySeed(env)]);
   const sch = schedule(now);
-  syncLazy(env, ctx, now);   // an overdue sync source starts in the background (D77)
+  syncLazy(env, ctx, now);
+  policyLazy(env, ctx, sch, now);   // facts never built, or a decision the series does not show yet   // an overdue sync source starts in the background (D77)
   const pw = wireSeed(env).then(() => feedWindow(env, ctx, 'FinancialJuice', wireHot(sch.events, now)))
     .catch(e => { wireSt.err = String(e.message).slice(0, 120); return { posts: [], status: 'broken' }; });   // polls Telegram only around a covered release
   const ffFast = ffHot(sch.events, now);   // a scheduled release is about to happen or just happened
@@ -669,13 +755,20 @@ async function getCalendar(env, ctx, opts = {}) {
   wireSt.feed = fw.status; if (fw.status !== 'broken') wireSt.err = null;
   o.issues.push(...wr.issues);
   if (recordPrev(firstSt.mem, o.events, now)) firstSt.dirty = true;   // the previous as the feeds and the wire show it: still before any revision
-  const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now, firstLookups(firstSt.mem)) : { n: 0, issues: [] };   // fills blanks, replaces typed placeholders, flags disagreements
+  const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now, { ...firstLookups(firstSt.mem), vint: (ser, ob) => offState.V && offState.V[ser] && offState.V[ser].get(ob) }) : { n: 0, issues: [], skipped: [] };   // fills blanks, replaces typed placeholders, flags disagreements
   if (recordActual(firstSt.mem, o.events, now)) firstSt.dirty = true;
   if (firstSt.dirty && pruneFirst(firstSt.mem, now)) firstSt.dirty = true;
+  const liveAc = new Set(o.events.filter(e => e.ac != null).map(e => e.id));   // actuals a live source gave this time (not the ledger's): the lag log counts only those
   ledgerSt.restored = applyLedger(o.events, ledgerSt.mem, now);   // what the live sources lost (a cold start, a lapse) comes back from the ledger, with its original tag
   if (recordLedger(ledgerSt.mem, o.events, now)) ledgerSt.dirty = true;
   if (ledgerSt.dirty) pruneLedger(ledgerSt.mem, now);
+  const pend = markPending(o.events, now);   // covered rows still without any actual: the page says "awaiting official figure"
+  const lagNew = lagDetect(o.events, liveAc, now);
+  if (lagNew.length) { const lw = recordLag(env, lagNew); if (ctx) ctx.waitUntil(lw); }
   o.issues.push(...off.issues);
+  const decs = policyDecs(sch), nIso = nyDate(now), pb = policyBackdrop(policySt.facts, decs, now, nIso, policyVote());
+  const backdrop = pb && pb.checked >= String(INDICATORS.backdrop.asof) ? pb : INDICATORS.backdrop;   // built facts beat the file's text only when they are the newer of the two (the file stays the fallback)
+  o.issues.push(...policyIssues(policySt.facts, decs, now, nIso, INDICATORS.fams_reviewed, !!(env && env.FRED_KEY)));
   if (off.wire && off.wire.length && recordConfirms(wireSt.memo, off.wire, now)) wireSt.dirty = true;   // wire against official: the agree and disagree log
   const sv = wireSave(env, now); if (ctx) ctx.waitUntil(sv);
   const fv = firstSave(env, now); if (ctx) ctx.waitUntil(fv);
@@ -687,7 +780,7 @@ async function getCalendar(env, ctx, opts = {}) {
   let fstat = feedState.status;
   if (feedState.events && ffStale(now - feedState.at, ffFast)) fstat = 'stale';
   else if (fstat === 'none' && feedState.failAt) fstat = 'unavailable';
-  let mstat = fmpState.status;
+  let mstat = fmpStatus(env);
   if (mstat === 'ok' && now - fmpState.at > FMP_SLOW * 2) mstat = 'stale';
 
   let ostat = offState.status;
@@ -698,10 +791,10 @@ async function getCalendar(env, ctx, opts = {}) {
     updated: new Date(now).toISOString().replace(/\.\d+Z$/, 'Z'),
     now,                                                  // the page compares this with its own clock
     src: 'official release schedule',
-    sources: SCHEDULE.sources, checked: sch.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop: INDICATORS.backdrop,   // what the page needs to explain each release
+    sources: SCHEDULE.sources, checked: sch.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop,   // what the page needs to explain each release
     feed: { status: fstat, mode: ffFast ? 'release window (5 min, this week only)' : 'normal (30 min)', at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
-    official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: ostat === 'ok' ? null : offState.err },
+    official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: offState.err, awaiting: pend.length, held: off.skipped.length },   // held: rows FRED has a value for that was not shown, with the reason in ?debug=1
     ledger: { rows: Object.keys(ledgerSt.mem.rows).length, restored: ledgerSt.restored },   // restored: fields put back this time because a live source had none or a lesser one
     results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length, first: Object.keys(firstSt.mem.rows).length },
     wire: { status: fw.status, n: wr.n, error: wireSt.err, ...wireSummary(wireSt.memo) },   // FinancialJuice actuals filled this time, and how often the wire matched the official number so far
@@ -710,9 +803,9 @@ async function getCalendar(env, ctx, opts = {}) {
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
   };
-  if (debug) out.debug = { replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
+  if (debug) out.debug = { policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
     fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
-    official: { via: offState.via, error: offState.err, series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
+    official: { via: offState.via, error: offState.err, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
   calMemo = { at: now, debug, body };
@@ -839,7 +932,7 @@ export default {
         memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
         cached_items: itemCache.size,
         calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null,
-          fmp: fmpState.status, fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
+          fmp: fmpStatus(env), fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
           official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null,
           wire: wireSt.memo ? { feed: wireSt.feed, ...wireSummary(wireSt.memo) } : null },
         tv: tvHealth(await loadTv(env), env),
@@ -847,6 +940,8 @@ export default {
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
         poller: await pollerHealth(env),
+        policy: policyHealth(env),   // the policy facts job: when it last confirmed the facts, the range read, whether the vote was found
+        official: { lag: await loadLag(env) },   // per release row: seconds from the release time to the first actual from any source, and which source (about 5 to 15 rows a day, newest first)
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
     }
@@ -882,6 +977,7 @@ export default {
         if (!(env && env.TV_OVERLAY === 'off')) out = route === weekly
           ? tvWeekly(out, await loadTv(env), Date.now(), TV_WEEKLY)   // live price and week open from the TradingView push, when fresh (src/tv.js)
           : tvMarket(out, await loadTv(env), Date.now(), quote);      // live sector ETFs, each only while its own bar is recent (P8.28)
+        if (!(env && env.TV_OVERLAY === 'off')) { const th = tvHealth(await loadTv(env), env), j = JSON.parse(out); j.tv = { live: th.live, age_s: th.push_age_s }; out = JSON.stringify(j); }   // the card says WHY it is delayed: the TradingView push is off, or only does not cover these items
         return new Response(out, { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
