@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>push check</title>
+<style>body{font:16px -apple-system,system-ui,sans-serif;background:#121214;color:#eee;padding:24px}
+h1{font-size:20px}p{margin:10px 0}b.ok{color:#4e9269}b.no{color:#c97878}code{color:#F29440}</style></head>
+<body><h1>Push support check</h1><div id="o">checking…</div>
+<script>
+(function(){
+function row(l,v,good){return '<p>'+l+': <b class="'+(good?'ok':'no')+'">'+v+'</b></p>';}
+var sa=!!navigator.standalone, dm=window.matchMedia&&matchMedia('(display-mode: standalone)').matches;
+var h=row('Opened as a Home Screen app (standalone)',(sa||dm)?'yes':'no',sa||dm)
++row('Service workers','serviceWorker' in navigator?'available':'missing','serviceWorker' in navigator)
++row('Push manager','PushManager' in window?'available':'missing','PushManager' in window)
++row('Notification API','Notification' in window?'available (permission: '+Notification.permission+')':'missing','Notification' in window)
++'<p>Page: <code>'+location.pathname+'</code><br>User agent: <code>'+navigator.userAgent+'</code></p>';
+document.getElementById('o').innerHTML=h;
+})();
+</script></body></html>
