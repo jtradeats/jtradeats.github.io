@@ -319,6 +319,7 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .flames svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .flames.h i.f{color:var(--r)}.flames.m i.f{color:#E0A24A}
 .flames i.f svg{fill:currentColor;fill-opacity:.8}
+.aw{display:inline-block;max-width:9em;font-size:10px;font-weight:500;line-height:1.25;color:var(--t3);text-align:right}
 .vq{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;border:.5px solid var(--bdm);font-size:10px;font-weight:600;color:var(--t3);vertical-align:1px}
 .vq.w{color:#C98A2E;border-color:#C98A2E}
 .mk3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
@@ -1220,7 +1221,7 @@ const cal=el=>{
       if(e.d!==last){last=e.d;h+='<tr class="day"><td colspan="6">'+esc(etDayL(e.t))+(e.d===today?'<small>today</small>':'')+'</td></tr>'}
       if(e.hol){h+='<tr class="hol"><td class="tt">'+(e.ad===1?'All Day':'')+'</td><td class="im"><span class="hl">Holiday</span></td><td class="ev">'+esc(e.title)+vmark(e)+'</td><td class="n"></td><td class="n"></td><td class="n"></td></tr>';return}
       const i=shown.push(e)-1,has=e.ac||e.fc||e.pv;
-      h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):(nxT!=null&&e.t===nxT&&e.src!=='feed'?'next':''))+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>'+fjMark(e):'')+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
+      h+='<tr class="rw '+(e.t<now?'past'+(e.ac?'':' nodata'):(nxT!=null&&e.t===nxT&&e.src!=='feed'?'next':''))+'" data-i="'+i+'" tabindex="0" role="button" aria-label="explain '+esc(e.title)+'"><td class="tt" title="'+esc(new Date(e.t).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}))+' (your time)">'+et24(e.t)+'</td><td class="im">'+flames(e.imp)+'</td><td class="ev">'+esc(e.title)+(e.pre?'<span class="pt" title="preliminary estimate">P</span>':'')+(e.ic?IC[e.ic]||'':'')+vmark(e)+'</td><td class="n"'+srTip(e,'ac')+'>'+(e.ac?'<b class="'+acCls(e)+'">'+esc(e.ac)+'</b>'+fjMark(e):(e.aw&&e.t<=now?'<span class="aw" title="Released; the official series has not published this figure yet. No estimate is shown.">awaiting official figure \u00b7 +'+Math.max(0,Math.round((now-e.t)/60000))+' min</span>':''))+'</td><td class="n"'+srTip(e,'fc')+'>'+cell(e.fc)+'</td><td class="n"'+srTip(e,'pv')+'>'+pvCell(e)+'</td></tr>';
     });
     box.innerHTML=ev.length?'<table class="ct"><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th class="ev">Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No high-impact USD events in this range.</p>';
     box.scrollTop=st;
@@ -1430,19 +1431,29 @@ function liveCard(id,url,paint){
   const reset=()=>{s.d=null;s.at=0;s.busy=false;s.bad=false;try{localStorage.removeItem(s.key)}catch(e){}}; /* hard refresh: forget the last answer and any request in flight */
   return {render(){show();load(false)},load,show,reset};
 }
-/* The status line of the sector and week-open cards sits in the card header, in the tape's own wording (see paintStamp):
-   "market closed · last quotes Sat 06:00 AM" when the session is shut, otherwise "quotes as of 10:32 AM · 4 min ago". */
-function cardStamp(b,d,bad,shut,delayed){
+/* The status line of the sector and week-open cards sits in the card header. It counts what is live and says what the rest is; "delayed" is only ever said of an item whose market is open:
+   nothing live, market shut   ->  "market closed · last quotes Sat 06:00 AM"
+   everything live             ->  "live · 8 s ago"
+   some live                   ->  "4 of 12 live · 8 closed"  or  "5 of 12 live · 7 delayed"  or  "5 of 12 live · 3 delayed · 4 closed"
+   nothing live, market open   ->  "delayed · quotes as of 10:32 AM · 12 min ago"  (on week open the Worker adds why: "TradingView feed stopped 15 min ago") */
+function cardStamp(b,d,bad,shut,live,total,idle){
   const cd=b.closest('.card'),ch=cd&&cd.querySelector('.ch');if(!ch)return;
   let el=ch.querySelector('.stamp');
   if(!el){el=document.createElement('span');el.className='stamp';ch.insertBefore(el,ch.querySelector('.acts'))}
   const its=d.items||[],ts=its.filter(i=>i.p!=null&&!i.stale&&i.cls!=='prior'&&i.t!=null).map(i=>i.t),stl=its.filter(i=>i.stale).length;
+  const n=ts.length?Math.max(...ts):null,age=n!=null?Date.now()-n:null,old=age!=null&&age>OLD;
+  const rest=its.filter(i=>!i.live),closed=rest.filter(i=>i.t!=null&&Date.now()-i.t>OLD&&(i.kind==='etf'?!cashOpen():futClosed())).length;   // the tile's own rule (see fresh)
   let t;
-  if(ts.length){const n=Math.max(...ts),age=Date.now()-n;t=age>OLD&&shut()?'market closed \u00b7 last quotes '+asOf(n):'quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(age>OLD?' \u00b7 old':'')}
-  else t='no timestamped quotes';
+  if(live&&live===total)t='live'+(age!=null?' \u00b7 '+ago(age):'');
+  else if(live){
+    const dl=rest.length-closed;
+    t=live+' of '+total+' live'+(dl?' \u00b7 '+dl+' delayed':'')+(closed?' \u00b7 '+closed+' closed':'');
+  }
+  else if(shut())t=n!=null?'market closed \u00b7 last quotes '+asOf(n):'market closed';
+  else t=idle+(n!=null?' \u00b7 quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(old?' \u00b7 old':''):' \u00b7 no timestamped quotes');
   if(stl)t+=' \u00b7 '+stl+' stale';
   if(bad)t+=' \u00b7 refresh failed';
-  el.textContent=delayed+' \u00b7 '+t;
+  el.textContent=t;
 }
 function secPaint(b,d,bad){
   const its=d.items||[],spy=its.find(i=>i.label==='SPY'),spyOk=!!(spy&&spy.pc!=null&&!spy.stale);
@@ -1457,7 +1468,7 @@ function secPaint(b,d,bad){
   };
   b.innerHTML='<div class="sct s12">'+rows.map(tile).join('')+'</div>';
   const sl=(d.items||[]).filter(i=>i.live).length,sn=(d.items||[]).length;   // ETFs the TradingView push covers while their bars are fresh
-  cardStamp(b,d,bad,()=>!cashOpen(),sl?(sl===sn?'live, refreshed each minute':sl+' of '+sn+' live, rest delayed'):'delayed');
+  cardStamp(b,d,bad,()=>!cashOpen(),sl,sn,'delayed');
 }
 function wkoPaint(b,d,bad){
   const tile=it=>{
@@ -1478,7 +1489,7 @@ function wkoPaint(b,d,bad){
   const cd=b.closest('.card');if(cd){cd.classList.toggle('hr',down>half);cd.classList.toggle('hg',upn>half)} /* more than half down: red; more than half up: green; otherwise none */
   b.innerHTML='<div class="sct w6">'+(d.items||[]).map(tile).join('')+'</div>';
   const wl=(d.items||[]).filter(i=>i.live).length,wn=(d.items||[]).length;
-  cardStamp(b,d,bad,futClosed,wl?(wl===wn?'live, refreshed each minute':wl+' of '+wn+' live, rest delayed'):'delayed 10+ min');
+  cardStamp(b,d,bad,futClosed,wl,wn,d.tv&&d.tv.live===false?'delayed 10+ min \u00b7 TradingView feed '+(d.tv.age_s==null?'off':'stopped '+ago(d.tv.age_s*1000)):'delayed 10+ min');
 }
 /* ---- Treasury yield curve card (plan P6): its own Worker route /curve, official close only (never mixed with the delayed tape, R5/R44) ----
    Two views of one answer: History (2Y, 10Y and 30Y over six months) and Curve (1M to 30Y: latest close, a month ago, a year ago).
@@ -2003,7 +2014,7 @@ function showRelease(e){
   }
   /* The backdrop is hand-written, so it can go stale. Within 14 days it shows as written; 15 to 45 days it carries a warning; past 45 days
      it is not shown at all (a missing line is better than a misleading one). Automatic refresh is planned with L1 (plan D93). */
-  const bAge=d.backdrop&&d.backdrop.asof?Math.floor((NOW()-new Date(d.backdrop.asof+'T12:00:00Z'))/864e5):null;
+  const bAge=d.backdrop&&d.backdrop.asof?Math.floor((NOW()-new Date((d.backdrop.checked||d.backdrop.asof)+'T12:00:00Z'))/864e5):null;   /* built facts carry the day the job last confirmed them; the hand-written one only its own date */
   const bTxt=d.backdrop?String(d.backdrop.text||'').replace(/\s*Edit this line[^.]*\./i,''):'';
   const bk=!d.backdrop?'':bAge!==null&&bAge>45?'<div class="bd"><b>Policy backdrop not shown:</b> the last one was written '+bAge+' days ago (<span>'+esc(fmtIso(d.backdrop.asof))+'</span>) and may no longer be true.</div>'
     :'<div class="bd"><b>Policy backdrop, '+esc(fmtIso(d.backdrop.asof))+':</b> '+esc(bTxt)+' <span class="relf">'+esc(d.backdrop.src||'')+'</span>'+(bAge!==null&&bAge>14?'<div class="relf"><b>Written '+bAge+' days ago. The Fed&rsquo;s stance may have changed since.</b></div>':'')+'</div>';
