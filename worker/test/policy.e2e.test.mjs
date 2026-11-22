@@ -94,6 +94,13 @@ test('the daily run: a quiet poller tick builds the facts with its own invocatio
   assert.equal(fredCalls(w), 4); assert.equal(kv.puts.filter(k => k === 'policy:facts').length, 2, 'one write when the day turns');
 });
 
+test('/health in a fresh isolate loads the saved facts first (the 21 Nov reading said loaded:false although the job had run)', async () => {
+  const w = world({ last: '2026-11-18', steps: HIKE, stmt: STMT }), kv = kvStore(), env = { FRED_KEY: 'k', MARKET_KV: kv, DB: d1() };
+  await tick(w, 'h1', '2026-11-19T14:02:00Z', '*/2 * * * *', env);   // the poller built the facts and saved them to KV
+  const h = await call(w, 'h2', '2026-11-19T14:30:00Z', '/health', env);   // another isolate: memory is empty, KV has the facts
+  assert.equal(h.policy.loaded, true); assert.equal(h.policy.range, '3.75-4.00%'); assert.equal(h.policy.vote, 'found');
+});
+
 test('decision day (R62): after 14:00 ET on 9 Dec the page never gets the old range; the next day the new one appears', async () => {
   const kv = kvStore(), env = { FRED_KEY: 'k', MARKET_KV: kv, DB: d1() };
   const w1 = world({ last: '2026-12-08', steps: HIKE, stmt: STMT });
