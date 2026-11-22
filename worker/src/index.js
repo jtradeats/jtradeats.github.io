@@ -1,5 +1,5 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); both accept ?fresh=1 (manual refresh). GET /health -> small status object.
+// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /health -> small status object, read from stored state (KV and D1).
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
@@ -10,8 +10,10 @@ import POLICY_CFG from '../config/policy.json';   // FOMC decision dates already
 import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
-import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
+import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
+import { buildAlerts, filterAlerts, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
+import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth } from './push.js';   // Web Push to the phone (plan P8.34 stage 3)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
@@ -40,6 +42,8 @@ const SRC_TIMEOUT = 4000;            // per upstream request
 const DEADLINE_MS = 5000;            // never make the page wait longer than this for a build
 const STALE_OK = 5 * 60000;          // a cached response up to this old is served at once while a refresh runs
 const KV_GAP = 3 * 60000;            // KV allows 1,000 writes/day: at most one snapshot write per 3 min
+const MIN_FRESH = 5000;              // ?fresh=1 (a manual refresh on the page, P8.11) rebuilds the tape at most this often; the calendar every 3 s, the curve every 30 s
+const isFresh = u => { const v = new URL(u).searchParams.get('fresh'); return v !== null && v !== '0' && v !== 'false'; };   // ?fresh=1, ?fresh and ?fresh=true all count; ?fresh=0 does not
 const KV_KEY = 'market:snapshot';
 const ROLL_MS = 24 * 3600e3;         // how long an item keeps its "rolled" flag
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
@@ -128,9 +132,9 @@ async function loadTreasury(year) {
 
 // One download per year per 15 min, shared by every item that needs it
 const trCache = new Map();
-function treasuryRows(year) {
+function treasuryRows(year, force) {   // force: a manual refresh (?fresh=1) of /curve skips the 15-minute copy of this year's file
   const c = trCache.get(year);
-  if (c && Date.now() - c.at < TTL_SLOW) return c.p;
+  if (!force && c && Date.now() - c.at < TTL_SLOW) return c.p;
   const p = loadTreasury(year);
   trCache.set(year, { at: Date.now(), p });
   p.catch(() => trCache.delete(year));
@@ -156,11 +160,11 @@ async function qTreasury(col) {
 const CURVE_KV = 'curve:last';
 const CURVE_TTL = 15 * 60000;
 const curve = { memo: null, seeded: false, inflight: null, kvAsof: null, err: null, errAt: 0 };
-async function buildCurveNow(env) {
+async function buildCurveNow(env, fresh) {
   const y = new Date().getUTCFullYear();
   const since = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10);
   const [cur, prev, fred] = await Promise.allSettled([
-    treasuryRows(y), treasuryRows(y - 1),
+    treasuryRows(y, fresh), treasuryRows(y - 1),
     // cross-check series: FRED's API when the secret FRED_KEY is set (the keyless CSV is refused from Cloudflare), the CSV otherwise
     env && env.FRED_KEY ? fredApiGet(fredApiUrl('T10Y2Y', env.FRED_KEY, since)).then(parseFredJson) : get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y&cosd=${since}`).then(parseFredCsv),
   ]);
@@ -177,25 +181,30 @@ async function buildCurveNow(env) {
   }
   return body;
 }
-function refreshCurve(env) {
+function refreshCurve(env, fresh) {
   if (!curve.inflight) {
-    curve.inflight = buildCurveNow(env)
+    curve.inflight = buildCurveNow(env, fresh)
       .then(b => { curve.err = null; return b; })
       .catch(e => { curve.err = String(e.message).slice(0, 160); curve.errAt = Date.now(); throw e; })
       .finally(() => { curve.inflight = null; });
   }
   return curve.inflight;
 }
-async function getCurve(env, ctx) {
-  if (!curve.seeded) {
-    curve.seeded = true;
-    if (env && env.MARKET_KV) {
-      try { const s = await env.MARKET_KV.get(CURVE_KV, 'json'); if (s && s.asof) { curve.memo = { at: 0, body: JSON.stringify(s), asof: s.asof, check: s.check && s.check.status }; curve.kvAsof = s.asof; } } catch (_) { /* no KV */ }
-    }
+async function curveSeed(env) {   // the last saved curve, so a cold isolate (and /health) knows it; its age is unknown here, so at stays 0 and the next request refreshes it
+  if (curve.seeded) return;
+  curve.seeded = true;
+  if (env && env.MARKET_KV) {
+    try { const s = await env.MARKET_KV.get(CURVE_KV, 'json'); if (s && s.asof) { curve.memo = { at: 0, body: JSON.stringify(s), asof: s.asof, check: s.check && s.check.status, updated: s.updated }; curve.kvAsof = s.asof; } } catch (_) { /* no KV */ }
   }
-  if (curve.memo && Date.now() - curve.memo.at < CURVE_TTL) return curve.memo.body;
+}
+const CURVE_MIN_FRESH = 30000;
+async function getCurve(env, ctx, opts = {}) {
+  await curveSeed(env);
+  const age = curve.memo ? Date.now() - curve.memo.at : Infinity, fresh = !!opts.fresh && age >= CURVE_MIN_FRESH;   // ?fresh=1 skips the 15-minute reuse (at most every 30 s: parsing the Treasury CSV costs CPU)
+  if (curve.memo && !fresh && age < CURVE_TTL) return curve.memo.body;
   if (curve.memo && Date.now() - curve.errAt < NEG_TTL && curve.err) return curve.memo.body;   // the last refresh failed: do not hammer Treasury
-  const p = refreshCurve(env);
+  const p = refreshCurve(env, fresh);
+  if (fresh && curve.memo) { try { return await p; } catch (e) { return curve.memo.body; } }   // a manual refresh waits for the new answer; a failed one keeps the old
   if (curve.memo) { if (ctx) ctx.waitUntil(p.catch(() => {})); return curve.memo.body; }     // stale-while-revalidate
   return p;
 }
@@ -312,16 +321,21 @@ async function loadFeed(urls = CAL_FEEDS) {
   return { events: normFair(raw), notes };
 }
 
+// The shared Fair Economy copy in KV, taken over when it is newer than the one in memory (also read by /health, so a cold isolate reports what the poller holds).
+async function feedFromKv(env) {
+  if (!(env && env.MARKET_KV)) return;
+  try {
+    const sn = await env.MARKET_KV.get(CAL_KEY, 'json');
+    if (sn && sn.events && sn.at > feedState.at) { feedState.events = sn.events; feedState.at = sn.at; feedState.status = 'ok'; }
+  } catch (e) { /* KV unavailable: carry on */ }
+}
 // Bring the Fair Economy copy up to date if it is due. Never throws; records the outcome in feedState.
 async function refreshFeed(env, hot = false) {
   const now = Date.now(), ttl = ffTtl(hot);
   if (feedState.events && now - feedState.at < ttl) return;
   // every isolate would otherwise ask the feed on its own, so share one good copy through KV
   if (env && env.MARKET_KV) {
-    try {
-      const sn = await env.MARKET_KV.get(CAL_KEY, 'json');
-      if (sn && sn.events && sn.at > feedState.at) { feedState.events = sn.events; feedState.at = sn.at; feedState.status = 'ok'; }
-    } catch (e) { /* KV unavailable: carry on */ }
+    await feedFromKv(env);
     if (feedState.events && Date.now() - feedState.at < ttl) return;
   }
   if (feedState.failAt && now - feedState.failAt < ffRetry(feedState.rate, hot)) return;
@@ -460,6 +474,7 @@ async function refreshOfficial(env, sch) {
     const o = await loadOfficial(env, fullDue ? null : nearSer);
     if (fullDue) { offState.M = o.M; offState.V = o.V; offState.at = Date.now(); } else { offState.M = { ...offState.M, ...o.M }; offState.V = { ...offState.V, ...o.V }; offState.fastAt = Date.now(); }
     offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 320) : null; offState.status = 'ok'; offState.via = o.via;
+    if (fullDue && env && env.DB) await beat(env, 'off_ok', offState.at);   // a stored mark of the last full download (the data itself is memory only), so /health can say it on a cold read
   } catch (e) {
     offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 320);
     if (fullDue) offState.status = 'unavailable';   // a failed quick refresh keeps the 30-minute copy and its status
@@ -487,7 +502,7 @@ const KINDS_PUBLIC = Object.fromEntries(Object.entries(INDICATORS.kinds).map(([k
 // GET /sync shows the state (read only; no way to start a run from outside).
 async function pollerHealth(env) {
   const [b, p] = await Promise.all([beats(env), postsSummary(env)]), now = Date.now(), age = k => (b && b[k] ? Math.round((now - b[k]) / 1000) : null);
-  return { d1: !!(env && env.DB), feeds_run_age_s: age('feeds_run'), feeds_ok_age_s: age('feeds_ok'), calendar_age_s: age('cal'), calendar_near_age_s: age('cal_near'), policy_ok_age_s: age('policy_ok'), feed_429_age_s: age('ff_429'), feed_err_age_s: age('ff_err'), posts: p, error: postsError() };
+  return { d1: !!(env && env.DB), feeds_run_age_s: age('feeds_run'), feeds_ok_age_s: age('feeds_ok'), calendar_age_s: age('cal'), calendar_near_age_s: age('cal_near'), policy_ok_age_s: age('policy_ok'), official_ok_age_s: age('off_ok'), feed_429_age_s: age('ff_429'), feed_err_age_s: age('ff_err'), posts: p, error: postsError() };
 }
 const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *': 'provider' };
 // The background pollers (plan P8.32): nothing may depend on a page being open. Two more triggers, each its own invocation and so its own 10 ms CPU budget.
@@ -506,14 +521,18 @@ async function pollFeeds(env, ctx, at) {
     if (ok) await beat(env, 'feeds_ok', now);
   }
   if (min % 60 === 0) await Promise.all(Object.keys(CHANNELS).map(n => prunePosts(env, n)));
+  await pushNew(env, async () => (await getAlerts(env, ctx, { cal: false })).list, now);   // phone alerts for the new posts (nothing happens when nobody is subscribed)
 }
 async function pollCalendar(env, ctx, at) {
   await loadSync(env);
   const sch = schedule(at), min = Math.floor(at / 60000);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
-  if (!near && min % 10 !== 0) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
+  // a reminder (15 min, 5 min, at the release) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
+  const due = !near && min % 10 !== 0 ? reminderIdsDue(sch.events, at) : [];
+  if (!near && min % 10 !== 0 && !(due.length && await anyUnsent(env, due))) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
   await getCalendar(env, ctx, {});
   await beat(env, near ? 'cal_near' : 'cal', Date.now());
+  await pushNew(env, async () => (await getAlerts(env, ctx, { wire: false })).list, Date.now());   // reminders, release alerts and corrections
 }
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
 const SYNC_TIMEOUT_TREASURY = 25000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s and again at 15 s. runTreasury runs them beside the tentative-file reads, so a run is about 25 s at worst: inside the 30 s a background (waitUntil) run is allowed
@@ -744,7 +763,7 @@ function lagDetect(events, live, now) {
 let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around a release, so keep the answer for 10 s
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
-  if (calMemo && calMemo.debug === debug && now - calMemo.at < 10000) return calMemo.body;
+  if (calMemo && calMemo.debug === debug && now - calMemo.at < (opts.fresh ? 3000 : 10000)) return calMemo.body;   // ?fresh=1 (manual refresh) skips the 10 s reuse, at most every 3 s; the feeds, official source and KV writes keep their own throttles
   await Promise.all([loadSync(env), firstSeed(env), ledgerSeed(env), policySeed(env)]);
   const sch = schedule(now);
   syncLazy(env, ctx, now);
@@ -820,8 +839,33 @@ async function getCalendar(env, ctx, opts = {}) {
     official: { via: offState.via, error: offState.err, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
-  calMemo = { at: now, debug, body };
+  calMemo = { at: now, debug, body, out };   // out: the same answer as an object, for /alerts (no second JSON.parse)
   return body;
+}
+async function getCalendarObj(env, ctx) { await getCalendar(env, ctx); return calMemo && calMemo.out ? calMemo.out : null; }
+
+// ---- alerts (plan P8.34 stage 1): what the page's toasts would say, from the Worker's own data ----
+let alertMemo = null;
+// opts.wire / opts.cal: which parts to build. The pollers build only their own part (the 1-minute poller the wires, the 2-minute poller the calendar), /alerts builds both.
+async function getAlerts(env, ctx, opts = {}) {
+  const wire = opts.wire !== false, cal = opts.cal !== false, full = wire && cal, now = Date.now();
+  if (full && alertMemo && Math.abs(now - alertMemo.at) < 5000) return alertMemo;
+  const errors = [];
+  let dm = [], fj = [];
+  if (wire) {
+    const r = await Promise.all([loadPosts(env, 'WalterBloomberg', 40), loadPosts(env, 'FinancialJuice', 60)]);
+    if (!r[0]) errors.push('Walter Bloomberg posts could not be read from D1');
+    if (!r[1]) errors.push('FinancialJuice posts could not be read from D1');
+    dm = r[0] || []; fj = r[1] || [];
+  }
+  let c = null;
+  if (cal) { try { c = await getCalendarObj(env, ctx); } catch (e) { errors.push('calendar: ' + String(e && e.message).slice(0, 100)); } }
+  const seen = c && c.events.some(e => e.ac != null) ? await loadLagSeen(env, now - 6 * 36e5) : {};
+  const list = buildAlerts({ now, dm, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal });
+  if (full) for (const t of await loadTests(env, now - 10 * 60e3)) list.unshift(testAlert(t));   // the test alerts of the last 10 minutes
+  const out = { at: now, now, list, errors };
+  if (full) alertMemo = out;
+  return out;
 }
 
 // ---- last resort: the data branch written by the GitHub Action (only while USE_DATA_BRANCH) ----
@@ -898,12 +942,12 @@ async function seed(env) {
   } catch (e) { /* KV unavailable: carry on without it */ }
 }
 
-function refresh(env, ctx) {
+function refresh(env, ctx, noKv) {   // noKv: a manual refresh (?fresh=1) adds no KV write
   if (!inflight) {
     inflight = build(ctx, env).then(async b => {
       const body = JSON.stringify(b);
       memo = { at: Date.now(), body };
-      if (env && env.MARKET_KV && Date.now() - lastKvWrite > KV_GAP) {
+      if (!noKv && env && env.MARKET_KV && Date.now() - lastKvWrite > KV_GAP) {
         lastKvWrite = Date.now();
         try { await env.MARKET_KV.put(KV_KEY, body); } catch (e) { /* ignore */ }
       }
@@ -913,9 +957,12 @@ function refresh(env, ctx) {
   return inflight;
 }
 
-async function getMarket(env, ctx) {
+async function getMarket(env, ctx, opts = {}) {
   if (!seeded) await seed(env);
   const age = memo ? Date.now() - memo.at : Infinity;
+  if (opts.fresh && age >= MIN_FRESH) {   // manual refresh: wait for a new build (still capped by DEADLINE_MS). Each item still follows its own reuse time and failure back-off, and no KV write is added
+    try { return await refresh(env, ctx, true); } catch (e) { if (memo) return memo.body; throw e; }
+  }
   if (age < TTL_FAST) return memo.body;
   if (age < STALE_OK) {
     const p = refresh(env, ctx);
@@ -931,28 +978,33 @@ export default {
     const origin = req.headers.get('Origin');
     const cors = {
       'Access-Control-Allow-Origin': ALLOWED.includes(origin) ? origin : ALLOWED[0],
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Push-Key',
       Vary: 'Origin',
     };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const { pathname } = new URL(req.url);
     const json = { ...cors, 'Content-Type': 'application/json; charset=utf-8' };   // charset so a browser's raw JSON view does not show UTF-8 text as â€™ and ðŸ”¸
     if (pathname === '/health') {
-      await loadSync(env);
+      // P8.36: every block reads stored state (KV or D1), not just this isolate's memory, so a cold read shows what the pollers hold (the same as /calendar?debug=1)
+      const [poller] = await Promise.all([pollerHealth(env), loadSync(env), policySeed(env), wireSeed(env), curveSeed(env), feedFromKv(env), seed(env).then(() => weekly.seed(env)), sectors.seed(env)]);
+      const now = Date.now(), ageOf = at => (at ? Math.round((now - at) / 1000) : null);
+      const offAge = offState.at ? ageOf(offState.at) : poller.official_ok_age_s;   // the official data is memory only; the last full download is kept as a mark in D1
       return new Response(JSON.stringify({
         ok: true, kv: !!(env && env.MARKET_KV),
-        memo_age_s: memo ? Math.round((Date.now() - memo.at) / 1000) : null,
+        memo_age_s: memo ? Math.round((now - memo.at) / 1000) : null,
         cached_items: itemCache.size,
-        calendar: { audit: schedule(Date.now()).aud.status, feed: feedState.status, feed_age_s: feedState.at ? Math.round((Date.now() - feedState.at) / 1000) : null,
-          fmp: fmpStatus(env), fmp_age_s: fmpState.at ? Math.round((Date.now() - fmpState.at) / 1000) : null,
-          official: offState.status, official_age_s: offState.at ? Math.round((Date.now() - offState.at) / 1000) : null,
-          wire: wireSt.memo ? { feed: wireSt.feed, ...wireSummary(wireSt.memo) } : null },
+        calendar: { audit: schedule(now).aud.status, feed: feedState.status === 'none' && feedState.events ? 'ok' : feedState.status, feed_age_s: ageOf(feedState.at),
+          fmp: fmpStatus(env), fmp_age_s: ageOf(fmpState.at),
+          official: offState.status === 'none' && offAge != null ? 'ok' : offState.status, official_age_s: offAge,
+          wire: { feed: wireSt.feed === 'none' ? 'idle' : wireSt.feed, ...wireSummary(wireSt.memo || newMemo()) } },   // idle = no release the wire covers has needed a poll in this isolate yet
         tv: tvHealth(await loadTv(env), env),
         sectors: sectors.health(), weekly: weekly.health(),
-        curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
+        curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((now - curve.memo.at) / 1000) : (curve.memo && curve.memo.updated ? ageOf(Date.parse(curve.memo.updated)) : null), check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
-        poller: await pollerHealth(env),
+        poller,
         policy: policyHealth(env),   // the policy facts job: when it last confirmed the facts, the range read, whether the vote was found
+        push: await pushHealth(env),   // phone alerts: is a key set, how many phones, when each last accepted a push, the last error
         official: { lag: await loadLag(env) },   // per release row: seconds from the release time to the first actual from any source, and which source (about 5 to 15 rows a day, newest first)
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
@@ -967,7 +1019,8 @@ export default {
     }
     if (pathname === '/market') {
       try {
-        let out = await getMarket(env, ctx);
+        const fresh = isFresh(req.url);
+        let out = await getMarket(env, ctx, { fresh });
         if (!(env && env.TV_OVERLAY === 'off')) out = tvMarket(out, await loadTv(env), Date.now(), quote);   // live futures at response time, not at build time (src/tv.js)
         return new Response(out, { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
@@ -976,14 +1029,14 @@ export default {
     }
     if (pathname === '/calendar') {
       try {
-        return new Response(await getCalendar(env, ctx, { debug: new URL(req.url).searchParams.has('debug') }), { headers: { ...json, 'Cache-Control': 'no-store' } });
+        return new Response(await getCalendar(env, ctx, { debug: new URL(req.url).searchParams.has('debug'), fresh: isFresh(req.url) }), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
     }
     if (pathname === '/sectors' || pathname === '/weekly') {
       try {
-        const route = pathname === '/sectors' ? sectors : weekly, fresh = new URL(req.url).searchParams.has('fresh');
+        const route = pathname === '/sectors' ? sectors : weekly, fresh = isFresh(req.url);
         if (route === weekly && !seeded) await seed(env);   // load the tape's last snapshot first: its roll flags feed the week-open check
         let out = await route.get(env, ctx, { fresh });
         if (!(env && env.TV_OVERLAY === 'off')) out = route === weekly
@@ -995,9 +1048,44 @@ export default {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
     }
+    if (pathname.startsWith('/push/')) {   // phone setup. Every route needs the pairing key (the secret PUSH_KEY) in the X-Push-Key header
+      if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'POST only' }), { status: 405, headers: json });
+      if (!(env && env.PUSH_KEY)) return new Response(JSON.stringify({ error: 'PUSH_KEY is not set: add it as a secret in Cloudflare (Worker, Settings, Variables and Secrets)' }), { status: 503, headers: json });
+      if (!checkKey(env, req.headers.get('X-Push-Key'))) return new Response(JSON.stringify({ error: 'wrong pairing key' }), { status: 401, headers: json });
+      let body = {};
+      try { body = await req.json(); } catch (e) { /* an empty body is fine */ }
+      const reply = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...json, 'Cache-Control': 'no-store' } });
+      if (pathname === '/push/setup') {   // makes the VAPID key on first use; returns the public part the phone subscribes with
+        const v = await getVapid(env, true);
+        return v ? reply({ key: v.pub, subs: (await loadSubs(env)).length }) : reply({ error: 'could not make or read the VAPID key (KV binding?)' }, 500);
+      }
+      if (pathname === '/push/subscribe') {
+        if (!validEndpoint(body.endpoint)) return reply({ error: 'not a push service address' }, 400);
+        const ok = await saveSub(env, body.endpoint, req.headers.get('User-Agent'));
+        return ok ? reply({ ok: true, subs: (await loadSubs(env)).length }) : reply({ error: 'could not save the subscription (D1 binding?)' }, 500);
+      }
+      if (pathname === '/push/unsubscribe') { await dropSub(env, String(body.endpoint || '')); return reply({ ok: true, subs: (await loadSubs(env)).length }); }
+      if (pathname === '/push/test') {
+        const t = Date.now();
+        await recordTest(env, t);
+        alertMemo = null;
+        const r = await sendAll(env, t);
+        return reply({ ok: r.sent > 0, ...r });
+      }
+      return reply({ error: 'unknown push route' }, 404);
+    }
+    if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once
+      try {
+        const a = await getAlerts(env, ctx), since = Number(new URL(req.url).searchParams.get('since')) || 0;
+        return new Response(JSON.stringify({ now: a.now, since, alerts: filterAlerts(a.list, since), errors: a.errors }), { headers: { ...json, 'Cache-Control': 'no-store' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+      }
+    }
     if (pathname === '/curve') {
       try {
-        return new Response(await getCurve(env, ctx), { headers: { ...json, 'Cache-Control': 'public, max-age=60' } });
+        const fresh = isFresh(req.url);
+        return new Response(await getCurve(env, ctx, { fresh }), { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=60' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
@@ -1018,7 +1106,8 @@ export default {
         if (channel && !Object.prototype.hasOwnProperty.call(CHANNELS, channel)) {   // verified channels only (D47, D78): never a proxy for arbitrary t.me pages
           return new Response(JSON.stringify({ error: 'unknown channel', channels: Object.keys(CHANNELS) }), { status: 400, headers: json });
         }
-        const body = channel ? await getFeed(env, ctx, { debug, channel }) : await getFeeds(env, ctx, { debug });
+        const fresh = isFresh(req.url);                // ?fresh=1: poll again after 3 s instead of 10 s; the failure back-off still applies
+        const body = channel ? await getFeed(env, ctx, { debug, channel, fresh }) : await getFeeds(env, ctx, { debug, fresh });
         return new Response(body, { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });

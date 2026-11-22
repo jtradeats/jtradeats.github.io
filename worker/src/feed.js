@@ -25,6 +25,7 @@ const chOf = ch => CHANNELS[ch] || { name: ch, key: ch, hot: false, tail: null, 
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
+const FEED_FRESH = 3000;          // a manual refresh (?fresh=1) polls again after this long instead of FEED_TTL; a failure still waits FEED_RETRY or FEED_RETRY_429
 const FEED_TTL = 10000;          // reuse a poll for 10 s: at most ~6 upstream requests a minute per channel however many tabs are open
 const FEED_RETRY = 15000;        // after a failed poll
 const FEED_RETRY_429 = 60000;    // after HTTP 429, leave Telegram alone for longer
@@ -314,12 +315,12 @@ function viewOf(c, S, now, debug) {
   return out;
 }
 
-// opts: { debug, channel, stagger }. The route validates the channel against CHANNELS before calling.
+// opts: { debug, channel, stagger, fresh }. The route validates the channel against CHANNELS before calling.
 async function feedObject(env, ctx, opts = {}) {
   const c = chOf(opts.channel || FEED_CHANNEL), S = stateOf(c.name);
   if (!S.seeded) await seed(env, c, S);
   const now = Date.now();
-  const gap = S.failAt ? (S.rate ? FEED_RETRY_429 : FEED_RETRY) : FEED_TTL;
+  const gap = S.failAt ? (S.rate ? FEED_RETRY_429 : FEED_RETRY) : (opts.fresh ? FEED_FRESH : FEED_TTL);
   if (now - S.at >= gap) {
     if (!S.inflight) S.inflight = (opts.stagger ? new Promise(r => setTimeout(r, opts.stagger)) : Promise.resolve()).then(() => pollOnce(env, c, S, opts.bg))
       .catch(e => { S.at = S.failAt = Date.now(); S.err = String(e.message).slice(0, 200); }).finally(() => { S.inflight = null; });
@@ -346,7 +347,7 @@ export async function getFeed(env, ctx, opts = {}) { return JSON.stringify(await
 // allSettled: one channel failing never takes the other down; its block just says broken.
 export async function getFeeds(env, ctx, opts = {}) {
   const names = Object.keys(CHANNELS);
-  const rs = await Promise.allSettled(names.map((n, i) => feedObject(env, ctx, { debug: opts.debug, channel: n, stagger: i * FEED_STAGGER })));
+  const rs = await Promise.allSettled(names.map((n, i) => feedObject(env, ctx, { debug: opts.debug, channel: n, stagger: i * FEED_STAGGER, fresh: opts.fresh })));
   const view = (n, r) => r.status === 'fulfilled' ? r.value
     : { updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), now: Date.now(), channel: n, status: 'broken', error: String(r.reason && r.reason.message || r.reason).slice(0, 200), health: {}, posts: [] };
   const out = {};
