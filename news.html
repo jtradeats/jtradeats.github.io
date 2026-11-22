@@ -298,10 +298,10 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .cnb:disabled{opacity:.35;cursor:default}
 .cnb[hidden]{display:none}
 .cnm{position:relative;display:inline-flex}
-.cnl{box-sizing:border-box;height:26px;min-width:116px;display:inline-flex;align-items:center;justify-content:center;padding:0 22px;white-space:nowrap} /* looks like .sel; the real select sits invisibly on top so its list (day / week / month) opens on click */
+.cnl{box-sizing:border-box;height:26px;min-width:96px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;white-space:nowrap;background:none;border:0} /* looks like .sel; the real select sits invisibly on top so its list (day / week / month) opens on click */
 .cns{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
 .cns option{color:var(--t);background:var(--surface);font-weight:400}
-.cnm:focus-within .cnl{border-color:var(--t3)}
+.cnm:focus-within .cnl{text-decoration:underline} /* plain text label, so keyboard focus shows as an underline */
 .topicon.al.on{color:var(--pc1)}
 .scs{display:grid;gap:8px;margin:6px 0}
 .sc{border:.5px solid var(--bd);border-radius:8px;padding:8px 10px;background:var(--s2)}
