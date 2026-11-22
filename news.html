@@ -278,7 +278,8 @@ html.mobile .card.stretch.closed{height:auto}
 html.mobile .card.stretch .stk{position:static;height:100%}
 .cal{display:flex;flex-direction:column;height:100%}
 .topicon.live{color:var(--r)} /* master alerts button: red while alerts are on in at least one card (and not muted) */
-#phone.on{color:var(--g)} /* phone alerts button: green while this phone is subscribed */
+#master{position:relative}
+#master.ph::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 0 1.5px var(--bg)} /* small green dot on the alerts bell while this phone is subscribed */
 .phs{font-size:14px;line-height:1.5;margin:6px 0 10px}
 .phs input{width:100%;box-sizing:border-box;padding:9px 10px;margin:6px 0;background:transparent;color:var(--t);border:.5px solid var(--bdm);border-radius:8px;font:inherit}
 .phb{font-family:var(--sans);font-size:14px;background:none;color:var(--t);border:.5px solid var(--bdm);border-radius:999px;padding:7px 16px;margin:4px 6px 4px 0;cursor:pointer}
@@ -291,6 +292,16 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .audit.check i{background:#E0A24A}.audit.error i{background:var(--r)}.audit.unk i{background:var(--t3)}
 .sel{appearance:none;-webkit-appearance:none;font-family:var(--sans);font-size:var(--fsm);font-weight:600;color:var(--pbsel);background:var(--pbselbg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8a83' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 7px center;background-size:10px;border:.5px solid var(--pbselbd);border-radius:calc(var(--rad) - 1px);padding:3px 24px 3px 9px;cursor:pointer}
 .sel option{color:var(--t);background:var(--surface);font-weight:400}
+.calnav{display:inline-flex;align-items:center;gap:4px}
+.cnb{width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--pbsel);background:var(--pbselbg);border:.5px solid var(--pbselbd);border-radius:calc(var(--rad) - 1px);cursor:pointer}
+.cnb svg{width:14px;height:14px;display:block}
+.cnb:disabled{opacity:.35;cursor:default}
+.cnb[hidden]{display:none}
+.cnm{position:relative;display:inline-flex}
+.cnl{box-sizing:border-box;height:26px;min-width:116px;display:inline-flex;align-items:center;justify-content:center;padding:0 22px;white-space:nowrap} /* looks like .sel; the real select sits invisibly on top so its list (day / week / month) opens on click */
+.cns{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
+.cns option{color:var(--t);background:var(--surface);font-weight:400}
+.cnm:focus-within .cnl{border-color:var(--t3)}
 .topicon.al.on{color:var(--pc1)}
 .scs{display:grid;gap:8px;margin:6px 0}
 .sc{border:.5px solid var(--bd);border-radius:8px;padding:8px 10px;background:var(--s2)}
@@ -380,7 +391,7 @@ html.mobile .nsub .n1,html.mobile .nsub .n2,html.mobile .nsub .nsep{display:inli
 @keyframes dotp{from{transform:scale(1);opacity:.65}to{transform:scale(3.2);opacity:0}}
 @media (prefers-reduced-motion:reduce){.sx.on .sm i::after{animation:none;display:none}}
 .sx.on .sr b{color:var(--t)}
-.nev{cursor:pointer}.nev:hover{text-decoration:underline}
+.nev{cursor:pointer}.nev span:hover{text-decoration:underline} /* each release in the title is its own link; the " / " between them is not underlined */
 .nsub .vq{margin-left:4px}
 html.mobile .mk3{grid-template-columns:minmax(0,1fr)}
 html.mobile .ct th,html.mobile .ct td{padding:8px 5px;font-size:12px}
@@ -444,8 +455,7 @@ html.mobile .tu b{font-size:22px}
     <div><p class="brand">J.</p><h1>dashboard</h1></div>
     <div class="topbaracts">
       <button class="topicon" id="refreshall" onclick="refreshAll()"></button>
-      <button class="topicon" id="master"></button>
-      <button class="topicon" id="phone" onclick="phonePanel()"></button>
+      <button class="topicon" id="master" aria-haspopup="dialog" onclick="alertsPanel()"></button>
       <button class="topicon" id="layout" onclick="toggleLayout()"></button>
       <button class="topicon themetoggle" id="theme" onclick="toggleTheme()"></button>
     </div>
@@ -511,6 +521,8 @@ const I={
   open:ico('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
   expand:ico('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
   fold:ico('<polyline points="6 9 12 15 18 9"/>'),
+  chevl:ico('<polyline points="15 18 9 12 15 6"/>'),
+  chevr:ico('<polyline points="9 18 15 12 9 6"/>'),
   bell:ico('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
   phone:ico('<rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>'),
   belloff:ico('<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>'),
@@ -1123,9 +1135,10 @@ const technicals=pair(tvwc('tv-technical-analysis',()=>({symbol:sym,'ratings-dis
    never depends on the forecast feed. */
 const CAL_URL=WORKER_URL.replace(/\/market$/,'/calendar');
 const STATIC_BASE='worker/config/'; /* relative to this page: assumes the repo root is what GitHub Pages serves */
-let calData=null,calAt=0,calRng=LS.g(KEY+'cal_rng','week');
-const RNG=[['yest','yesterday'],['today','today'],['last','last week'],['week','this week'],['next','next week'],['month','this month']]; /* days first, then weeks in time order, then the month */
-if(!RNG.some(x=>x[0]===calRng))calRng='week'; /* saved choices from the old today/upcoming buttons: 'week' still means this week, anything else falls back to it */
+let calData=null,calAt=0,calMode=LS.g(KEY+'cal_mode',''),calOff=0; /* calMode: day | week | month, remembered. calOff: how many days or weeks away from now (0 = today / this week); always starts at 0 */
+if(!['day','week','month'].includes(calMode)){ /* choice saved by the old single dropdown */
+  calMode={yest:'day',today:'day',last:'week',week:'week',next:'week',month:'month'}[LS.g(KEY+'cal_rng','week')]||'week';
+}
 const CALP={fn:null,el:null}; /* the open calendar card, so new data repaints it */
 let clkOff=0; /* Worker clock minus this device's clock, ms. Countdown, reminders and sessions use NOW() so a wrong device clock cannot skew them */
 const NOW=()=>Date.now()+clkOff;
@@ -1212,22 +1225,43 @@ const provTxt=d=>{
   if(d.results&&d.results.n)p.push('typed numbers from '+fmtIso(d.results.asof));
   return p.join(' · ');
 };
-/* range -> [first, last] New York date. Weeks run Monday to Sunday. */
-function rngBounds(r,todayIso){
-  const D=864e5,d=new Date(todayIso+'T00:00:00Z'),t=+d,iso=x=>new Date(x).toISOString().slice(0,10),mon=t-((d.getUTCDay()+6)%7)*D;
-  if(r==='last')return[iso(mon-7*D),iso(mon-D)];
-  if(r==='yest')return[iso(t-D),iso(t-D)];
-  if(r==='today')return[todayIso,todayIso];
-  if(r==='next')return[iso(mon+7*D),iso(mon+13*D)];
-  if(r==='month')return[iso(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)),iso(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0))];
-  return[iso(mon),iso(mon+6*D)];
+/* mode + offset -> [first, last] New York date. Weeks run Monday to Sunday, and from Sunday (New York time) "this week" is already the following week.
+   off steps whole days or weeks away from now; a month is always the current month. */
+const WK=864e5,isoOf=x=>new Date(x).toISOString().slice(0,10);
+function rngBounds(mode,off,todayIso){
+  const d=new Date(todayIso+'T00:00:00Z'),t=+d,dow=d.getUTCDay();
+  if(mode==='day'){const x=isoOf(t+off*WK);return[x,x]}
+  if(mode==='month')return[isoOf(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)),isoOf(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0))];
+  const mon=(dow===0?t+WK:t-(dow-1)*WK)+off*7*WK;
+  return[isoOf(mon),isoOf(mon+6*WK)];
+}
+const dLbl=(iso,o)=>new Date(iso+'T12:00:00Z').toLocaleDateString('en-US',Object.assign({timeZone:'UTC'},o));
+function rngLabel(mode,off,lo,hi,todayIso){ /* the words for now, dates for anything else */
+  if(mode==='month')return 'this month';
+  const yr=iso=>iso.slice(0,4)!==todayIso.slice(0,4);
+  if(mode==='day')return off===0?'today':dLbl(lo,Object.assign({weekday:'short',month:'short',day:'numeric'},yr(lo)?{year:'numeric'}:{}));
+  if(off===0)return 'this week';
+  const same=lo.slice(0,7)===hi.slice(0,7);
+  return dLbl(lo,{month:'short',day:'numeric'})+' \u2013 '+(same?String(+hi.slice(8)):dLbl(hi,{month:'short',day:'numeric'}))+(yr(hi)?', '+hi.slice(0,4):'');
+}
+function calNav(bar,d){ /* label, dropdown value and arrow state; an arrow is off when the step would land entirely outside the dates the schedule holds */
+  const today=etP(NOW()).iso,[lo,hi]=rngBounds(calMode,calOff,today),mo=calMode==='month';
+  $('.cnl',bar).textContent=rngLabel(calMode,calOff,lo,hi,today);
+  $('.cns',bar).value=calMode;
+  const pv=$('[data-ck="prev"]',bar),nx=$('[data-ck="next"]',bar);
+  pv.hidden=nx.hidden=mo; /* the month view is the current month only, so no arrows */
+  let a='',z='';
+  if(d&&d.events)for(const e of d.events){if(!e.d)continue;if(!a||e.d<a)a=e.d;if(!z||e.d>z)z=e.d}
+  pv.disabled=!!a&&rngBounds(calMode,calOff-1,today)[1]<a;
+  nx.disabled=!!z&&rngBounds(calMode,calOff+1,today)[0]>z;
+  pv.setAttribute('aria-label','previous '+calMode);nx.setAttribute('aria-label','next '+calMode);
 }
 const cal=el=>{
-  el.innerHTML='<div class="cal"><div class="calbar"><select class="sel" data-ck="rng" aria-label="date range">'+RNG.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button></div><div class="calscroll"><p class="note">loading…</p></div></div>';
+  el.innerHTML='<div class="cal"><div class="calbar"><div class="calnav" role="group" aria-label="date range"><button class="cnb" data-ck="prev">'+I.chevl+'</button><span class="cnm"><span class="sel cnl"></span><select class="cns" data-ck="mode" aria-label="show a day, a week or a month"><option value="day">day</option><option value="week">week</option><option value="month">month</option></select></span><button class="cnb" data-ck="next">'+I.chevr+'</button></div><button class="audit unk" data-ck="audit"><i></i><span>schedule</span></button></div><div class="calscroll"><p class="note">loading…</p></div></div>';
   const bar=$('.calbar',el),box=$('.calscroll',el);let shown=[];
-  $('.sel',bar).value=calRng; /* show the saved range at once, not the first option until data arrives */
+  calNav(bar,calData); /* show the saved range at once, not the first option until data arrives */
   const paint=d=>{
-    const now=NOW(),today=etP(now).iso,[lo,hi]=rngBounds(calRng,today),st=box.scrollTop;
+    const now=NOW(),today=etP(now).iso,[lo,hi]=rngBounds(calMode,calOff,today),st=box.scrollTop;
     const ev=d.events.filter(e=>e.d>=lo&&e.d<=hi&&(e.hol||e.imp===3));
     const nx=ev.find(e=>e.t>now&&e.src!=='feed'&&!e.hol),nxT=nx?nx.t:null;let h='',last='';shown=[]; /* every official event due at the same minute as the next one is highlighted, as in the countdown card */
     ev.forEach(e=>{
@@ -1238,7 +1272,7 @@ const cal=el=>{
     });
     box.innerHTML=ev.length?'<table class="ct"><thead><tr><th class="tt">Time (ET)</th><th class="im">Imp.</th><th class="ev">Event</th><th class="n" title="green: above forecast, red: below (reversed for jobless claims, unemployment and crude stocks)">Actual</th><th class="n">Forecast</th><th class="n">Previous</th></tr></thead><tbody>'+h+'</tbody></table>':'<p class="note">No high-impact USD events in this range.</p>';
     box.scrollTop=st;
-    const sel=$('.sel',bar);if(sel.value!==calRng)sel.value=calRng;
+    calNav(bar,d);
     const a=d.audit||{},ab=$('.audit',bar),stt=a.status||'unk';
     ab.className='audit '+stt;
     $('span',ab).textContent=stt==='ok'?'schedule checked '+fmtIso(a.checked):stt==='unk'?'schedule not audited':'schedule: '+a.nIssues+' note'+(a.nIssues===1?'':'s');
@@ -1247,8 +1281,9 @@ const cal=el=>{
   CALP.fn=paint;CALP.el=el;
   bar.onclick=e=>{const b=e.target.closest('button[data-ck]');if(!b||!calData)return;const k=b.dataset.ck;
     if(k==='audit'){showAudit(calData);return}
-    paint(calData)};
-  bar.onchange=e=>{const sl=e.target.closest('select[data-ck]');if(!sl||!calData)return;calRng=sl.value;LS.s(KEY+'cal_rng',calRng);paint(calData)};
+    if(b.disabled)return;
+    if(k==='prev'||k==='next'){calOff+=k==='next'?1:-1;paint(calData)}};
+  bar.onchange=e=>{const sl=e.target.closest('select[data-ck]');if(!sl||!['day','week','month'].includes(sl.value))return;calMode=sl.value;calOff=0;LS.s(KEY+'cal_mode',calMode);calNav(bar,calData);if(calData)paint(calData)};
   const open=e=>{const tr=e.target.closest('tr[data-i]');if(tr&&shown[+tr.dataset.i])showRelease(shown[+tr.dataset.i])};
   box.onclick=open;
   box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){if(e.target.closest('tr[data-i]')){e.preventDefault();open(e)}}};
@@ -1938,17 +1973,11 @@ $('.tb').addEventListener('submit',e=>{
   if(!v)return;sym=v;i.value=v;LS.s(KEY+'sym',v);$('#est').href=estUrl();draw('look');
 });
 
-/* ---- alert toasts + release card. MOCKS feed only the long-press test on the master alerts button. ---- */
+/* ---- alert toasts + release card ---- */
 const TOAST_MS=15000,TOAST_MAX=3;
-const MOCKS=[
-  {src:'Walter Bloomberg',tag:'NEW POST',h:'Sample post headline appears here',s:'Test alert only.'},
-  {src:'FinancialJuice',tag:'\u2757 ALERT',h:'US JOLTS JOB OPENINGS ACTUAL 7.523M (FORECAST 7.164M, PREVIOUS 7.079M) $MACRO',s:'Test alert only.'},
-  {src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 RELEASE IN 5 MIN',h:'Initial Jobless Claims',s:'Forecast 194K \u00b7 previous 191K. Test alert only.',rel:true}
-];
-let mockI=0;
 const toastBox=document.createElement('div');toastBox.id='toasts';document.body.appendChild(toastBox);
 function toast(a){
-  if(!masterOn&&!a.force)return;
+  if(!masterOn)return;
   const el=document.createElement('div');el.className='toast';
   el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><b class="src">'+esc(a.src)+'</b><div class="tag">'+esc(a.tag)+'</div><b>'+esc(a.h)+'</b><p>'+esc(a.s)+'</p>'+(a.rel?'<button class="rd">Read</button>':'');
   let t;const kill=()=>{clearTimeout(t);el.remove()};
@@ -1958,21 +1987,15 @@ function toast(a){
   toastBox.appendChild(el);
   for(let o;(o=[...toastBox.children].filter(c=>!c.classList.contains('wpan'))).length>TOAST_MAX;)o[0].remove(); /* alert panels are never evicted by ordinary toasts */
 }
-function testAlert(){const m={...MOCKS[mockI++%MOCKS.length],force:1};if(m.rel)m.ev=calData&&calData.events.find(e=>e.k==='claims'&&e.t>NOW());if(m.rel&&!m.ev)delete m.rel;toast(m)}
 const anyAlertOn=()=>{try{return Object.values(ALERT).some(a=>a.get())}catch(e){return false}};
-function paintMaster(){
+function paintMaster(){ /* the one alerts button: bell = this page, small green dot = this phone */
   const b=$('#master');if(!b)return;
+  let ph=false;try{ph=phoneOn()}catch(e){} /* phoneOn is defined further down the script */
   const live=masterOn&&anyAlertOn();
-  const t=!masterOn?'ALERTS MUTED, nothing will pop up. Click to unmute':live?'Alerts are on in at least one card. Click to mute every alert. Long-press to send a test alert':'Alerts are allowed, but no card has them switched on. Click to mute every alert. Long-press to send a test alert';
+  const t='Alerts: '+(!masterOn?'MUTED on this page':live?'on in at least one card':'allowed on this page, but no card has them switched on')+' \u00b7 phone '+(ph?'on':'off')+'. Click for alert settings';
   b.innerHTML=masterOn?I.bell:I.belloff;
-  b.classList.toggle('live',live);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
+  b.classList.toggle('live',live);b.classList.toggle('ph',ph);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t);
 }
-{const b=$('#master');let t=null,lp=false;
-  b.addEventListener('pointerdown',()=>{lp=false;clearTimeout(t);t=setTimeout(()=>{lp=true;testAlert()},600)});
-  ['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>clearTimeout(t)));
-  b.addEventListener('click',()=>{if(lp){lp=false;return}masterOn=!masterOn;LS.s(KEY+'master',masterOn?'1':'0');paintMaster();
-    if(masterOn&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}}});
-  b.addEventListener('contextmenu',e=>e.preventDefault());}
 const relBox=document.createElement('div');relBox.id='rel';relBox.hidden=true;document.body.appendChild(relBox);
 const closeRel=()=>{relBox.hidden=true};
 /* which scenario came true: 0 above forecast, 1 in line, 2 below. Rows with no forecast (auctions) compare with the previous figure. -1 until an actual exists. */
@@ -2011,7 +2034,7 @@ const pushOK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notific
 const pushU8=s=>{const t=String(s).replace(/-/g,'+').replace(/_/g,'/'),r=atob(t+'='.repeat((4-t.length%4)%4)),o=new Uint8Array(r.length);for(let i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o};
 const pushB64=b=>{let s='';for(const x of new Uint8Array(b))s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
 const phoneOn=()=>{try{return LS.g(PON,'0')==='1'&&pushOK()&&Notification.permission==='granted'}catch(e){return false}};
-function paintPhone(){const b=$('#phone');if(!b)return;const on=phoneOn(),t=on?'Phone alerts are ON for this phone. Tap for the test and off buttons':'Phone alerts are off. Tap to turn them on';b.innerHTML=I.phone;b.classList.toggle('on',on);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t)}
+function paintPhone(){paintMaster()}
 async function pushReg(){
   const reg=await navigator.serviceWorker.register('/sw.js',{scope:'/news.html'});
   for(let i=0;i<50&&!reg.active;i++)await new Promise(r=>setTimeout(r,200));
@@ -2043,16 +2066,21 @@ async function phoneDisable(){
   if(sub){try{await pushCall('/push/unsubscribe',LS.g(PK,''),{endpoint:sub.endpoint})}catch(e){}await sub.unsubscribe()}
   LS.s(PON,'0');paintPhone();
 }
-function phonePanel(msg,bad){
+function alertsPanel(msg,bad){ /* one panel for both: this page (mute) and this phone (push) */
   const on=phoneOn(),saved=LS.g(PK,'');
-  relShell('Phone alerts','<div class="phs">'+(on?'<b>On.</b> The Worker sends each alert to this phone, also while the app is closed. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive every dashboard alert as a phone notification.')+
+  relShell('Alerts','<h4>This page</h4><div class="phs">'+(masterOn?'<b>On.</b> Toasts, reminders and release alerts appear while this page is open, and a browser notification shows if the tab is in the background. Each card has its own bell for what it alerts on.':'<b>Muted.</b> Nothing pops up on this page. Muted alerts are dropped, not queued.')+
+    '<div><button class="phb'+(masterOn?'':' go')+'" id="amute">'+(masterOn?'Mute all':'Unmute')+'</button></div></div>'+
+    '<h4>Phone</h4><div class="phs">'+(on?'<b>On.</b> The Worker sends each alert to this phone, also while the app is closed. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive every dashboard alert as a phone notification.')+
     (on?'':'<input id="pkey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Pairing key (PUSH_KEY)" value="'+esc(saved)+'">')+
     '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>')+'</div>'+
     '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div>'+
-    '<div class="phm">The mute button on this page does not mute the phone. Turn the phone off here. Needs the dashboard opened from its Home Screen icon.</div></div>');
+    '<div class="phm">Muting this page does not mute the phone. Turn the phone off here. Needs the dashboard opened from its Home Screen icon.</div></div>');
   const say=(t,b)=>{const m=$('#pmsg',relBox);if(m){m.textContent=t;m.classList.toggle('bad',!!b)}};
-  const run=async(f,ok)=>{try{await f();phonePanel(ok)}catch(e){say(String(e&&e.message||e),1)}};
-  const bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox);
+  const run=async(f,ok)=>{try{await f();alertsPanel(ok)}catch(e){say(String(e&&e.message||e),1)}};
+  const bM=$('#amute',relBox),bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox);
+  if(bM)bM.onclick=()=>{masterOn=!masterOn;LS.s(KEY+'master',masterOn?'1':'0');paintMaster();
+    if(masterOn&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}}
+    alertsPanel()};
   if(bOn)bOn.onclick=()=>{const key=($('#pkey',relBox).value||'').trim();say('Working…');run(()=>phoneEnable(key),'Turned on. Tap "Send a test" to check.')};
   if(bOff)bOff.onclick=()=>run(phoneDisable,'Turned off.');
   if(bT)bT.onclick=async()=>{say('Sending…');try{const j=await pushCall('/push/test',LS.g(PK,''));say(j.sent?'Sent to '+j.sent+' phone'+(j.sent>1?'s':'')+'. It should appear within a few seconds.':'The push service did not accept it: '+((j.results&&j.results[0]&&j.results[0].err)||j.error||'no subscription found')+'. Try Turn off, then Turn on.',!j.sent)}catch(e){say(String(e&&e.message||e),1)}};
