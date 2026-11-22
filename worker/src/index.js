@@ -10,14 +10,12 @@ import POLICY_CFG from '../config/policy.json';   // FOMC decision dates already
 import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
-import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
+import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
-import { buildAlerts, filterAlerts, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
-import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth } from './push.js';   // Web Push to the phone (plan P8.34 stage 3)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
-import { getFeed, getFeeds, pollFeedsBg, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
+import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
@@ -311,7 +309,7 @@ async function loadFeed(urls = CAL_FEEDS) {
     catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
   if (!ok) { const err = new Error(notes.join(' | ')); err.rate = rate; throw err; }
-  return { events: normFair(raw, INDICATORS), notes };   // INDICATORS: Forex Factory rates Crude Oil Inventories "Low"; normFair keeps a Low row only when it matches a row of a release the dashboard shows, so the crude forecast arrives
+  return { events: normFair(raw), notes };
 }
 
 // Bring the Fair Economy copy up to date if it is due. Never throws; records the outcome in feedState.
@@ -500,30 +498,22 @@ const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *'
 const POLL_FEEDS = '* * * * *', POLL_CAL = '*/2 * * * *';
 const CAL_NEAR = [3 * 60000, 90 * 60000];   // a release is "near" from 3 minutes before to 90 minutes after (the official series' own fast tier is 2 to 90)
 async function pollFeeds(env, ctx, at) {
-  // CPU: this runs 1,440 times a day, so it does the least it can. pollFeedsBg reads each channel's page and parses it only when the newest post id differs from the one the window already holds
-  // (a full parse at least every 10 minutes). It returns the two statuses and the number of new or changed posts instead of building both views as JSON and parsing them back.
-  const st = await pollFeedsBg(env, ctx);
-  const ok = st.status.some(s => s === 'ok');
+  const body = JSON.parse(await getFeeds(env, ctx, {}));
+  const ok = [body, body.fj].some(v => v && v.status === 'ok');
   const now = Date.now(), min = Math.floor(at / 60000);
   if (min % 5 === 0) {   // a heartbeat every 5 minutes: 288 rows a day for each of the two, not 1,440
     await beat(env, 'feeds_run', now);
     if (ok) await beat(env, 'feeds_ok', now);
   }
   if (min % 60 === 0) await Promise.all(Object.keys(CHANNELS).map(n => prunePosts(env, n)));
-  // Phone alerts for the new posts (nothing happens when nobody is subscribed). The alert list is read from D1 and grouped, which costs CPU, so it is built only when this minute found
-  // a new or changed post, plus a sweep every 5 minutes (a wire alert is live for 15 minutes, so a run that failed or was cut short is made up by the next sweep).
-  if (st.fresh > 0 || min % 5 === 0) await pushNew(env, async () => (await getAlerts(env, ctx, { cal: false })).list, now);
 }
 async function pollCalendar(env, ctx, at) {
   await loadSync(env);
-  const sch = schedule(at, true), min = Math.floor(at / 60000);   // true: events only; the audit of the whole schedule is left for a tick that builds the calendar
+  const sch = schedule(at), min = Math.floor(at / 60000);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
-  // a reminder (15 min, 5 min, at the release) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
-  const due = !near && min % 10 !== 0 ? reminderIdsDue(sch.events, at) : [];
-  if (!near && min % 10 !== 0 && !(due.length && await anyUnsent(env, due))) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
+  if (!near && min % 10 !== 0) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
   await getCalendar(env, ctx, {});
   await beat(env, near ? 'cal_near' : 'cal', Date.now());
-  await pushNew(env, async () => (await getAlerts(env, ctx, { wire: false })).list, Date.now());   // reminders, release alerts and corrections
 }
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
 const SYNC_TIMEOUT_TREASURY = 25000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s and again at 15 s. runTreasury runs them beside the tentative-file reads, so a run is about 25 s at worst: inside the 30 s a background (waitUntil) run is allowed
@@ -611,7 +601,7 @@ function syncHealth() {
 // The effective schedule = schedule.json + the sync overlay. Rebuilt when the overlay changes or the New York date turns; the audit (about 3 ms) never runs in the
 // same request as a rebuild unless it is the very first one, so a cold start stays well under the CPU limit.
 const schedCache = { events: null, aud: null, at: 0, sig: null, day: null, eff: null, merged: null, checked: null, audStale: false };
-function schedule(now, lite) {   // lite: skip the audit (it covers the whole schedule); getCalendar asks for it without lite
+function schedule(now) {
   const sig = syncState.rec ? syncState.rec.at : 0, day = nyDate(now);
   let rebuilt = false;
   if (!schedCache.events || schedCache.sig !== sig || schedCache.day !== day) {
@@ -621,7 +611,7 @@ function schedule(now, lite) {   // lite: skip the audit (it covers the whole sc
     schedCache.merged = m; schedCache.checked = m.checked; schedCache.sig = sig; schedCache.day = day;
     rebuilt = true; schedCache.audStale = true;
   }
-  if (!lite && (!schedCache.aud || (!rebuilt && (schedCache.audStale || now - schedCache.at > 10 * 60000)))) { schedCache.aud = audit(schedCache.eff, INDICATORS, now); schedCache.at = now; schedCache.audStale = false; }
+  if (!schedCache.aud || (!rebuilt && (schedCache.audStale || now - schedCache.at > 10 * 60000))) { schedCache.aud = audit(schedCache.eff, INDICATORS, now); schedCache.at = now; schedCache.audStale = false; }
   return schedCache;
 }
 
@@ -830,33 +820,8 @@ async function getCalendar(env, ctx, opts = {}) {
     official: { via: offState.via, error: offState.err, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
-  calMemo = { at: now, debug, body, out };   // out: the same answer as an object, for /alerts (no second JSON.parse)
+  calMemo = { at: now, debug, body };
   return body;
-}
-async function getCalendarObj(env, ctx) { await getCalendar(env, ctx); return calMemo && calMemo.out ? calMemo.out : null; }
-
-// ---- alerts (plan P8.34 stage 1): what the page's toasts would say, from the Worker's own data ----
-let alertMemo = null;
-// opts.wire / opts.cal: which parts to build. The pollers build only their own part (the 1-minute poller the wires, the 2-minute poller the calendar), /alerts builds both.
-async function getAlerts(env, ctx, opts = {}) {
-  const wire = opts.wire !== false, cal = opts.cal !== false, full = wire && cal, now = Date.now();
-  if (full && alertMemo && Math.abs(now - alertMemo.at) < 5000) return alertMemo;
-  const errors = [];
-  let dm = [], fj = [];
-  if (wire) {
-    const r = await Promise.all([loadPosts(env, 'WalterBloomberg', 40), loadPosts(env, 'FinancialJuice', 60)]);
-    if (!r[0]) errors.push('Walter Bloomberg posts could not be read from D1');
-    if (!r[1]) errors.push('FinancialJuice posts could not be read from D1');
-    dm = r[0] || []; fj = r[1] || [];
-  }
-  let c = null;
-  if (cal) { try { c = await getCalendarObj(env, ctx); } catch (e) { errors.push('calendar: ' + String(e && e.message).slice(0, 100)); } }
-  const seen = c && c.events.some(e => e.ac != null) ? await loadLagSeen(env, now - 6 * 36e5) : {};
-  const list = buildAlerts({ now, dm, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal });
-  if (full) for (const t of await loadTests(env, now - 10 * 60e3)) list.unshift(testAlert(t));   // the test alerts of the last 10 minutes
-  const out = { at: now, now, list, errors };
-  if (full) alertMemo = out;
-  return out;
 }
 
 // ---- last resort: the data branch written by the GitHub Action (only while USE_DATA_BRANCH) ----
@@ -966,8 +931,7 @@ export default {
     const origin = req.headers.get('Origin');
     const cors = {
       'Access-Control-Allow-Origin': ALLOWED.includes(origin) ? origin : ALLOWED[0],
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-Push-Key',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
       Vary: 'Origin',
     };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
@@ -988,8 +952,7 @@ export default {
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((Date.now() - curve.memo.at) / 1000) : null, check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
         poller: await pollerHealth(env),
-        policy: (await policySeed(env), policyHealth(env)),   // the policy facts job (the saved facts are loaded first: a fresh isolate would otherwise say "loaded: false"): when it last confirmed the facts, the range read, whether the vote was found
-        push: await pushHealth(env),   // phone alerts: is a key set, how many phones, when each last accepted a push, the last error
+        policy: policyHealth(env),   // the policy facts job: when it last confirmed the facts, the range read, whether the vote was found
         official: { lag: await loadLag(env) },   // per release row: seconds from the release time to the first actual from any source, and which source (about 5 to 15 rows a day, newest first)
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
@@ -1028,40 +991,6 @@ export default {
           : tvMarket(out, await loadTv(env), Date.now(), quote);      // live sector ETFs, each only while its own bar is recent (P8.28)
         if (!(env && env.TV_OVERLAY === 'off')) { const th = tvHealth(await loadTv(env), env), j = JSON.parse(out); j.tv = { live: th.live, age_s: th.push_age_s }; out = JSON.stringify(j); }   // the card says WHY it is delayed: the TradingView push is off, or only does not cover these items
         return new Response(out, { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
-      } catch (e) {
-        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
-      }
-    }
-    if (pathname.startsWith('/push/')) {   // phone setup. Every route needs the pairing key (the secret PUSH_KEY) in the X-Push-Key header
-      if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'POST only' }), { status: 405, headers: json });
-      if (!(env && env.PUSH_KEY)) return new Response(JSON.stringify({ error: 'PUSH_KEY is not set: add it as a secret in Cloudflare (Worker, Settings, Variables and Secrets)' }), { status: 503, headers: json });
-      if (!checkKey(env, req.headers.get('X-Push-Key'))) return new Response(JSON.stringify({ error: 'wrong pairing key' }), { status: 401, headers: json });
-      let body = {};
-      try { body = await req.json(); } catch (e) { /* an empty body is fine */ }
-      const reply = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...json, 'Cache-Control': 'no-store' } });
-      if (pathname === '/push/setup') {   // makes the VAPID key on first use; returns the public part the phone subscribes with
-        const v = await getVapid(env, true);
-        return v ? reply({ key: v.pub, subs: (await loadSubs(env)).length }) : reply({ error: 'could not make or read the VAPID key (KV binding?)' }, 500);
-      }
-      if (pathname === '/push/subscribe') {
-        if (!validEndpoint(body.endpoint)) return reply({ error: 'not a push service address' }, 400);
-        const ok = await saveSub(env, body.endpoint, req.headers.get('User-Agent'));
-        return ok ? reply({ ok: true, subs: (await loadSubs(env)).length }) : reply({ error: 'could not save the subscription (D1 binding?)' }, 500);
-      }
-      if (pathname === '/push/unsubscribe') { await dropSub(env, String(body.endpoint || '')); return reply({ ok: true, subs: (await loadSubs(env)).length }); }
-      if (pathname === '/push/test') {
-        const t = Date.now();
-        await recordTest(env, t);
-        alertMemo = null;
-        const r = await sendAll(env, t);
-        return reply({ ok: r.sent > 0, ...r });
-      }
-      return reply({ error: 'unknown push route' }, 404);
-    }
-    if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once
-      try {
-        const a = await getAlerts(env, ctx), since = Number(new URL(req.url).searchParams.get('since')) || 0;
-        return new Response(JSON.stringify({ now: a.now, since, alerts: filterAlerts(a.list, since), errors: a.errors }), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
