@@ -278,6 +278,12 @@ html.mobile .card.stretch.closed{height:auto}
 html.mobile .card.stretch .stk{position:static;height:100%}
 .cal{display:flex;flex-direction:column;height:100%}
 .topicon.live{color:var(--r)} /* master alerts button: red while alerts are on in at least one card (and not muted) */
+#phone.on{color:var(--g)} /* phone alerts button: green while this phone is subscribed */
+.phs{font-size:14px;line-height:1.5;margin:6px 0 10px}
+.phs input{width:100%;box-sizing:border-box;padding:9px 10px;margin:6px 0;background:transparent;color:var(--t);border:.5px solid var(--bdm);border-radius:8px;font:inherit}
+.phb{font-family:var(--sans);font-size:14px;background:none;color:var(--t);border:.5px solid var(--bdm);border-radius:999px;padding:7px 16px;margin:4px 6px 4px 0;cursor:pointer}
+.phb.go{background:var(--g);color:#fff;border-color:var(--g)}
+.phm{font-size:13px;color:var(--t2);min-height:1.4em;margin-top:6px}.phm.bad{color:var(--r)}
 .calbar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .audit{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
 .audit:hover{border-color:var(--bdm);color:var(--t)}
@@ -439,6 +445,7 @@ html.mobile .tu b{font-size:22px}
     <div class="topbaracts">
       <button class="topicon" id="refreshall" onclick="refreshAll()"></button>
       <button class="topicon" id="master"></button>
+      <button class="topicon" id="phone" onclick="phonePanel()"></button>
       <button class="topicon" id="layout" onclick="toggleLayout()"></button>
       <button class="topicon themetoggle" id="theme" onclick="toggleTheme()"></button>
     </div>
@@ -505,6 +512,7 @@ const I={
   expand:ico('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
   fold:ico('<polyline points="6 9 12 15 18 9"/>'),
   bell:ico('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
+  phone:ico('<rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>'),
   belloff:ico('<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>'),
   pause:ico('<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'),
   play:ico('<polygon points="6 3 20 12 6 21 6 3"/>')
@@ -1319,7 +1327,7 @@ function setAlert(key,on){
   if(on&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}} /* lets an alert reach you while this tab is in the background */
 }
 function toggleRem(){setAlert('cal',!remOn)}
-function notify(title,body){if(!masterOn)return;try{if(document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body:body})}catch(e){}}
+function notify(title,body){if(!masterOn||LS.g(KEY+'pushon','0')==='1')return;try{if(document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body:body})}catch(e){}}
 /* release alerts: the first time an actual appears for a high-impact release (within 45 min of the print), one alert per release with
    actual vs forecast vs previous and a line on what it usually means. A report with several rows (jobs, CPI) is one alert. */
 let relFired=[];try{relFired=JSON.parse(LS.g(KEY+'rel_fired','[]'))||[]}catch(e){}
@@ -1997,6 +2005,66 @@ function relShell(label,inner){
   relBox.innerHTML='<div class="relc" role="dialog" aria-modal="true" aria-label="'+esc(label)+'"><div class="relh"><b>'+esc(label)+'</b><button class="topicon" aria-label="close">×</button></div>'+inner+'</div>';
   relBox.hidden=false;$('.relh .topicon',relBox).onclick=closeRel;$('.relh .topicon',relBox).focus();
 }
+/* ---- phone alerts (P8.34 stage 3): the Worker sends each alert to this phone through sw.js (Web Push). Needs the app opened from its Home Screen icon. ---- */
+const PUSH_API='https://market-dashboard.jtradeats.workers.dev',PK=KEY+'pushkey',PON=KEY+'pushon',PSYNC=KEY+'pushsync';
+const pushOK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+const pushU8=s=>{const t=String(s).replace(/-/g,'+').replace(/_/g,'/'),r=atob(t+'='.repeat((4-t.length%4)%4)),o=new Uint8Array(r.length);for(let i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o};
+const pushB64=b=>{let s='';for(const x of new Uint8Array(b))s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+const phoneOn=()=>{try{return LS.g(PON,'0')==='1'&&pushOK()&&Notification.permission==='granted'}catch(e){return false}};
+function paintPhone(){const b=$('#phone');if(!b)return;const on=phoneOn(),t=on?'Phone alerts are ON for this phone. Tap for the test and off buttons':'Phone alerts are off. Tap to turn them on';b.innerHTML=I.phone;b.classList.toggle('on',on);b.setAttribute('aria-label',t);b.setAttribute('data-tt',t)}
+async function pushReg(){
+  const reg=await navigator.serviceWorker.register('/sw.js',{scope:'/news.html'});
+  for(let i=0;i<50&&!reg.active;i++)await new Promise(r=>setTimeout(r,200));
+  if(!reg.active)throw new Error('The service worker did not start. Close the app, open it again and retry.');
+  return reg;
+}
+async function pushCall(path,key,body){
+  const r=await fetch(PUSH_API+path,{method:'POST',headers:{'X-Push-Key':key,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+async function phoneEnable(key){
+  if(!key)throw new Error('Enter the pairing key first (the PUSH_KEY secret you set in Cloudflare).');
+  if(!pushOK())throw new Error('This browser has no push support. Open the dashboard from its Home Screen icon, not from a Safari tab.');
+  let perm=Notification.permission;
+  if(perm==='default')perm=await Notification.requestPermission(); /* the first await: it has to run inside the tap */
+  if(perm!=='granted')throw new Error('Notifications are not allowed. iPhone Settings > Notifications > this app > Allow Notifications, then try again.');
+  const k=(await pushCall('/push/setup',key)).key,reg=await pushReg();
+  let sub=await reg.pushManager.getSubscription();
+  if(sub&&sub.options&&sub.options.applicationServerKey&&pushB64(sub.options.applicationServerKey)!==k){await sub.unsubscribe();sub=null}
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:pushU8(k)});
+  await pushCall('/push/subscribe',key,{endpoint:sub.endpoint});
+  try{reg.active.postMessage({type:'baseline'})}catch(e){}
+  LS.s(PK,key);LS.s(PON,'1');LS.s(PSYNC,String(Date.now()));paintPhone();
+}
+async function phoneDisable(){
+  const reg=await navigator.serviceWorker.getRegistration('/news.html'),sub=reg&&await reg.pushManager.getSubscription();
+  if(sub){try{await pushCall('/push/unsubscribe',LS.g(PK,''),{endpoint:sub.endpoint})}catch(e){}await sub.unsubscribe()}
+  LS.s(PON,'0');paintPhone();
+}
+function phonePanel(msg,bad){
+  const on=phoneOn(),saved=LS.g(PK,'');
+  relShell('Phone alerts','<div class="phs">'+(on?'<b>On.</b> The Worker sends each alert to this phone, also while the app is closed. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive every dashboard alert as a phone notification.')+
+    (on?'':'<input id="pkey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Pairing key (PUSH_KEY)" value="'+esc(saved)+'">')+
+    '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>')+'</div>'+
+    '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div>'+
+    '<div class="phm">The mute button on this page does not mute the phone. Turn the phone off here. Needs the dashboard opened from its Home Screen icon.</div></div>');
+  const say=(t,b)=>{const m=$('#pmsg',relBox);if(m){m.textContent=t;m.classList.toggle('bad',!!b)}};
+  const run=async(f,ok)=>{try{await f();phonePanel(ok)}catch(e){say(String(e&&e.message||e),1)}};
+  const bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox);
+  if(bOn)bOn.onclick=()=>{const key=($('#pkey',relBox).value||'').trim();say('Working…');run(()=>phoneEnable(key),'Turned on. Tap "Send a test" to check.')};
+  if(bOff)bOff.onclick=()=>run(phoneDisable,'Turned off.');
+  if(bT)bT.onclick=async()=>{say('Sending…');try{const j=await pushCall('/push/test',LS.g(PK,''));say(j.sent?'Sent to '+j.sent+' phone'+(j.sent>1?'s':'')+'. It should appear within a few seconds.':'The push service did not accept it: '+((j.results&&j.results[0]&&j.results[0].err)||j.error||'no subscription found')+'. Try Turn off, then Turn on.',!j.sent)}catch(e){say(String(e&&e.message||e),1)}};
+}
+paintPhone();
+/* once every 12 h the page re-sends this phone's address to the Worker (iOS can change it); a subscription that has gone is shown as off */
+(async()=>{try{
+  if(!phoneOn()||Date.now()-(+LS.g(PSYNC,'0'))<12*36e5)return;
+  const reg=await navigator.serviceWorker.getRegistration('/news.html'),sub=reg&&await reg.pushManager.getSubscription();
+  if(!sub){LS.s(PON,'0');paintPhone();return}
+  await pushCall('/push/subscribe',LS.g(PK,''),{endpoint:sub.endpoint});LS.s(PSYNC,String(Date.now()));
+}catch(e){}})();
 function showRelease(e){
   if(!e)return;
   const d=calData||{},k=(d.kinds||{})[e.k],fam=(d.fams||{})[e.fam]||null,hd=relHead(e,k);
