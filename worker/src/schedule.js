@@ -338,6 +338,10 @@ export function overlay(events, feeds, IND, nowMs) {
         let v = fmtVal(row[f], ev.u);
         // a row may ask for fixed decimals on a forecast (indicators.json "dp"): Forex Factory writes crude as 0.4M, the reference calendar as 0.400M
         if (v !== null && f === 'fc' && ev.u === 'M') { const dp = (IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).dp; if (dp != null && /^-?\d+(\.\d+)?M$/.test(v)) v = parseFloat(v).toFixed(dp) + 'M'; }
+        // Forex Factory rounds crude to 0.1M (3.4M) where the release itself has three decimals (3.380M). A previous that is already held, and that the feed's figure is only a rounding of,
+        // keeps its three decimals; a previous that differs by more than the rounding (a revision) is still taken from the feed.
+        if (v !== null && f === 'pv' && ev.u === 'M' && ev.pv != null && (IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).dp != null
+          && /^-?\d+(\.\d+)?M$/.test(v) && /^-?\d+(\.\d+)?M$/.test(String(ev.pv)) && Math.abs(parseFloat(ev.pv) - parseFloat(v)) <= 0.0501) continue;
         if (v !== null) { ev[f] = v; (ev.sr = ev.sr || {})[f] = feed.name; }
       }
       const dt = Math.round((row.t - ev.t) / 60000);
