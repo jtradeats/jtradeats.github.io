@@ -8,6 +8,8 @@ export const POSTS_SCHEMA = [
   'CREATE TABLE IF NOT EXISTS tg_posts (ch TEXT NOT NULL, id INTEGER NOT NULL, t INTEGER, j TEXT NOT NULL, PRIMARY KEY (ch, id))',
   'CREATE TABLE IF NOT EXISTS poll_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS actual_lag (id TEXT PRIMARY KEY, rel INTEGER NOT NULL, seen INTEGER NOT NULL, src TEXT)',
+  'CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, created INTEGER NOT NULL, ua TEXT, last_ok INTEGER, last_err TEXT, last_err_at INTEGER, fails INTEGER NOT NULL DEFAULT 0)',   // phone subscriptions (P8.34 stage 3)
+  'CREATE TABLE IF NOT EXISTS alert_sent (id TEXT PRIMARY KEY, t INTEGER NOT NULL, at INTEGER NOT NULL)',   // alerts already pushed: nothing fires twice
 ];
 export const POSTS_KEEP_ROWS = 800;   // per channel: about two to three days of FinancialJuice
 
@@ -103,4 +105,14 @@ export async function loadLag(env, n = 30) {
     const r = await d.prepare('SELECT id, rel, seen, src FROM actual_lag ORDER BY seen DESC LIMIT ?1').bind(n).all();
     return (r.results || []).map(x => ({ id: x.id, release: new Date(x.rel).toISOString().replace(/\.\d+Z$/, 'Z'), lag_s: Math.round((x.seen - x.rel) / 1000), src: x.src }));
   } catch (e) { state.err = String(e && e.message).slice(0, 120); return null; }
+}
+
+// when each release row's actual was first seen (ms), for the rows seen after `since`: lets /alerts date a release alert by the sighting, not the print
+export async function loadLagSeen(env, since) {
+  const d = db(env);
+  if (!d || !(await ensurePosts(env))) return {};
+  try {
+    const r = await d.prepare('SELECT id, seen FROM actual_lag WHERE seen > ?1').bind(since).all();
+    return Object.fromEntries((r.results || []).map(x => [x.id, x.seen]));
+  } catch (e) { state.err = String(e && e.message).slice(0, 120); return {}; }
 }
