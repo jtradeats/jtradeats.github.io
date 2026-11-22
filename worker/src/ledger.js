@@ -3,6 +3,8 @@
 // holds nothing until the sources answer again, and a source that lapses for a moment left only the wire's first number (tagged fj).
 // The ledger is the floor under every live source: a number is put back only when the live sources show none, or a lesser one.
 // A live source of the same or higher rank always wins, and a revised number of the same rank replaces the ledger's copy.
+// The forecast is kept too (fc, with its source sf): the Forex Factory file drops last week's releases when its week rolls over on Sunday, and the wire's own memo is dropped after 3 days,
+// so without this a released row loses its forecast (and the green or red of its actual) within days.
 // One small KV object (key calendar:ledger), written only when an entry is added or changes: a few writes a day against the 1,000 free ones.
 
 export const LG_KV = 'calendar:ledger';
@@ -30,6 +32,11 @@ export function recordLedger(mem, events, now) {
       const r = r0 || (mem.rows[e.id] = { t: e.t });
       if (!has(r.ac) || ar > rankOf(r.sa) || (ar === rankOf(r.sa) && String(r.ac) !== String(e.ac))) { r.ac = e.ac; r.sa = sr.ac; r.at = now; changed = true; }
     }
+    // the forecast the calendar feed or the wire gave (rank 2 or more; a typed placeholder is not a source)
+    if (has(e.fc) && rankOf(sr.fc) >= 2) {
+      const fr = rankOf(sr.fc), r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
+      if (!has(r.fc) || fr > rankOf(r.sf) || (fr === rankOf(r.sf) && String(r.fc) !== String(e.fc))) { r.fc = e.fc; r.sf = sr.fc; r.at = now; changed = true; }
+    }
     // the revised previous the official series gave (it carries the green or red underline)
     if (has(e.pv) && rankOf(sr.pv) === 4) {
       const r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
@@ -49,6 +56,9 @@ export function applyLedger(events, mem, now) {
     const sr = e.sr || {};
     if (has(r.ac) && (!has(e.ac) || rankOf(r.sa) > rankOf(sr.ac))) {
       e.ac = r.ac; (e.sr = e.sr || {}).ac = r.sa; n++;
+    }
+    if (has(r.fc) && (!has(e.fc) || rankOf(r.sf) > rankOf(sr.fc))) {
+      e.fc = r.fc; (e.sr = e.sr || {}).fc = r.sf; n++;
     }
     if (has(r.pv) && rankOf(e.sr ? e.sr.pv : undefined) < 4) {
       e.pv = r.pv; (e.sr = e.sr || {}).pv = r.sp || 'FRED';

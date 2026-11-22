@@ -17,7 +17,7 @@ import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTest
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
-import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
+import { getFeed, getFeeds, pollFeedsBg, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
@@ -311,7 +311,7 @@ async function loadFeed(urls = CAL_FEEDS) {
     catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
   if (!ok) { const err = new Error(notes.join(' | ')); err.rate = rate; throw err; }
-  return { events: normFair(raw), notes };
+  return { events: normFair(raw, INDICATORS), notes };   // INDICATORS: Forex Factory rates Crude Oil Inventories "Low"; normFair keeps a Low row only when it matches a row of a release the dashboard shows, so the crude forecast arrives
 }
 
 // Bring the Fair Economy copy up to date if it is due. Never throws; records the outcome in feedState.
@@ -500,19 +500,23 @@ const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *'
 const POLL_FEEDS = '* * * * *', POLL_CAL = '*/2 * * * *';
 const CAL_NEAR = [3 * 60000, 90 * 60000];   // a release is "near" from 3 minutes before to 90 minutes after (the official series' own fast tier is 2 to 90)
 async function pollFeeds(env, ctx, at) {
-  const body = JSON.parse(await getFeeds(env, ctx, {}));
-  const ok = [body, body.fj].some(v => v && v.status === 'ok');
+  // CPU: this runs 1,440 times a day, so it does the least it can. pollFeedsBg reads each channel's page and parses it only when the newest post id differs from the one the window already holds
+  // (a full parse at least every 10 minutes). It returns the two statuses and the number of new or changed posts instead of building both views as JSON and parsing them back.
+  const st = await pollFeedsBg(env, ctx);
+  const ok = st.status.some(s => s === 'ok');
   const now = Date.now(), min = Math.floor(at / 60000);
   if (min % 5 === 0) {   // a heartbeat every 5 minutes: 288 rows a day for each of the two, not 1,440
     await beat(env, 'feeds_run', now);
     if (ok) await beat(env, 'feeds_ok', now);
   }
   if (min % 60 === 0) await Promise.all(Object.keys(CHANNELS).map(n => prunePosts(env, n)));
-  await pushNew(env, async () => (await getAlerts(env, ctx, { cal: false })).list, now);   // phone alerts for the new posts (nothing happens when nobody is subscribed)
+  // Phone alerts for the new posts (nothing happens when nobody is subscribed). The alert list is read from D1 and grouped, which costs CPU, so it is built only when this minute found
+  // a new or changed post, plus a sweep every 5 minutes (a wire alert is live for 15 minutes, so a run that failed or was cut short is made up by the next sweep).
+  if (st.fresh > 0 || min % 5 === 0) await pushNew(env, async () => (await getAlerts(env, ctx, { cal: false })).list, now);
 }
 async function pollCalendar(env, ctx, at) {
   await loadSync(env);
-  const sch = schedule(at), min = Math.floor(at / 60000);
+  const sch = schedule(at, true), min = Math.floor(at / 60000);   // true: events only; the audit of the whole schedule is left for a tick that builds the calendar
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
   // a reminder (15 min, 5 min, at the release) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
   const due = !near && min % 10 !== 0 ? reminderIdsDue(sch.events, at) : [];
@@ -607,7 +611,7 @@ function syncHealth() {
 // The effective schedule = schedule.json + the sync overlay. Rebuilt when the overlay changes or the New York date turns; the audit (about 3 ms) never runs in the
 // same request as a rebuild unless it is the very first one, so a cold start stays well under the CPU limit.
 const schedCache = { events: null, aud: null, at: 0, sig: null, day: null, eff: null, merged: null, checked: null, audStale: false };
-function schedule(now) {
+function schedule(now, lite) {   // lite: skip the audit (it covers the whole schedule); getCalendar asks for it without lite
   const sig = syncState.rec ? syncState.rec.at : 0, day = nyDate(now);
   let rebuilt = false;
   if (!schedCache.events || schedCache.sig !== sig || schedCache.day !== day) {
@@ -617,7 +621,7 @@ function schedule(now) {
     schedCache.merged = m; schedCache.checked = m.checked; schedCache.sig = sig; schedCache.day = day;
     rebuilt = true; schedCache.audStale = true;
   }
-  if (!schedCache.aud || (!rebuilt && (schedCache.audStale || now - schedCache.at > 10 * 60000))) { schedCache.aud = audit(schedCache.eff, INDICATORS, now); schedCache.at = now; schedCache.audStale = false; }
+  if (!lite && (!schedCache.aud || (!rebuilt && (schedCache.audStale || now - schedCache.at > 10 * 60000)))) { schedCache.aud = audit(schedCache.eff, INDICATORS, now); schedCache.at = now; schedCache.audStale = false; }
   return schedCache;
 }
 

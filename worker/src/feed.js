@@ -33,6 +33,7 @@ const FEED_DEADLINE = 2500;      // a request waits at most this long for a fres
 const FEED_KEEP = 120;           // posts kept in the rolling window (the page shows all of them; D1 keeps more, see posts.js)
 const FEED_FILL_PAGES = 2;       // when a poll does not meet the window (a long pause), up to this many older pages (?before=) are read to close the hole
 const FEED_STALE = 90000;        // status "stale" if the last good poll is older than this
+const FEED_FULL_BG = 10 * 60000;   // the every-minute background poll (plan P8.32) parses in full this often when the newest post id has not changed: its job is new posts, and an open page still checks every minute
 const FEED_FULL = 60000;         // a full parse at least this often even when the newest post id has not changed (an edited older post still shows within a minute)
 const FEED_STAGGER = 350;        // the second channel's poll starts this much later, so the two requests to Telegram never go out together
 
@@ -186,7 +187,7 @@ export function mergePosts(win, incoming, keep = FEED_KEEP) {   // -> { posts, a
 
 // ---- state: one per channel, lives in the isolate; the page never makes Telegram wait for more than one poll at a time ----
 const newState = () => ({ posts: [], at: 0, okAt: 0, failAt: 0, err: null, rate: false, httpStatus: null, parsed: 0, withTime: 0,
-  parseMs: null, bytes: 0, sample: null, inflight: null, seeded: false, lastKv: 0, gapId: 0, fullAt: 0, skips: 0, saved: 0, filled: 0, fromDb: false });
+  parseMs: null, bytes: 0, sample: null, inflight: null, seeded: false, lastKv: 0, gapId: 0, fullAt: 0, skips: 0, saved: 0, filled: 0, fromDb: false, fresh: 0 });   // fresh: posts a poll found that the window did not hold or that changed (the background poller reads it)
 const STATES = { [FEED_CHANNEL]: newState() };
 const stateOf = ch => STATES[ch] || (STATES[ch] = newState());
 export const _state = STATES[FEED_CHANNEL];   // for tests: the default channel's state, as before
@@ -197,7 +198,7 @@ function sampleOf(html) {
   return html.slice(Math.max(0, i - 200), Math.max(0, i - 200) + 1700);
 }
 
-async function pollOnce(env, c, S) {
+async function pollOnce(env, c, S, bg) {   // bg: the background poller (every minute), which parses in full less often
   const fail = (status, msg, rate) => { S.at = S.failAt = Date.now(); S.err = String(msg).slice(0, 200); S.rate = !!rate; S.httpStatus = status; };
   let res;
   try {
@@ -209,8 +210,11 @@ async function pollOnce(env, c, S) {
   // Nothing new since the last full parse (same newest id, and that parse is under a minute old): the page differs only in view counters,
   // so keep the window as it is and skip the HTMLRewriter. A new post, a failure, a cold start (fullAt is 0 until the first parse) or
   // FEED_FULL seconds without a parse all fall through to the full parse below.
+  // The background poller also skips on a cold isolate whose window came from D1 (D1 holds every post seen, so its newest id is the newest post known); that skip starts the FEED_FULL_BG clock.
   const nid = newestId(html, c.name), top = S.posts[0];
-  if (nid && top && nid === top.id && S.fullAt && Date.now() - S.fullAt < FEED_FULL) {
+  const warm = S.fullAt ? Date.now() - S.fullAt < (bg ? FEED_FULL_BG : FEED_FULL) : !!(bg && S.fromDb);
+  if (nid && top && nid === top.id && warm) {
+    if (!S.fullAt) S.fullAt = Date.now();
     S.at = S.okAt = Date.now(); S.failAt = 0; S.err = null; S.rate = false; S.httpStatus = res.status; S.bytes = html.length; S.skips++;
     return;
   }
@@ -238,6 +242,7 @@ async function pollOnce(env, c, S) {
   if (S.parsed === S.withTime) S.sample = null;
   const saved = changed.length ? await savePosts(env, c.name, changed) : 0;   // D1 first: a row per new post, nothing for a re-read
   S.saved += saved;
+  S.fresh += changed.length;
   if (!saved && m.added && env && env.MARKET_KV && now - S.lastKv > c.kvGap) {   // no D1 (or it failed): the old KV snapshot, at most every kvGap
     S.lastKv = now;
     try { await env.MARKET_KV.put(c.kv, JSON.stringify({ at: now, posts: S.posts })); } catch (_) { /* ignore */ }
@@ -316,13 +321,13 @@ async function feedObject(env, ctx, opts = {}) {
   const now = Date.now();
   const gap = S.failAt ? (S.rate ? FEED_RETRY_429 : FEED_RETRY) : FEED_TTL;
   if (now - S.at >= gap) {
-    if (!S.inflight) S.inflight = (opts.stagger ? new Promise(r => setTimeout(r, opts.stagger)) : Promise.resolve()).then(() => pollOnce(env, c, S))
+    if (!S.inflight) S.inflight = (opts.stagger ? new Promise(r => setTimeout(r, opts.stagger)) : Promise.resolve()).then(() => pollOnce(env, c, S, opts.bg))
       .catch(e => { S.at = S.failAt = Date.now(); S.err = String(e.message).slice(0, 200); }).finally(() => { S.inflight = null; });
     const p = S.inflight;
     if (ctx) ctx.waitUntil(p);
     await Promise.race([p, new Promise(r => setTimeout(r, FEED_DEADLINE))]);
   }
-  return viewOf(c, S, Date.now(), !!opts.debug);
+  return opts.bare ? statusNow(S, Date.now()) : viewOf(c, S, Date.now(), !!opts.debug);   // bare: the status word only (the background poller does not need the posts as JSON)
 }
 
 // The latest posts of one channel for other routes (the calendar's wire actuals, wire.js). poll = false: read the window as it is (seeded from KV on a cold start);
@@ -347,4 +352,13 @@ export async function getFeeds(env, ctx, opts = {}) {
   const out = {};
   names.forEach((n, i) => { const v = view(n, rs[i]), k = chOf(n).key; if (k) out[k] = v; else Object.assign(out, v); });
   return JSON.stringify(out);
+}
+// The every-minute background poll (plan P8.32): reads both channels like getFeeds does, but returns only { status: [one word per channel], fresh: n new or changed posts }
+// and never builds the combined JSON. Never throws: a channel that fails says "broken".
+export async function pollFeedsBg(env, ctx) {
+  const names = Object.keys(CHANNELS), before = names.map(n => stateOf(chOf(n).name).fresh);
+  const rs = await Promise.allSettled(names.map((n, i) => feedObject(env, ctx, { channel: n, stagger: i * FEED_STAGGER, bg: true, bare: true })));
+  const status = rs.map(r => (r.status === 'fulfilled' ? r.value : 'broken'));
+  const fresh = names.reduce((a, n, i) => a + Math.max(0, stateOf(chOf(n).name).fresh - before[i]), 0);
+  return { status, fresh };
 }
