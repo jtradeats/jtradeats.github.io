@@ -865,26 +865,26 @@ function marketEmpty(){
   $('#fbody').innerHTML='<p class="note">\u2014</p>';
 }
 const fj=async(u,ms)=>{const c=new AbortController(),k=setTimeout(()=>c.abort(),ms);try{const r=await fetch(u,{cache:'no-store',signal:c.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(k)}}; /* the timer covers the body read too: a request that hangs now fails after ms instead of freezing the tape */
-async function fetchMarket(){
-  if(window.__MK0){const p=window.__MK0;window.__MK0=null;const d=await Promise.race([p,sleep(12000).then(()=>null)]);if(d&&d.items)return d}
+async function fetchMarket(fresh){ /* fresh: a manual refresh asks the Worker to skip its stored answer (?fresh=1, P8.11); timers and tab returns never do */
+  if(!fresh&&window.__MK0){const p=window.__MK0;window.__MK0=null;const d=await Promise.race([p,sleep(12000).then(()=>null)]);if(d&&d.items)return d}
   try{
-    const d=await fj(WORKER_URL,12000);
+    const d=await fj(WORKER_URL+(fresh?'?fresh=1':''),12000);
     if(!d.items)throw new Error('bad payload');
     return d;
   }catch(e){
     return fj(DATA_URL+'?t='+Date.now(),12000);
   }
 }
-async function loadMarket(){
+async function loadMarket(fresh){
   if(loading&&Date.now()-loadingAt<30000)return null;loading=true;loadingAt=Date.now(); /* a load older than 30 s is treated as dead, so one hung request can never block every later refresh */
-  try{const d=await fetchMarket();refreshFailed=false;renderMarket(d);return d}
+  try{const d=await fetchMarket(fresh);refreshFailed=false;renderMarket(d);return d}
   catch(e){refreshFailed=true;marketEmpty();paintStamp();return null}
   finally{loading=false}
 }
 async function manualRefresh(){
   if(busy)return;busy=true;
   const b=$('#mrefresh');b.classList.add('spin');paintStamp('checking\u2026');
-  try{await loadMarket();await sleep(2500);await loadMarket()} /* second pass picks up the Worker's background refresh */
+  try{await loadMarket(true);await sleep(2500);await loadMarket()} /* the first pass asks for a new build; the second (plain) pass picks up the Worker's background refresh */
   finally{b.classList.remove('spin');busy=false;paintStamp()}
 }
 $('#mrefresh').onclick=manualRefresh;
@@ -961,11 +961,11 @@ function wireGroup(nw,recent,now){ /* nw newest first -> [{p: newest post of the
 const wireRoot=w=>w.el&&w.el.isConnected?$('[data-wire="'+w.key+'"]',w.el):null; /* the news card body is shared with TradingView: only paint while this wire is the one shown */
 const wireVisible=w=>!document.hidden&&tab==='news'&&!!wireRoot(w)&&!w.el.closest('.card.closed');
 let feedBusy=false;
-async function feedLoad(){ /* one request, both wires */
+async function feedLoad(fresh){ /* one request, both wires; fresh = a manual refresh (?fresh=1) */
   if(feedBusy)return;feedBusy=true;
   let all=null,err=null;
   try{
-    const r=await fetch(FEED_URL,{cache:'no-store'});
+    const r=await fetch(FEED_URL+(fresh?'?fresh=1':''),{cache:'no-store'});
     if(!r.ok)throw new Error('Worker /feed answered '+r.status);
     all=await r.json();
     if(!Array.isArray(all.posts))throw new Error(all.error||'bad payload');
@@ -1175,12 +1175,12 @@ function calTtl(){
 }
 function calRepaint(){if(CALP.fn&&CALP.el&&CALP.el.isConnected&&calData)CALP.fn(calData)}
 let calFailAt=0,calLastErr=null;
-async function calGet(){
-  if(calData&&Date.now()-calAt<calTtl())return calData;
+async function calGet(fresh){ /* fresh = a manual refresh: skip the page's copy and ask the Worker for a new build (?fresh=1) */
+  if(!fresh&&calData&&Date.now()-calAt<calTtl())return calData;
   if(calFailAt&&Date.now()-calFailAt<150000){if(calData)return calData;throw calLastErr} /* do not hammer a failing route */
   let d;
   try{
-    const t0=Date.now(),r=await fetch(CAL_URL,{cache:'no-store'}),t1=Date.now();
+    const t0=Date.now(),r=await fetch(CAL_URL+(fresh?'?fresh=1':''),{cache:'no-store'}),t1=Date.now();
     if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(r.status+(j.error?' '+j.error:''))}
     d=await r.json();if(!Array.isArray(d.events))throw new Error('bad payload');
     if(d.now)clkOff=Math.round(d.now-(t0+t1)/2); /* half the round trip is the best guess for when the Worker read its clock */
@@ -1319,7 +1319,7 @@ function nxtPaint(){
 }
 $('#nbody').addEventListener('click',e=>{if(!e.target.closest('.nev')||!nxtEv)return;const t=e.target.closest('[data-i]');showRelease((t&&nxtSame[+t.dataset.i])||nxtEv)}); /* each title opens its own release */
 $('#nbody').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.nev')&&nxtEv){e.preventDefault();showRelease(nxtEv)}});
-const nxtLoad=()=>calGet().then(()=>{calFail=false;calErr='';nxtPaint();relCheck()}).catch(e=>{calFail=true;calErr=String(e.message);nxtPaint()});
+const nxtLoad=fresh=>calGet(fresh).then(()=>{calFail=false;calErr='';nxtPaint();relCheck()}).catch(e=>{calFail=true;calErr=String(e.message);nxtPaint()});
 function lclkPaint(){const el=$('#lclk');if(el)el.textContent='CME '+(futClosed()?'closed':'open')+' \u00b7 '+new Date(NOW()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'})}
 
 /* ---- calendar reminders (plan 4.2, in-page version): toasts for High-impact USD events, 15 min and 5 min before and at release.
@@ -1666,7 +1666,7 @@ async function cvLoad(fresh){
   if(!fresh&&CV.d&&Date.now()-CV.at<20*60000)return; /* the close changes once a day; the Worker keeps its own copy for 15 min */
   CV.busy=true;
   try{
-    const r=await fetch(CRV_URL,{cache:'no-store'});
+    const r=await fetch(CRV_URL+(fresh?'?fresh=1':''),{cache:'no-store'});
     if(!r.ok)throw new Error(r.status);
     const d=await r.json();if(!d.hist||!d.asof)throw new Error('bad payload');
     CV.d=d;CV.bad=false;LS.s(CV.key,JSON.stringify(d));
@@ -1935,7 +1935,7 @@ async function refreshAll(){ /* header refresh = hard refresh: forgets every cac
     loadingAt=0;calAt=0;calFailAt=0; /* the market and calendar loaders accept a new request at once */
     try{localStorage.removeItem(KEY+'mk_last')}catch(e){}
     for(const k in LIVE)if(LIVE[k].reset)LIVE[k].reset();
-    const jobs=[loadMarket(),nxtLoad(),feedLoad()];
+    const jobs=[loadMarket(true),nxtLoad(true),feedLoad(true)]; /* the manual refresh asks the Worker for new builds (?fresh=1); no timer ever does */
     for(const k in LIVE)jobs.push(LIVE[k].load(true));
     for(const k in C)draw(k);
     await Promise.race([Promise.allSettled(jobs),sleep(15000)]);
