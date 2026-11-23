@@ -771,6 +771,7 @@
    "time": "09:45",
    "per": "m",
    "dir": "grow",
+   "noFeedPv": true,
    "hz": 14,
    "fam": "act",
    "rows": [
