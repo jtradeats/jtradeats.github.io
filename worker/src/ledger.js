@@ -5,6 +5,8 @@
 // A live source of the same or higher rank always wins, and a revised number of the same rank replaces the ledger's copy.
 // The forecast is kept too (fc, with its source sf): the Forex Factory file drops last week's releases when its week rolls over on Sunday, and the wire's own memo is dropped after 3 days,
 // so without this a released row loses its forecast (and the green or red of its actual) within days.
+// Upcoming releases are covered too, for the forecast only (P8.38): the calendar feed answers 429 most of the time and its saved copy is not laid over the schedule after 12 hours,
+// so a forecast that was on screen yesterday used to vanish overnight and come back when the feed next answered. Actuals and revised previous figures are still kept for released rows only.
 // One small KV object (key calendar:ledger), written only when an entry is added or changes: a few writes a day against the 1,000 free ones.
 
 export const LG_KV = 'calendar:ledger';
@@ -25,10 +27,11 @@ const has = v => v != null && v !== '';
 export function recordLedger(mem, events, now) {
   let changed = false;
   for (const e of events || []) {
-    if (!usable(e) || e.t > now || e.t < now - LG_AFTER_MAX) continue;
+    if (!usable(e) || e.t < now - LG_AFTER_MAX) continue;
+    const out = e.t <= now;   // released: actuals and the revised previous are kept; an upcoming row keeps its forecast only
     const sr = e.sr || {}, r0 = mem.rows[e.id];
     const ar = rankOf(sr.ac);
-    if (has(e.ac) && ar >= 2) {
+    if (out && has(e.ac) && ar >= 2) {
       const r = r0 || (mem.rows[e.id] = { t: e.t });
       if (!has(r.ac) || ar > rankOf(r.sa) || (ar === rankOf(r.sa) && String(r.ac) !== String(e.ac))) { r.ac = e.ac; r.sa = sr.ac; r.at = now; changed = true; }
     }
@@ -38,7 +41,7 @@ export function recordLedger(mem, events, now) {
       if (!has(r.fc) || fr > rankOf(r.sf) || (fr === rankOf(r.sf) && String(r.fc) !== String(e.fc))) { r.fc = e.fc; r.sf = sr.fc; r.at = now; changed = true; }
     }
     // the revised previous the official series gave (it carries the green or red underline)
-    if (has(e.pv) && rankOf(sr.pv) === 4) {
+    if (out && has(e.pv) && rankOf(sr.pv) === 4) {
       const r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
       if (String(r.pv) !== String(e.pv) || (r.pvc || null) !== (e.pvc || null) || (r.sp || 'FRED') !== sr.pv) { r.pv = e.pv; r.pvc = e.pvc || null; r.sp = sr.pv; r.at = now; changed = true; }
     }
@@ -50,17 +53,17 @@ export function recordLedger(mem, events, now) {
 export function applyLedger(events, mem, now) {
   let n = 0;
   for (const e of events || []) {
-    if (!usable(e) || e.t > now) continue;
+    if (!usable(e)) continue;
     const r = mem.rows[e.id];
     if (!r) continue;
-    const sr = e.sr || {};
-    if (has(r.ac) && (!has(e.ac) || rankOf(r.sa) > rankOf(sr.ac))) {
+    const sr = e.sr || {}, out = e.t <= now;
+    if (out && has(r.ac) && (!has(e.ac) || rankOf(r.sa) > rankOf(sr.ac))) {
       e.ac = r.ac; (e.sr = e.sr || {}).ac = r.sa; n++;
     }
     if (has(r.fc) && (!has(e.fc) || rankOf(r.sf) > rankOf(sr.fc))) {
       e.fc = r.fc; (e.sr = e.sr || {}).fc = r.sf; n++;
     }
-    if (has(r.pv) && rankOf(e.sr ? e.sr.pv : undefined) < 4) {
+    if (out && has(r.pv) && rankOf(e.sr ? e.sr.pv : undefined) < 4) {
       e.pv = r.pv; (e.sr = e.sr || {}).pv = r.sp || 'FRED';
       if (r.pvc) e.pvc = r.pvc; else delete e.pvc;
       n++;

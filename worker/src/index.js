@@ -15,7 +15,7 @@ import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pr
 import { buildAlerts, filterAlerts, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
 import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth } from './push.js';   // Web Push to the phone (plan P8.34 stage 3)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
-import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
+import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
@@ -469,6 +469,10 @@ async function loadOfficial(env, only) {
   await Promise.all(OFF_SERIES.filter(s => !only || only.has(s)).map(async s => {
     const vp = key && VINTAGE_SERIES.has(s) ? fredApiGet(fredVintageUrl(s, key, vSince, vFrom)).then(parseFredVintage).then(m => { V[s] = m; }, e => { errs.push([`${s} vintages`, redact(e.message)]); }) : null;
     try {
+      if (s.startsWith('EIA:')) {   // P8.33: EIA's own API (secret EIA_KEY); no keyless fallback exists
+        if (!(env && env.EIA_KEY)) throw new Error('no EIA_KEY set');
+        M[s] = parseEiaJson(await fredApiGet(eiaApiUrl(s.slice(4), env.EIA_KEY, since)));
+      } else
       M[s] = key ? parseFredJson(await fredApiGet(fredApiUrl(s, key, since))) : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}&cosd=${since}`));
       if (!M[s].size) throw new Error('no rows');
     } catch (e) { delete M[s]; errs.push([s, redact(e.message)]); }
@@ -998,6 +1002,7 @@ export default {
       'Access-Control-Allow-Origin': ALLOWED.includes(origin) ? origin : ALLOWED[0],
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-Push-Key',
+      'Access-Control-Expose-Headers': 'X-Server-Time',   // P8.38: lets the page read the Worker's clock at the moment of the reply (the body's `now` is the build time, up to 10 s older)
       Vary: 'Origin',
     };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
@@ -1048,9 +1053,9 @@ export default {
     }
     if (pathname === '/calendar') {
       try {
-        return new Response(await getCalendar(env, ctx, { debug: new URL(req.url).searchParams.has('debug'), fresh: isFresh(req.url) }), { headers: { ...json, 'Cache-Control': 'no-store' } });
+        return new Response(await getCalendar(env, ctx, { debug: new URL(req.url).searchParams.has('debug'), fresh: isFresh(req.url) }), { headers: { ...json, 'Cache-Control': 'no-store', 'X-Server-Time': String(Date.now()) } });
       } catch (e) {
-        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: { ...json, 'X-Server-Time': String(Date.now()) } });
       }
     }
     if (pathname === '/sectors' || pathname === '/weekly') {
