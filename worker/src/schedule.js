@@ -335,6 +335,9 @@ export function overlay(events, feeds, IND, nowMs) {
       const ev = byId.get(`${c.k}|${p.iso}|${c.r}`);
       hit.add(ev.id);
       for (const f of ['fc', 'pv', 'ac']) {
+        // P8.37: the provider's "previous" is wrong for a second or third estimate (it repeats the earlier estimate's own previous) and for kinds marked noFeedPv (the flash PMIs: it gives the earlier flash, not the final).
+        // The row keeps whatever it has (typed placeholder, then the chain) and the official source replaces it where one covers the row.
+        if (f === 'pv' && (/^(second|third)\b/i.test(String(ev.n || '')) || IND.kinds[ev.k].noFeedPv)) continue;
         let v = fmtVal(row[f], ev.u);
         // a row may ask for fixed decimals on a forecast (indicators.json "dp"): Forex Factory writes crude as 0.4M, the reference calendar as 0.400M
         if (v !== null && f === 'fc' && ev.u === 'M') { const dp = (IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).dp; if (dp != null && /^-?\d+(\.\d+)?M$/.test(v)) v = parseFloat(v).toFixed(dp) + 'M'; }
