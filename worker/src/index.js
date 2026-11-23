@@ -24,6 +24,7 @@ import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
+import { rulesFrom, rangeFail, checkJump } from './validate.js';   // price validation: V1 range, V2 jump (plan P8.16)
 
 const ALLOWED = [
   'https://jtradeats.github.io',
@@ -219,6 +220,9 @@ const META = Object.fromEntries(MAIN.map(i => [i.label, { grp: i.group, row: i.r
 const TV_LABELS = new Map(SYMBOLS.items.filter(i => i.tv || ((!i.set || i.set === 'main') && i.kind === 'fut')).map(i => [i.label, i.kind]));   // label -> kind of everything the TradingView push may supply: the tape futures and the items flagged "tv" in symbols.json (never VIX or VIXEQ: TradingView shows them delayed)
 const TV_WEEKLY = Object.fromEntries(SYMBOLS.items.filter(i => i.set === 'weekly' && i.roll).map(i => [i.label, i.roll]));   // weekly label -> the tape label whose pushed price and week open it uses   // the tape futures a TradingView push may carry (src/tv.js)
 
+const RULES = rulesFrom(SYMBOLS.items);   // label -> { label, kind, range, move } for every item that has a "range" or "move" in symbols.json (plan P8.16)
+const RANGES = Object.fromEntries(Object.values(RULES).filter(r => r.range).map(r => [r.label, r.range]));   // the TradingView push applies the same V1 ranges at ingest
+
 function fixYield(q) {
   if (q.p > 25) for (const k of ['p', 'c']) if (k in q) q[k] = +(q[k] / 10).toFixed(4); // x10 quirk
   delete q.pc; // % change of a yield isn't meaningful; the page shows the point change
@@ -235,12 +239,17 @@ async function getItem(label, kind, chain, log, notes) {
   const now = Date.now();
   if (c.val && now - c.at < c.ttl) return;                              // still fresh for its tier
   if (c.val && c.failAt && now - c.failAt < NEG_TTL) return;            // failed a moment ago, don't hammer
+  let why;   // set when the last refusal was V1: the tile says why it shows the last good value
   for (const [src, sym] of chain) {
     try {
       let got = await SOURCES[src](sym);
       if (kind === 'yield') got = fixYield(got);
       if (!Number.isFinite(got.p)) throw new Error('bad price');
+      const bad = rangeFail(RULES[label], got.p);   // V1 (P8.16): outside the item's range counts as a failed source, so the next one in the chain is tried
+      if (bad) throw bad;
       got = { label, kind, src: `${src}:${sym}`, f: Date.now(), ...got };
+      const jv = checkJump({ ...RULES[label], kind }, got, c.val, got.f);   // V2 (P8.16): a big move is shown, tagged UNVERIFIED, until the next fetch agrees
+      if (jv.unv) { got.unv = true; got.why = jv.why; }
       if (src === 'treasury' || src === 'fred') got.cls = 'prior';      // end-of-day value
       const prior = c.val;
       if (got.contract) {                                               // roll detection
@@ -253,9 +262,18 @@ async function getItem(label, kind, chain, log, notes) {
       const base = TTL_BY_SRC[src], ttl = src === 'yahoo' || src === 'cboe' ? backoffTtl({ kind, label }, got.t, Date.now(), base) : base;
       itemCache.set(label, { val: got, at: Date.now(), ttl });
       return;
-    } catch (e) { log.push(`${label} ${src}:${sym} failed: ${e.message}`.slice(0, 200)); }
+    } catch (e) { log.push(`${label} ${src}:${sym} failed: ${e.message}`.slice(0, 200)); why = e.range ? e.message : undefined; }
   }
-  itemCache.set(label, { ...c, failAt: Date.now() });
+  itemCache.set(label, { ...c, failAt: Date.now(), why });
+}
+// what /health shows about validation: items whose latest fetch was refused by V1, and items currently tagged UNVERIFIED by V2
+function valHealth() {
+  const rejected = [], unverified = [];
+  for (const [label, c] of itemCache) {
+    if (c.why) rejected.push({ label, why: c.why });
+    if (c.val && c.val.unv) unverified.push({ label, p: c.val.p, why: c.val.why });
+  }
+  return { rules: Object.keys(RULES).length, rejected, unverified };
 }
 
 // ---- Fear & Greed (CNN) ----
@@ -902,7 +920,7 @@ async function build(ctx, env) {
     const c = itemCache.get(label);
     if (c && c.val) {
       const stale = (c.failAt && c.failAt > c.at) || now - c.at > (liveFut.has(label) ? FUT_LIVE_TTL : c.ttl) + 60000;   // a live item is not stale because its source was skipped
-      return stale ? { ...c.val, stale: true } : c.val;
+      return stale ? { ...c.val, stale: true, why: c.why } : c.val;   // a stale tile shows only a V1 refusal as its reason (a V2 note belongs to the reading, not to the failure)
     }
     return prevItems[label] ? { ...prevItems[label], stale: true } : { label, kind, p: null };
   }).map(it => tvOverlay(it, tv, now, quote)).map(it => ({ ...it, ...META[it.label] }));
@@ -933,7 +951,7 @@ async function seed(env) {
     if (!snap || !Array.isArray(snap.items)) return;
     for (const it of snap.items) {
       if (it.p == null || itemCache.has(it.label)) continue;
-      const { stale, ...val } = it;
+      const { stale, unv, why, ...val } = it;   // a saved V1 or V2 note belongs to the moment it was made: the reading is refetched at once
       itemCache.set(it.label, { val, at: val.f || 0, ttl: 0 });   // last good value + roll history; refetched at once
     }
     if (snap.fng && !fngState.val) { fngState.val = snap.fng; fngState.at = 0; }
@@ -1000,6 +1018,7 @@ export default {
           wire: { feed: wireSt.feed === 'none' ? 'idle' : wireSt.feed, ...wireSummary(wireSt.memo || newMemo()) } },   // idle = no release the wire covers has needed a poll in this isolate yet
         tv: tvHealth(await loadTv(env), env),
         sectors: sectors.health(), weekly: weekly.health(),
+        validation: valHealth(),   // plan P8.16: V1 refusals and V2 tags right now (the audit reads this)
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((now - curve.memo.at) / 1000) : (curve.memo && curve.memo.updated ? ageOf(Date.parse(curve.memo.updated)) : null), check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
         poller,
@@ -1011,7 +1030,7 @@ export default {
     }
     if (pathname === '/ingest') {   // TradingView webhook target (src/tv.js); the secret travels in the JSON body because TradingView cannot set headers
       if (req.method !== 'POST') return new Response('{"error":"POST only"}', { status: 405, headers: json });
-      const r = await tvIngest(req, env, TV_LABELS);
+      const r = await tvIngest(req, env, TV_LABELS, Date.now(), RANGES);   // RANGES: the V1 bounds from symbols.json (plan P8.16)
       return new Response(JSON.stringify(r.out), { status: r.status, headers: { ...json, 'Cache-Control': 'no-store' } });
     }
     if (pathname === '/tv') {   // read only: what the last push held and whether it still counts as live

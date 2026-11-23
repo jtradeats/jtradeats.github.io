@@ -4,6 +4,7 @@
 // index.js is not touched by this file; later cleanup (plan P8.8) can fold its own get() and qYahoo() into this one.
 
 import { etParts } from './schedule.js';   // New York time by arithmetic (P8.15)
+import { rangeFail, checkJump } from './validate.js';   // price validation V1 and V2 (plan P8.16)
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const SRC_TIMEOUT = 4000;   // per upstream request
@@ -89,10 +90,13 @@ export function makeRoute(cfg) {
     try {
       const val = await fetchOne(spec, env);
       if (!Number.isFinite(val.p) || val.p <= 0) throw new Error('bad price');
-      cache.set(spec.label, { val: { label: spec.label, name: spec.name, kind: spec.kind, ...val }, at: Date.now() });
+      const rule = { ...spec, label: spec.label }, bad = rangeFail(rule, val.p);   // V1: outside the item's range = a failed fetch (last good value kept, STALE, reason in why)
+      if (bad) throw bad;
+      const jv = checkJump(rule, val, c.val, Date.now());   // V2: a big move is shown as UNVERIFIED until the next fetch agrees
+      cache.set(spec.label, { val: { label: spec.label, name: spec.name, kind: spec.kind, ...val, ...(jv.unv ? { unv: true, why: jv.why } : {}) }, at: Date.now() });
     } catch (e) {
       log.push(`${spec.label} failed: ${e.message}`.slice(0, 200));
-      cache.set(spec.label, { ...c, failAt: Date.now() });
+      cache.set(spec.label, { ...c, failAt: Date.now(), why: e.range ? e.message : undefined });
     }
   }
 
@@ -108,7 +112,7 @@ export function makeRoute(cfg) {
       const c = cache.get(s.label);
       if (c && c.val) {
         const stale = (c.failAt && c.failAt > c.at) || now - c.at > ttlOf(c) + 60000;
-        return stale ? { ...c.val, stale: true } : c.val;
+        return stale ? { ...c.val, stale: true, why: c.why } : c.val;
       }
       return { label: s.label, name: s.name, kind: s.kind, p: null };
     });
@@ -132,7 +136,7 @@ export function makeRoute(cfg) {
       if (!snap || !Array.isArray(snap.items)) return;
       for (const it of snap.items) {
         if (it.p == null || cache.has(it.label)) continue;
-        const { stale, ...val } = it;
+        const { stale, unv, why, ...val } = it;   // a saved V1 or V2 note belongs to the moment it was made (plan P8.16)
         cache.set(it.label, { val, at: val.f || 0 });   // last good value; refetched at once (its age is already past the ttl)
       }
       lastSig = sigOf(snap.items);                       // so a cold isolate does not rewrite an identical snapshot (weekends)

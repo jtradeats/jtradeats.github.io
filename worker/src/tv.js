@@ -29,7 +29,8 @@ const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 
 // POST /ingest. Returns { status, out }; never throws.
 // labels: a Set of tape-future labels (v1/v2 callers), or a Map of label -> kind ('fut', 'idx', 'fx', 'yield', 'etf'). Any kind but 'fut' must carry a bar time.
-export async function tvIngest(req, env, labels, now = Date.now()) {
+// ranges (plan P8.16, V1): optional { label: [min, max] } from symbols.json; a price or week open outside its range is refused, that symbol only.
+export async function tvIngest(req, env, labels, now = Date.now(), ranges = null) {
   try {
     if (!env || !env.TV_SECRET) return { status: 503, out: { error: 'TV_SECRET is not set on the Worker' } };
     if (!env.DB) return { status: 503, out: { error: 'D1 binding DB is missing' } };
@@ -56,6 +57,8 @@ export async function tvIngest(req, env, labels, now = Date.now()) {
       if (p === null || p <= 0) { rej.push(`${label}: bad price`); continue; }
       if (arr[1] != null && (pv === null || pv <= 0)) { rej.push(`${label}: bad prior close`); continue; }
       if (pv && Math.abs(p / pv - 1) > TV_MAX_MOVE) { rej.push(`${label}: ${p} is over ${TV_MAX_MOVE * 100}% from ${pv}`); continue; }
+      const rg = ranges && ranges[label];
+      if (rg && (p < rg[0] || p > rg[1])) { rej.push(`${label}: ${p} is outside the sane range ${rg[0]} to ${rg[1]}`); continue; }
       const kind = kindOf(label);
       if (kind !== 'fut') {   // not a round-the-clock future: it must prove its own bar is recent
         const bt = num(arr[2]);
@@ -76,6 +79,8 @@ export async function tvIngest(req, env, labels, now = Date.now()) {
         const o = Array.isArray(arr) ? num(arr[0]) : null, ot = Array.isArray(arr) ? num(arr[1]) : null;
         if (!labels.has(label)) { rej.push(`w ${label}: not a tape future`); continue; }
         if (o === null || o <= 0 || ot === null) { rej.push(`w ${label}: bad week open`); continue; }
+        const wr = ranges && ranges[label];
+        if (wr && (o < wr[0] || o > wr[1])) { rej.push(`w ${label}: ${o} is outside the sane range ${wr[0]} to ${wr[1]}`); continue; }
         if (ot > now + 60000 || now - ot > TV_WEEK_MAX_AGE) { rej.push(`w ${label}: week open time is not this week`); continue; }
         if (q[label] && Math.abs(q[label][0] / o - 1) > TV_MAX_MOVE) { rej.push(`w ${label}: ${o} is over ${TV_MAX_MOVE * 100}% from the price`); continue; }
         w[label] = [o, ot];
@@ -113,7 +118,7 @@ export function tvOverlay(it, tv, now, quote) {
   const q = tv && tv.q && tv.q[it.label];
   if (!q) return it;
   if (now - tv.f > TV_STALE_MS || tv.lag > TV_MAX_LAG_MS) return it;
-  const { c, pc, stale, cls, ...base } = it;   // the old change was measured against another source's prior close and cls 'prior' marked an end-of-day value: drop both, recompute from TradingView's
+  const { c, pc, stale, cls, unv, why, ...base } = it;   // unv and why (P8.16) described the delayed reading that this price replaces; the old change was measured against another source's prior close and cls 'prior' marked an end-of-day value: drop both, recompute from TradingView's
   const o = { ...base, ...quote(q[0], q[1], tv.ts), src: 'tv', f: tv.f, live: true, lag_ms: tv.lag };
   if (it.kind === 'yield') delete o.pc;   // a percent change of a yield means nothing: the page shows the point change (same rule as the Yahoo path)
   return o;
@@ -131,7 +136,7 @@ export function tvWeekly(body, tv, now, map) {
   j.items = j.items.map(it => {
     const tl = map[it.label], q = tl && tv.q[tl], w = tl && tv.w[tl];
     if (!q || !w || it.rolled) return it;
-    const { late, flag, was, stale, ...base } = it;
+    const { late, flag, was, stale, unv, why, ...base } = it;
     const c = +(q[0] - w[0]).toFixed(4), pc = +((q[0] - w[0]) / w[0] * 100).toFixed(3);
     hit++;
     return { ...base, p: +q[0].toFixed(4), open: w[0], ot: w[1], c, pc, t: tv.ts, f: tv.f, src: 'tv', live: true, lag_ms: tv.lag };
