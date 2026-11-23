@@ -184,6 +184,7 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .ti .l{font-size:calc(var(--fxs)*var(--tk,1));color:var(--t3);letter-spacing:.06em;display:flex;justify-content:space-between;gap:8px}
 .ti .a{font-size:calc(10px*var(--tk,1));letter-spacing:0;font-variant-numeric:tabular-nums}
 .ti.stale .a{color:var(--r)}
+.ti.unv .a{color:#C98A2E} /* UNVERIFIED (plan P8.16, V2): a big move shown until the next fetch agrees */
 .ti .p{font-size:calc(15px*var(--tk,1));font-weight:600;font-variant-numeric:tabular-nums;margin:1px 0}
 .ti .c{font-size:calc(var(--fsm)*var(--tk,1));font-variant-numeric:tabular-nums;color:var(--t3);white-space:nowrap}
 .ti .c.up{color:var(--g)}.ti .c.dn{color:var(--r)}
@@ -569,7 +570,7 @@ function tapeFill(el,it){
     chg=sg(it.c)+fmt(Math.abs(it.c),yl?3:2)+(!yl&&it.pc!=null?' ('+sg(it.pc)+fmt(Math.abs(it.pc),2)+'%)':'');
   }
   const f=has?fresh(it):{tag:'',dim:false,tip:[]};
-  el.className='ti'+(f.dim?' old':'')+(it.stale?' stale':'');
+  el.className='ti'+(f.dim?' old':'')+(it.stale?' stale':'')+(it.unv&&!it.stale?' unv':'');
   if(f.tip.length)el.setAttribute('data-tt',f.tip.join(' \u00b7 '));else el.removeAttribute('data-tt');
   el.innerHTML='<div class="l"><span>'+esc(it.label)+'</span><span class="a">'+esc(f.tag)+'</span></div><div class="p">'+price+'</div><div class="c '+cls+'">'+(chg||'&nbsp;')+'</div>';
 }
@@ -815,7 +816,8 @@ function fresh(it){
   const tip=[];let tag='',dim=false;
   if(it.live)tip.push('live from TradingView, refreshed each minute');else if(it.src)tip.push(it.src.replace(':',' '));
   if(it.contract)tip.push(it.contract);
-  if(it.stale){tag='stale';dim=true;tip.push('latest fetch failed, showing the last good value')}
+  if(it.stale){tag='stale';dim=true;tip.push(it.why||'latest fetch failed, showing the last good value')}   // why: the Worker refused the new price as out of range (V1)
+  else if(it.unv){tag='unverified';tip.push(it.why||'unusually large move; waiting for the next fetch to confirm it')}   // V2
   if(it.cls==='prior'){
     if(!tag)tag='eod';
     tip.push('end-of-day value'+(it.t!=null?' for '+new Date(it.t).toLocaleDateString([],{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}):''));
@@ -841,6 +843,7 @@ function paintStamp(msg){
   else s='no timestamped quotes';
   if(lv)s=lv+' live'+(ts.length?' \u00b7 rest '+s:'');
   if(stl)s+=' \u00b7 '+stl+' stale';
+  const unvn=items.filter(i=>i.unv&&!i.stale).length;if(unvn)s+=' \u00b7 '+unvn+' unverified';
   if(miss)s+=' \u00b7 '+miss+' missing';
   if(lastData.via!=='worker')s+=' \u00b7 fallback file';
   if(lastData.__cached)s+=' \u00b7 cached';
@@ -1498,6 +1501,7 @@ function cardStamp(b,d,bad,shut,live,total,idle){
   else if(shut())t=n!=null?'market closed \u00b7 last quotes '+asOf(n):'market closed';
   else t=idle+(n!=null?' \u00b7 quotes as of '+asOf(n)+' \u00b7 '+ago(age)+(old?' \u00b7 old':''):' \u00b7 no timestamped quotes');
   if(stl)t+=' \u00b7 '+stl+' stale';
+  const unvn=its.filter(i=>i.unv&&!i.stale).length;if(unvn)t+=' \u00b7 '+unvn+' unverified';
   if(bad)t+=' \u00b7 refresh failed';
   el.textContent=t;
 }
@@ -1508,7 +1512,7 @@ function secPaint(b,d,bad){
     const has=it.p!=null,hp=has&&it.pc!=null,f=has?fresh(it):{tag:'',dim:false,tip:[]};
     const rel=spyOk&&hp&&!it.stale&&it.label!=='SPY'?'vs SPY '+sg(it.pc-spy.pc)+fmt(Math.abs(it.pc-spy.pc),2)+' pts':'';
     const tip=[it.name,rel].concat(f.tip).filter(Boolean).join(' \u00b7 ');
-    const cls='ti'+(f.dim?' old':'')+(it.stale?' stale':'');
+    const cls='ti'+(f.dim?' old':'')+(it.stale?' stale':'')+(it.unv&&!it.stale?' unv':'');
     return '<div class="'+cls+'"'+(tip?' data-tt="'+esc(tip)+'"':'')+'><div class="l"><span>'+esc(it.label)+'</span><span class="a">'+esc(f.tag)+'</span></div>'
       +'<div class="p '+(hp?(it.pc>0?'up':it.pc<0?'dn':''):'')+'">'+(hp?sg(it.pc)+fmt(Math.abs(it.pc),2)+'%':'\u2014')+'</div><div class="c">'+(has?fmt(it.p,2):'&nbsp;')+'</div></div>';
   };
