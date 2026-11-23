@@ -1178,6 +1178,21 @@ function calTtl(){
 }
 function calRepaint(){if(CALP.fn&&CALP.el&&CALP.el.isConnected&&calData)CALP.fn(calData)}
 let calFailAt=0,calLastErr=null;
+/* P8.38: the last good Worker calendar is kept on this device. When the Worker cannot be reached, the schedule file is still the base (it carries date changes), and the numbers
+   the Worker last showed (forecast, previous, actual, with their sources) are laid on rows the file has none for. Saved at most every 10 min; ignored after 7 days. */
+const CAL_LS=KEY+'cal:last';let calSavedAt=0;
+function calSave(d){
+  const n=Date.now();if(n-calSavedAt<600000)return;calSavedAt=n;
+  try{const rows={};d.events.forEach(e=>{if(e.src==='feed'||e.hol)return;const x={};['fc','pv','ac','pvc'].forEach(f=>{if(e[f]!=null&&e[f]!=='')x[f]=e[f]});if(e.sr)x.sr=e.sr;if(x.fc!=null||x.pv!=null||x.ac!=null)rows[e.id]=x});
+    LS.s(CAL_LS,JSON.stringify({at:n,rows}))}catch(_){}
+}
+function calLaySaved(d){
+  try{const o=JSON.parse(LS.g(CAL_LS,'null'));if(!o||!o.rows||!(Date.now()-o.at<7*864e5))return;
+    let n=0;d.events.forEach(e=>{const x=o.rows[e.id];if(!x)return;let hit=0;
+      ['fc','pv','ac'].forEach(f=>{if((e[f]==null||e[f]==='')&&x[f]!=null){e[f]=x[f];hit=1;if(x.sr&&x.sr[f])(e.sr=e.sr||{})[f]=x.sr[f]}});
+      if(x.pvc&&!e.pvc)e.pvc=x.pvc;if(hit)n++});
+    if(n)d.cacheAt=o.at}catch(_){}
+}
 async function calGet(fresh){ /* fresh = a manual refresh: skip the page's copy and ask the Worker for a new build (?fresh=1) */
   if(!fresh&&calData&&Date.now()-calAt<calTtl())return calData;
   if(calFailAt&&Date.now()-calFailAt<150000){if(calData)return calData;throw calLastErr} /* do not hammer a failing route */
@@ -1186,12 +1201,15 @@ async function calGet(fresh){ /* fresh = a manual refresh: skip the page's copy 
     const t0=Date.now(),r=await fetch(CAL_URL+(fresh?'?fresh=1':''),{cache:'no-store'}),t1=Date.now();
     if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(r.status+(j.error?' '+j.error:''))}
     d=await r.json();if(!Array.isArray(d.events))throw new Error('bad payload');
-    if(d.now)clkOff=Math.round(d.now-(t0+t1)/2); /* half the round trip is the best guess for when the Worker read its clock */
+    const st=Number(r.headers.get('X-Server-Time'));
+    if(st>1e12)clkOff=Math.round(st-(t0+t1)/2); /* the Worker's clock when it sent the reply (header); d.now is only when the body was built, up to 10 s earlier, so it gave a false skew. Half the round trip is the best guess for when it was read. Without the header the offset is left alone. */
   }catch(e){
     if(calData&&!calData.offline&&Date.now()-calAt<1800000){calFailAt=Date.now();return calData} /* keep a recent Worker copy rather than swap to the bare file */
-    try{d=await calStatic()}catch(_){calFailAt=Date.now();calLastErr=e;if(calData)return calData;throw e}
+    try{d=await calStatic();calLaySaved(d)}catch(_){calFailAt=Date.now();calLastErr=e;if(calData)return calData;throw e}
   }
-  calFailAt=0;calData=d;calAt=Date.now();calRepaint();return d;
+  calFailAt=0;calData=d;calAt=Date.now();
+  if(!d.offline)calSave(d);
+  calRepaint();return d;
 }
 const FLAME='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
 const flames=n=>'<span class="flames '+(n>=3?'h':'m')+'" role="img" aria-label="'+(n>=3?'high':'medium')+' impact">'+[1,2,3].map(i=>'<i class="'+(i<=n?'f':'')+'">'+FLAME+'</i>').join('')+'</span>';
@@ -1210,20 +1228,31 @@ function acCls(e){
   const inv=e.dir==='inv'||e.dir==='oil';
   return (a>f)!==inv?'g':'r';
 }
-const SRN={FRED:'FRED, official BLS and DOL series (computed by the Worker)',FMP:'FMP economic calendar','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised',FJ:'FinancialJuice wire (unofficial, fast); replaced by the official figure when it arrives'};
+const SRN={FRED:'FRED, official BLS and DOL series (computed by the Worker)',EIA:'EIA, official US crude stocks (the Worker computes the weekly change from EIA\u2019s stock series)','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised',FJ:'FinancialJuice wire (unofficial, fast); replaced by the official figure when it arrives'};
 const srTip=(e,f)=>e.sr&&e.sr[f]?' title="'+esc((f==='ac'?'actual':f==='fc'?'forecast':'previous')+': '+(SRN[e.sr[f]]||e.sr[f]))+'"':'';
-const fjMark=e=>e.ac!=null&&e.sr&&e.sr.ac==='FJ'?'<span class="vq" title="first figure from the FinancialJuice wire; not yet confirmed by an official source">fj</span>':'';
+const fjMark=e=>e.ac!=null&&e.sr&&e.sr.ac==='FJ'?'<span class="vq" title="first figure from the FinancialJuice wire (unofficial). It is replaced if an official source covers this release and has its own figure.">fj</span>':'';
 const pvCell=e=>e.pv?(e.pvc?'<span class="rv '+e.pvc+'" title="previous figure was revised">'+esc(e.pv)+'</span>':esc(e.pv)):'';
 const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='tent'?'<span class="vq" title="tentative date published by the agency; it can move until the agency announces it, about a week ahead">~</span>':e.v==='prov'?'<span class="vq" title="date from a data provider’s calendar, not from the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
   +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">!</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
 const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
+const AGO=ms=>{const m=Math.max(1,Math.round(ms/60000));return m<90?m+' min':m<2880?Math.round(m/60)+' h':Math.round(m/1440)+' days'};
+/* What the page can truthfully say about where the numbers come from. Each line describes what happened in THIS reply, not a standing fact. */
 const provTxt=d=>{
-  const f=(d.feed||{}).status,m=(d.fmp||{}).status,p=[];
-  const o=(d.official||{}).status;
-  if(m==='ok')p.push('forecast and actual: FMP');else if(o==='ok'||o==='stale')p.push('actuals: official (FRED) for jobs, CPI and claims'+(o==='stale'?' (stale)':''));else p.push('actuals not connected'+(m&&m!=='no-key'&&m!=='none'?' (FMP '+m+')':''));
-  const w=(d.wire||{}).status;if(w==='ok'||w==='stale')p.push('first figure: FinancialJuice wire (marked fj until confirmed)');
-  if(f==='ok'&&m!=='ok')p.push('forecast: unofficial feed');
-  if(d.results&&d.results.n)p.push('typed numbers from '+fmtIso(d.results.asof));
+  const f=d.feed||{},m=(d.fmp||{}).status,o=d.official||{},p=[];
+  if(d.offline){
+    p.push('Worker not reachable: showing the schedule file'+(d.cacheAt?' with the forecasts and actuals this device saved '+AGO(NOW()-d.cacheAt)+' ago':' and the numbers typed in '+(d.results&&d.results.asof?'on '+fmtIso(d.results.asof):'earlier'))+'; nothing here is live');
+    return p.join(' · ');
+  }
+  if(m==='ok')p.push('forecast and actual: FMP');
+  else if(o.status==='ok')p.push('actuals: official sources (FRED, EIA) for the releases they cover');
+  else if(o.status==='stale')p.push('actuals: official sources, but the last download is over 6 h old');
+  else if(o.status==='unavailable')p.push('official actuals: FRED/EIA did not answer; figures already seen are kept');
+  else p.push('official actuals: not loaded yet in this reply (the Worker has just woken); figures already seen are kept, refresh in a minute');
+  if(o.status==='ok'&&o.error)p.push('official source problem: '+String(o.error).slice(0,120));
+  const w=(d.wire||{}).status;if(w==='ok'||w==='stale')p.push('first figure: FinancialJuice wire (marked fj; replaced if an official source covers the release)');
+  if(f.status==='ok'&&m!=='ok')p.push('forecast: unofficial feed');
+  else if(m!=='ok')p.push('forecast: the unofficial feed is not answering'+(f.at?' (last answer '+AGO(NOW()-f.at)+' ago)':'')+'; the Worker shows the forecasts it saved');
+  if(d.results&&d.results.n)p.push('rows no source covers use numbers typed in on '+fmtIso(d.results.asof));
   return p.join(' · ');
 };
 /* mode + offset -> [first, last] New York date. Weeks run Monday to Sunday, and from Sunday (New York time) "this week" is already the following week.
@@ -1400,7 +1429,7 @@ function remCheck(){
     fired.push(k);dirty=true;
     const one=list.length===1?list[0]:null,mins=Math.max(1,Math.ceil((t-now)/60000));
     toast({src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 '+(r?'RELEASE IN '+mins+' MIN':'RELEASE NOW'),h:list.map(x=>x.title).join(' \u00b7 '),rel:true,ev:list[0],
-      s:r===0?'Actual figures are not connected yet.':one?(one.fc?'Forecast '+one.fc:'Scheduled '+etClock(t)+' ET')+(one.pv?' \u00b7 previous '+one.pv:''):list.length+' releases at '+etClock(t)+' ET.',ms:60000});
+      s:r===0?'Waiting for the actual figure.':one?(one.fc?'Forecast '+one.fc:'Scheduled '+etClock(t)+' ET')+(one.pv?' \u00b7 previous '+one.pv:''):list.length+' releases at '+etClock(t)+' ET.',ms:60000});
   }
   if(dirty){fired=fired.filter(k=>+k.split('|')[0]>now-2*864e5);LS.s(KEY+'rem_fired',JSON.stringify(fired))}
 }
@@ -2007,7 +2036,7 @@ function scenIdx(e){
 function relHead(e,k){ /* headline from actual vs forecast; only possible once an actual exists */
   if(e.hol)return{c:'',h:e.title};
   const a=numOf(e.ac),f=numOf(e.fc);
-  if(e.ac==null)return e.t>NOW()?{c:'',h:'Upcoming: '+e.title}:{c:'',h:'Released: '+e.title+' (actual not connected yet)'};
+  if(e.ac==null)return e.t>NOW()?{c:'',h:'Upcoming: '+e.title}:{c:'',h:'Released: '+e.title+' (no actual yet)'};
   if(isNaN(a)||isNaN(f))return{c:'',h:e.title+': '+e.ac+(e.pv?' (previous '+e.pv+')':'')};
   if(a===f)return{c:'',h:e.title+' came in line with forecast'};
   const up=a>f,w=up?'above':'below',dir=e.dir;
@@ -2069,7 +2098,7 @@ function alertsPanel(msg,bad){ /* one panel for both: this page (mute) and this 
   const on=phoneOn(),saved=LS.g(PK,'');
   relShell('Alerts','<h4>This page</h4><div class="phs">'+(masterOn?'<b>On.</b> Toasts, reminders and release alerts appear while this page is open, and a browser notification shows if the tab is in the background. Each card has its own bell for what it alerts on.':'<b>Muted.</b> Nothing pops up on this page. Muted alerts are dropped, not queued.')+
     '<div><button class="phb'+(masterOn?'':' go')+'" id="amute">'+(masterOn?'Mute all':'Unmute')+'</button></div></div>'+
-    '<h4>Phone</h4><div class="phs">'+(on?'<b>On.</b> The Worker sends each alert to this phone, also while the app is closed. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive every dashboard alert as a phone notification.')+
+    '<h4>Phone</h4><div class="phs">'+(on?'<b>On.</b> The Worker sends each alert to this phone as a notification. Delivery while the app is closed depends on the phone and has not been confirmed in testing yet. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive every dashboard alert as a phone notification.')+
     (on?'':'<input id="pkey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Pairing key (PUSH_KEY)" value="'+esc(saved)+'">')+
     '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>')+'</div>'+
     '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div>'+
