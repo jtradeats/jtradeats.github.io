@@ -11,7 +11,8 @@
 
 export const LG_KV = 'calendar:ledger';
 export const LG_AFTER_MAX = 45 * 864e5;   // only releases from the last 45 days are kept (the same limit as the official series)
-export const LG_KEEP = 60 * 864e5;        // rows older than this are dropped
+export const LG_KEEP = 400 * 864e5;       // rows older than this are dropped (was 60 days). The ledger is the permanent record of what each release showed: actual, forecast and where each came from.
+//   A row is about 100 bytes, so a year of releases is roughly 30 KB in one KV value (limit 25 MB).
 
 // who gave the number. The wire fills blanks only, so a calendar-feed copy outranks it; FRED outranks both. A typed placeholder ('ref') is not a source.
 const RANK = { FRED: 4, EIA: 4, 'Fair Economy': 3, FMP: 3, FJ: 2 };   // EIA: the agency's own API (official.js, P8.33), same rank as FRED
