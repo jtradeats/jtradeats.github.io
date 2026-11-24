@@ -111,10 +111,12 @@ function reminderAlerts(events, now) {   // high-impact USD releases: 15 min and
   for (const [t, list] of by) for (const r of REM) {
     const at = t - r * 60000;
     if (now < at || now > at + TTL.rem) continue;
+    if (r === 0 && list.some(x => x.ac != null)) continue;   // the actual is already in: the release alert carries it, so a "release now" reminder would only contradict it
     const one = list.length === 1 ? list[0] : null, mins = Math.max(1, Math.ceil((t - now) / 60000));
     const tag = 'HIGH IMPACT · ' + (r ? 'RELEASE IN ' + mins + ' MIN' : 'RELEASE NOW'), h = list.map(x => x.title).join(' · ');
-    const s = r === 0 ? 'Waiting for the actual figure.' : one ? (one.fc ? 'Forecast ' + one.fc : 'Scheduled ' + etClock(t) + ' ET') + (one.pv ? ' · previous ' + one.pv : '') : list.length + ' releases at ' + etClock(t) + ' ET.';
-    out.push({ id: 'rem|' + t + '|' + r, kind: 'remind', t: at, src: 'Calendar · USD', tag, h, s, nt: h, nb: (r ? 'Release in ' + mins + ' min' : 'Release now') + '\n' + s });
+    // what the person can use before the number comes out: forecast and previous for every release in the group (up to 4)
+    const s = list.slice(0, 4).map(x => (one ? '' : x.title + ': ') + (x.fc ? 'Forecast ' + x.fc : 'No forecast yet') + (x.pv ? ' · previous ' + x.pv : '')).join('\n');
+    out.push({ id: 'rem|' + t + '|' + r, kind: 'remind', t: at, src: 'Calendar · USD', tag, h, s, nt: h, nb: (r ? 'Release in ' + mins + ' min' : 'Release at ' + etClock(t) + ' ET') + '\n' + s });
   }
   return out;
 }

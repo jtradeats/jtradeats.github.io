@@ -10,7 +10,7 @@
 // One small KV object (key calendar:ledger), written only when an entry is added or changes: a few writes a day against the 1,000 free ones.
 
 export const LG_KV = 'calendar:ledger';
-export const LG_AFTER_MAX = 45 * 864e5;   // only releases from the last 45 days are kept (the same limit as the official series)
+export const LG_AFTER_MAX = 75 * 864e5;   // releases from the last 75 days are recorded: the calendar shows last month, this month and next month, and last month's 1st is up to 62 days back
 export const LG_KEEP = 400 * 864e5;       // rows older than this are dropped (was 60 days). The ledger is the permanent record of what each release showed: actual, forecast and where each came from.
 //   A row is about 100 bytes, so a year of releases is roughly 30 KB in one KV value (limit 25 MB).
 
@@ -41,10 +41,18 @@ export function recordLedger(mem, events, now) {
       const fr = rankOf(sr.fc), r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
       if (!has(r.fc) || fr > rankOf(r.sf) || (fr === rankOf(r.sf) && String(r.fc) !== String(e.fc))) { r.fc = e.fc; r.sf = sr.fc; r.at = now; changed = true; }
     }
-    // the revised previous the official series gave (it carries the green or red underline)
-    if (out && has(e.pv) && rankOf(sr.pv) === 4) {
-      const r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
-      if (String(r.pv) !== String(e.pv) || (r.pvc || null) !== (e.pvc || null) || (r.sp || 'FRED') !== sr.pv) { r.pv = e.pv; r.pvc = e.pvc || null; r.sp = sr.pv; r.at = now; changed = true; }
+    // the previous. The official series' revised figure (rank 4) carries the green or red underline and always wins.
+    // Rows no official series covers (PMIs, Philly Fed, Chicago PMI, confidence...) keep the wire's or the feed's previous (rank 2 or 3) instead of losing it
+    // when that source lapses; an official figure replaces it later.
+    if (out && has(e.pv)) {
+      const pr = rankOf(sr.pv);
+      if (pr === 4) {
+        const r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t });
+        if (String(r.pv) !== String(e.pv) || (r.pvc || null) !== (e.pvc || null) || (r.sp || 'FRED') !== sr.pv) { r.pv = e.pv; r.pvc = e.pvc || null; r.sp = sr.pv; r.at = now; changed = true; }
+      } else if (pr >= 2) {
+        const r = mem.rows[e.id] || (mem.rows[e.id] = { t: e.t }), have = rankOf(r.sp || 'FRED');
+        if (!has(r.pv) || pr > have || (pr === have && String(r.pv) !== String(e.pv))) { r.pv = e.pv; r.pvc = null; r.sp = sr.pv; r.at = now; changed = true; }
+      }
     }
   }
   return changed;
@@ -64,7 +72,7 @@ export function applyLedger(events, mem, now) {
     if (has(r.fc) && (!has(e.fc) || rankOf(r.sf) > rankOf(sr.fc))) {
       e.fc = r.fc; (e.sr = e.sr || {}).fc = r.sf; n++;
     }
-    if (out && has(r.pv) && rankOf(e.sr ? e.sr.pv : undefined) < 4) {
+    if (out && has(r.pv) && (!has(e.pv) || rankOf(r.sp || 'FRED') > rankOf(e.sr ? e.sr.pv : undefined))) {
       e.pv = r.pv; (e.sr = e.sr || {}).pv = r.sp || 'FRED';
       if (r.pvc) e.pvc = r.pvc; else delete e.pvc;
       n++;
@@ -77,4 +85,19 @@ export function pruneLedger(mem, now) {
   let changed = false;
   for (const [id, r] of Object.entries(mem.rows)) if (!r || !(r.t > now - LG_KEEP)) { delete mem.rows[id]; changed = true; }
   return changed;
+}
+
+// Rows that have been released but still show no forecast, previous or actual although a source normally gives them. Shown in /calendar?debug=1 and counted in
+// /calendar (ledger.gaps), so a missing number is reported instead of sitting silently empty. covered: (event) => true for the kinds that normally have the numbers.
+export function forecastGaps(events, now, covered) {
+  const out = [];
+  for (const e of events || []) {
+    if (!usable(e) || e.t > now || !covered(e)) continue;
+    const miss = [];
+    if (!has(e.fc)) miss.push('fc');
+    if (!has(e.pv)) miss.push('pv');
+    if (!has(e.ac)) miss.push('ac');
+    if (miss.length) out.push({ id: e.id, k: e.k, d: e.d, title: e.title, miss });
+  }
+  return out;
 }

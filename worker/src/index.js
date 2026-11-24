@@ -11,7 +11,7 @@ import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResult
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
-import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
+import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger, forecastGaps } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
 import { buildAlerts, filterAlerts, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
 import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth } from './push.js';   // Web Push to the phone (plan P8.34 stage 3)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
@@ -324,9 +324,9 @@ const CAL_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'h
 // Refresh times live in src/feedpoll.js: both files every 30 min in quiet hours; around a release (10 min before to 45 min after) only this week's file, every 5 min.
 const CAL_USE_MAX = 12 * 3600e3;     // never lay a feed copy older than this over the schedule
 const CAL_WAIT = 1200;               // a first request waits at most this long for the providers, then answers without them
-// The calendar the page gets: from the first day of last month to the 14th of next month (the page's month view steps last month, this month, first 14 days of next month).
+// The calendar the page gets: from the first day of last month to the last day of next month (the page's month view steps last month, this month, next month).
 // A day of margin each side covers the New York / UTC difference; the page filters by New York date.
-const calWindow = now => { const d = new Date(now), y = d.getUTCFullYear(), m = d.getUTCMonth(); return [Date.UTC(y, m - 1, 1) - 864e5, Date.UTC(y, m + 1, 15) + 864e5]; };
+const calWindow = now => { const d = new Date(now), y = d.getUTCFullYear(), m = d.getUTCMonth(); return [Date.UTC(y, m - 1, 1) - 864e5, Date.UTC(y, m + 2, 1) + 864e5]; };
 const CAL_KEY = 'calendar:last';
 const feedState = { events: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null };
 
@@ -674,6 +674,30 @@ async function wireSave(env, now) {
   try { await env.MARKET_KV.put(WIRE_KV, JSON.stringify(wireSt.memo)); } catch (_) { wireSt.dirty = true; }
 }
 // a release the wire covers is due within 2 minutes or happened in the last 40: only then is Telegram polled for the calendar (otherwise the window is read as it is)
+// Backfill (P8.39). The window the wire poll returns holds only the newest posts, and posts older than 6 hours were never read again, so a release whose post had
+// scrolled out (or whose rule name was fixed after the release) kept an empty forecast or actual, and typed numbers had to cover it. The posts stay in D1 for longer:
+// read them back, in the background, at most every BF_GAP, and only while a released row the wire covers is still missing a number. It fills the wire memo (KV), so the
+// number outlives this isolate; it never touches the schedule's own event objects (clones are used).
+const bfSt = { at: 0, running: false, n: 0, filled: 0, err: null };
+const BF_GAP = 20 * 60000, BF_LIMIT = 500;
+const wireCovered = e => !e.hol && e.src !== 'feed' && WIRE_KEYS.has(e.k + '|' + e.r) && !/^auc/.test(e.k);
+function wireBackfill(env, ctx, events, now) {
+  if (bfSt.running || now - bfSt.at < BF_GAP) return;
+  if (!events.some(e => wireCovered(e) && e.t <= now && (e.ac == null || e.fc == null || e.pv == null))) return;
+  bfSt.running = true; bfSt.at = now;
+  const run = (async () => {
+    try {
+      const posts = await loadPosts(env, 'FinancialJuice', BF_LIMIT);
+      if (!posts || !posts.length) { bfSt.err = 'no posts read from D1'; return; }
+      const before = Object.keys(wireSt.memo.rows).length;
+      const r = applyWire(events.map(e => ({ ...e, sr: e.sr ? { ...e.sr } : undefined })), posts, Date.now(), wireSt.memo);
+      bfSt.n = posts.length; bfSt.err = null; bfSt.filled = Object.keys(wireSt.memo.rows).length - before;
+      if (r.changed) wireSt.dirty = true;
+    } catch (e) { bfSt.err = String(e && e.message).slice(0, 100); }
+    finally { bfSt.running = false; }
+  })();
+  if (ctx) ctx.waitUntil(run);
+}
 const wireHot = (events, now) => events.some(e => !e.hol && e.src !== 'feed' && WIRE_KEYS.has(e.k + '|' + e.r) && e.t <= now + 120000 && e.t >= now - 40 * 60000);
 
 // ---- first prints (plan P8.23): the "previous" and the first actual each release showed before revisions, so a revised previous can be underlined (green or red) without typed marks ----
@@ -807,6 +831,7 @@ async function getCalendar(env, ctx, opts = {}) {
   const nRes = applyResults(o.events, RESULTS);
   const fw = await pw, wr = applyWire(o.events, fw.posts, now, wireSt.memo);   // blanks only; typed numbers (above) and provider numbers win
   if (wr.changed) wireSt.dirty = true;
+  wireBackfill(env, ctx, base, now);   // released rows the wire covers that still miss a number: read the older posts from D1 in the background
   wireSt.feed = fw.status; if (fw.status !== 'broken') wireSt.err = null;
   o.issues.push(...wr.issues);
   if (recordPrev(firstSt.mem, o.events, now)) firstSt.dirty = true;   // the previous as the feeds and the wire show it: still before any revision
@@ -817,6 +842,7 @@ async function getCalendar(env, ctx, opts = {}) {
   ledgerSt.restored = applyLedger(o.events, ledgerSt.mem, now);   // what the live sources lost (a cold start, a lapse) comes back from the ledger, with its original tag
   if (recordLedger(ledgerSt.mem, o.events, now)) ledgerSt.dirty = true;
   if (ledgerSt.dirty) pruneLedger(ledgerSt.mem, now);
+  const gaps = forecastGaps(o.events, now, wireCovered);   // released rows the wire covers that still lack a forecast, previous or actual
   const pend = markPending(o.events, now);   // covered rows still without any actual: the page says "awaiting official figure"
   const lagNew = lagDetect(o.events, liveAc, now);
   if (lagNew.length) { const lw = recordLag(env, lagNew); if (ctx) ctx.waitUntil(lw); }
@@ -850,7 +876,7 @@ async function getCalendar(env, ctx, opts = {}) {
     feed: { status: fstat, mode: ffFast ? 'release window (5 min, this week only)' : 'normal (30 min)', at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
     official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: offState.err, awaiting: pend.length, held: off.skipped.length },   // held: rows FRED has a value for that was not shown, with the reason in ?debug=1
-    ledger: { rows: Object.keys(ledgerSt.mem.rows).length, restored: ledgerSt.restored },   // restored: fields put back this time because a live source had none or a lesser one
+    ledger: { rows: Object.keys(ledgerSt.mem.rows).length, restored: ledgerSt.restored, gaps: gaps.length },   // restored: fields put back this time because a live source had none or a lesser one
     results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length, first: Object.keys(firstSt.mem.rows).length },
     wire: { status: fw.status, n: wr.n, error: wireSt.err, ...wireSummary(wireSt.memo) },   // FinancialJuice actuals filled this time, and how often the wire matched the official number so far
     sync: { ...syncSummary(syncState.rec), tiers: sch.merged.tiers, stats: sch.merged.stats },   // what the schedule check shows
@@ -858,7 +884,7 @@ async function getCalendar(env, ctx, opts = {}) {
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
   };
-  if (debug) out.debug = { policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
+  if (debug) out.debug = { gaps: gaps.slice(0, 60), backfill: bfSt, policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
     fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
     official: { via: offState.via, error: offState.err, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
