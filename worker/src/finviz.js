@@ -119,6 +119,7 @@ function srcName(host) {
   return sld.charAt(0).toUpperCase() + sld.slice(1);
 }
 
+const DATE_RE = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*-(\d{1,2})(?:-(\d{2,4}))?$/i;
 const TIME_RE = /^(?:(?:today\s+)|(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*-(\d{1,2})(?:-(\d{2,4}))?\s+))?(\d{1,2}):(\d{2})\s*(am|pm)$/i;
 
 // html -> [ { rows: [...] } per <table> that holds news rows ], rows newest first, times as epoch ms
@@ -149,7 +150,7 @@ export function parseFinviz(html, now = Date.now()) {
     const seen = new Set(), items = [];
     for (const r of rows) {
       const m = r.when.match(TIME_RE);
-      let t = null, d = 'i';
+      let t = null, d = 'i', dayIso = null;
       if (m) {
         let h = +m[4] % 12; if (/pm/i.test(m[6])) h += 12;
         const mi = +m[5];
@@ -164,10 +165,19 @@ export function parseFinviz(html, now = Date.now()) {
           for (let i = 0; i < 3 && t > (prev == null ? now + 10 * 60000 : prev + 5 * 60000); i++) { day = addDays(day, -1); t = etWallToMs(day.y, day.mo, day.d, h, mi); }
         }
         prev = t;
+      } else {                                                // date only (Finviz drops the time on older rows): keep the day, no time
+        const dm = r.when.match(DATE_RE);
+        if (dm) {
+          const mo = MONTHS[dm[1].toLowerCase()];
+          let y = dm[3] ? (+dm[3] < 100 ? 2000 + +dm[3] : +dm[3]) : nowEt.year;
+          if (!dm[3] && etWallToMs(y, mo, +dm[2], 12, 0) > now + 36e5 * 36) y--;
+          day = { y, mo, d: +dm[2] }; d = 'x';
+          dayIso = y + '-' + String(mo).padStart(2, '0') + '-' + String(+dm[2]).padStart(2, '0');
+        }
       }
       if (seen.has(r.title)) continue;
       seen.add(r.title);
-      items.push({ t, d, title: r.title, url: r.url, src: srcName(r.host), host: r.host });
+      items.push({ t, d, ...(dayIso ? { day: dayIso } : {}), title: r.title, url: r.url, src: srcName(r.host), host: r.host });
     }
     return items.slice(0, MAX_ITEMS);
   });

@@ -18,7 +18,6 @@ export const FEED_CHANNEL = 'WalterBloomberg';   // the default channel: every e
 //   key: the name of the channel's block in the combined answer ('' = the top level)
 //   kv / kvGap: the KV key of the snapshot and the minimum gap between two writes (15 min each: at most 96 writes a day per channel, D79)
 export const CHANNELS = {
-  WalterBloomberg: { name: 'WalterBloomberg', key: '', hot: false, tail: null, kv: 'feed:window', kvGap: 15 * 60000 },
   FinancialJuice: { name: 'FinancialJuice', key: 'fj', hot: true, tail: /\s*\|\s*FJ\s*$/i, kv: 'feed:window:FinancialJuice', kvGap: 15 * 60000 },
 };
 const chOf = ch => CHANNELS[ch] || { name: ch, key: ch, hot: false, tail: null, kv: `feed:window:${ch}`, kvGap: 15 * 60000 };
@@ -337,7 +336,8 @@ export async function feedWindow(env, ctx, ch, poll) {
   const c = chOf(ch || FEED_CHANNEL), S = stateOf(c.name);
   if (!S.seeded) await seed(env, c, S);
   if (poll) await feedObject(env, ctx, { channel: c.name });
-  return { posts: S.posts, status: statusNow(S, Date.now()), okAt: S.okAt || null };
+  // never polled in this isolate (a cold start: the window came from D1/KV, nothing has been fetched yet) is 'idle', not 'broken'; a poll that was tried and failed still says broken
+  return { posts: S.posts, status: !S.at && !S.okAt ? 'idle' : statusNow(S, Date.now()), okAt: S.okAt || null };
 }
 
 // one channel, as a JSON string (the old shape: the DeItaone view by default)
