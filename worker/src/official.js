@@ -227,3 +227,18 @@ export function applyOfficial(events, M, now, opts = {}) {
   }
   return { n, issues, wire, skipped };
 }
+// ---- history (P8.40). applyOfficial above leaves a release alone after 45 days, because FRED then holds a REVISED value, not the one the calendar showed.
+// FRED's archive (ALFRED) can say what a series looked like on a given day: with realtime_start = realtime_end = the release day the response is the series as it stood then,
+// so the actual computed from it is the first print and the previous is the previous as revised in that very release. One request per (series, release day), answered once and
+// kept for good in the ledger (index.js: histFill), so last month's rows keep their official numbers after the 45 days are over.
+export const HIST_MIN_AGE = 45 * 864e5;   // the age at which applyOfficial stops (keep equal to its window)
+export const fredAsOfUrl = (series, key, since, asof) => `${fredApiUrl(series, key, since)}&realtime_start=${encodeURIComponent(asof)}&realtime_end=${encodeURIComponent(asof)}`;
+// S: Map(date -> number) as it stood on the release day (or the current series for EIA stocks, which are not revised). -> { ac, pv } as text, or null
+export function histNumbers(S, spec, e) {
+  const obs = S && obsFor(e, spec);
+  if (!obs) return null;
+  const a = calc(S, spec, obs);
+  if (a == null) return null;
+  const p = calc(S, spec, prevObs(obs, spec));
+  return { ac: fv(a, spec), pv: p == null ? null : fv(p, spec) };
+}

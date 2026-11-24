@@ -1,21 +1,22 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /health -> small status object, read from stored state (KV and D1).
+// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /finviz -> Finviz news headlines (time, source, link) parsed from finviz.com/news, cached, last good copy kept (?debug=1 shows row counts). GET /health -> small status object, read from stored state (KV and D1).
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
 import SCHEDULE from '../config/schedule.json';
 import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
+import HISTORY from '../config/schedule_history.json';   // last month's releases, which schedule.json (it starts on 2 Nov) does not hold (P8.40)
 import POLICY_CFG from '../config/policy.json';   // FOMC decision dates already held (plan P8.9)
 import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
-import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger, forecastGaps } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
+import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger, forecastGaps, rankOf } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
 import { buildAlerts, filterAlerts, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
 import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth } from './push.js';   // Web Push to the phone (plan P8.34 stage 3)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
-import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage } from './official.js';
+import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
@@ -23,7 +24,7 @@ import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
-import { finvizProbe } from './finviz.js';   // TEST ONLY: what finviz.com/news.ashx returns to this Worker (GET /finviz-test)
+import { finvizProbe, getFinviz } from './finviz.js';   // GET /finviz (Finviz news for the card) and GET /finviz-test (diagnostic probe)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 import { rulesFrom, rangeFail, checkJump } from './validate.js';   // price validation: V1 range, V2 jump (plan P8.16)
 
@@ -452,14 +453,38 @@ function fmpRefresh(env, ctx, sch) {
 const OFF_SLOW = 3 * 3600e3, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;   // the full 17-series download every 3 h (was 30 min): a finished release does not change, and a release window has its own 60 s tier below
 const offState = { M: null, V: {}, at: 0, fastAt: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
 const redact = s => String(s).replace(/api_key=[^&\s]*/gi, 'api_key=***');
+// The official download used to live in isolate memory only, so every cold start began with no official number until the 17 requests finished (longer than the 1.2 s a page waits):
+// released rows showed blank actuals ("official: none" in /calendar?debug=1). Now the recent part of every series is kept in one KV key and read back on a cold start.
+// Written when the data changes, and at least every 2.5 h so the copy never looks older than the 12 h limit while nothing changes (about 10 writes a day).
+const OFF_KV = 'calendar:official', OFF_KEEP = 80, OFF_REWRITE = 150 * 60000;
+const offKv = { seeded: false, sig: null, savedAt: 0 };
+async function offSeed(env) {
+  if (offKv.seeded || offState.M || !(env && env.MARKET_KV)) return;
+  offKv.seeded = true;
+  try {
+    const j = await env.MARKET_KV.get(OFF_KV, 'json');
+    if (!j || j.v !== 1 || !j.M || !j.at) return;
+    const rev = o => Object.fromEntries(Object.entries(o || {}).map(([s, a]) => [s, new Map(a)]));
+    offState.M = rev(j.M); offState.V = rev(j.V); offState.at = j.at; offState.status = 'ok'; offState.via = (j.via || 'api') + ' (kv copy)'; offKv.savedAt = j.saved || j.at; offKv.sig = j.sig || null;
+  } catch (_) { /* a cold start without the copy is what it was before */ }
+}
+async function offSave(env, now) {
+  if (!(env && env.MARKET_KV) || !offState.M) return;
+  const cut = o => Object.fromEntries(Object.entries(o || {}).map(([s, m]) => [s, [...m].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-OFF_KEEP)]));
+  const M = cut(offState.M), V = cut(offState.V), sig = JSON.stringify([M, V]);
+  if (sig === offKv.sig && now - offKv.savedAt < OFF_REWRITE) return;
+  try { await env.MARKET_KV.put(OFF_KV, JSON.stringify({ v: 1, at: offState.at, saved: now, via: offState.via, sig, M, V })); offKv.sig = sig; offKv.savedAt = now; } catch (_) { /* tried again at the next refresh */ }
+}
 // The API call says who it is (FRED's terms ask programs to identify themselves) and, when it fails, keeps what FRED answered: status, server and the start of the body.
 // A 520 from a plain `get` tells nothing; the body and headers show whether it is a block, a bad key or an outage.
-async function fredApiGet(url) {
+// One retry after 800 ms for the statuses that clear on their own (a burst of 403/429 from FRED's edge, 5xx). The error says when the retry was spent, so a failure that survived it is visible as such.
+async function fredApiGet(url, retry = true, tried = false) {
   const r = await fetch(url, { headers: { 'User-Agent': 'market-dashboard/1.0 (personal dashboard; +https://jtradeats.github.io)', Accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
   const text = await r.text();
   if (!r.ok) {
+    if (retry && [403, 429, 502, 503, 520, 522].includes(r.status)) { await new Promise(x => setTimeout(x, 800)); return fredApiGet(url, false, true); }
     const snip = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
-    throw new Error(`HTTP ${r.status} from ${new URL(url).host} [server=${r.headers.get('server') || '?'}${r.headers.get('cf-ray') ? ' cf-ray=' + r.headers.get('cf-ray') : ''}] ${snip}`);
+    throw new Error(`HTTP ${r.status}${tried ? ' (after retry)' : ''} from ${new URL(url).host} [server=${r.headers.get('server') || '?'}${r.headers.get('cf-ray') ? ' cf-ray=' + r.headers.get('cf-ray') : ''}] ${snip}`);
   }
   return text;
 }
@@ -483,8 +508,11 @@ async function loadOfficial(env, only) {
   }));
   // the same failure for every series is shown once, not once per series
   const text = errs.length > 1 && errs.every(([, m]) => m === errs[0][1]) ? [`${errs.length} series: ${errs[0][1]}`] : errs.map(([s, m]) => `${s}: ${m}`);
-  if (!Object.keys(M).length) throw new Error((key ? '' : 'no FRED_KEY set (the keyless CSV is usually refused): ') + text.join(' | '));
-  return { M, V, errs: text, via: key ? 'api' : 'csv' };
+  // the per-series list, untruncated, for ?debug=1 (the one-line `text` above is cut to 320 characters and hides which series failed)
+  const list = errs.map(([s, m]) => ({ s, e: m }));
+  const asked = OFF_SERIES.filter(s => !only || only.has(s)).length;
+  if (!Object.keys(M).length) { const err = new Error((key ? '' : 'no FRED_KEY set (the keyless CSV is usually refused): ') + text.join(' | ')); err.list = list; err.asked = asked; throw err; }
+  return { M, V, errs: text, list, asked, via: key ? 'api' : 'csv' };
 }
 // Every series every 30 min; in the window around a release (2 min before to 90 min after) only the series that release needs, every 60 s. That keeps a busy
 // minute to a handful of requests (the free plan allows 50 per invocation, and FRED 120 a minute) while the actual still lands within a minute of FRED having it.
@@ -499,9 +527,16 @@ async function refreshOfficial(env, sch) {
     const o = await loadOfficial(env, fullDue ? null : nearSer);
     if (fullDue) { offState.M = o.M; offState.V = o.V; offState.at = Date.now(); } else { offState.M = { ...offState.M, ...o.M }; offState.V = { ...offState.V, ...o.V }; offState.fastAt = Date.now(); }
     offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 320) : null; offState.status = 'ok'; offState.via = o.via;
+    // per-series errors: a full run replaces the list; a quick run replaces only the series it asked for, so an older failure on another series stays visible
+    const fetched = fullDue ? null : nearSer;
+    offState.errList = (fullDue ? [] : (offState.errList || []).filter(x => !fetched.has(String(x.s).replace(/ vintages$/, '')))).concat(o.list.map(x => ({ ...x, at: Date.now() })));
+    offState.lastRun = { at: Date.now(), kind: fullDue ? 'full' : 'quick', asked: o.asked, failed: o.list.length };
+    await offSave(env, Date.now());
     if (fullDue && env && env.DB) await beat(env, 'off_ok', offState.at);   // a stored mark of the last full download (the data itself is memory only), so /health can say it on a cold read
   } catch (e) {
     offState.failAt = Date.now(); offState.err = redact(e.message).slice(0, 320);
+    offState.errList = (e.list && e.list.length ? e.list : [{ s: '*', e: redact(e.message) }]).map(x => ({ ...x, at: Date.now() }));
+    offState.lastRun = { at: Date.now(), kind: fullDue ? 'full' : 'quick', asked: e.asked || null, failed: e.asked || null, threw: true };
     if (fullDue) offState.status = 'unavailable';   // a failed quick refresh keeps the 30-minute copy and its status
   }
 }
@@ -650,7 +685,9 @@ function schedule(now) {
   let rebuilt = false;
   if (!schedCache.events || schedCache.sig !== sig || schedCache.day !== day) {
     const m = mergeSchedule(SCHEDULE, syncState.rec, INDICATORS, day);
-    schedCache.eff = { ...SCHEDULE, releases: m.releases, checked: m.checked };
+    const have = new Set(m.releases.map(r => r.k + '|' + r.d + '|' + (r.p || '')));
+    const hist = (HISTORY.releases || []).filter(r => !have.has(r.k + '|' + r.d + '|' + (r.p || '')));   // a line the baseline or the sync has wins
+    schedCache.eff = { ...SCHEDULE, releases: hist.concat(m.releases), checked: m.checked };
     schedCache.events = expand(schedCache.eff, INDICATORS);
     schedCache.merged = m; schedCache.checked = m.checked; schedCache.sig = sig; schedCache.day = day;
     rebuilt = true; schedCache.audStale = true;
@@ -684,7 +721,7 @@ const BF_GAP = 20 * 60000, BF_LIMIT = 500;
 const wireCovered = e => !e.hol && e.src !== 'feed' && WIRE_KEYS.has(e.k + '|' + e.r) && !/^auc/.test(e.k);
 function wireBackfill(env, ctx, events, now) {
   if (bfSt.running || now - bfSt.at < BF_GAP) return;
-  if (!events.some(e => wireCovered(e) && e.t <= now && (e.ac == null || e.fc == null || e.pv == null))) return;
+  if (!events.some(e => wireCovered(e) && e.t <= now && e.t > now - 4 * 864e5 && (e.ac == null || e.fc == null || e.pv == null))) return;   // D1 keeps about 800 posts (2-3 days): an older row cannot be helped by reading it
   bfSt.running = true; bfSt.at = now;
   const run = (async () => {
     try {
@@ -714,6 +751,56 @@ async function firstSave(env, now) {
   if (!firstSt.dirty || !(env && env.MARKET_KV) || now - firstSt.lastKv < 30000) return;
   firstSt.lastKv = now; firstSt.dirty = false;
   try { await env.MARKET_KV.put(FP_KV, JSON.stringify(firstSt.mem)); } catch (_) { firstSt.dirty = true; }   // an entry is added a few times a day, so this is a handful of the 1,000 free writes
+}
+
+// ---- history fill (P8.40): released rows older than 45 days that the ledger holds no official actual for ----
+// applyOfficial stops at 45 days (FRED then holds a revised value). For older rows the number the calendar showed is read once from FRED's archive as it stood on the release day
+// (official.js, histNumbers), written into the ledger as an official number and never asked for again. EIA stocks are not revised: the current series is used.
+// A row that cannot be filled (no key, no value that day) is not retried for 6 hours. At most HIST_PER_RUN requests per run, in the background.
+const histSt = { running: false, at: 0, tried: {}, filled: 0, err: null };
+const HIST_GAP = 2 * 60000, HIST_PER_RUN = 4, HIST_RETRY = 6 * 3600e3;
+function histFill(env, ctx, events, now) {
+  if (histSt.running || now - histSt.at < HIST_GAP || !ledgerSt.mem) return;
+  const need = [];
+  for (const e of events) {
+    const sp = OFF_SPEC[e.k + '|' + e.r];
+    if (!sp || e.hol || e.src === 'feed' || !e.id || e.t > now - HIST_MIN_AGE || now - (histSt.tried[e.id] || 0) < HIST_RETRY) continue;
+    const r = ledgerSt.mem.rows[e.id];
+    if (r && r.ac != null && r.ac !== '' && rankOf(r.sa) >= 4) continue;   // already official in the ledger
+    need.push({ e, sp });
+  }
+  if (!need.length) return;
+  histSt.running = true; histSt.at = now;
+  const run = (async () => {
+    const key = env && env.FRED_KEY, cache = new Map();
+    let fetched = 0;
+    try {
+      for (const { e, sp } of need) {
+        let S = null, tag = sp.tag || 'FRED';
+        if (sp.s.startsWith('EIA:')) { S = offState.M && offState.M[sp.s]; if (!S) continue; }   // the series is not loaded yet: try again at the next run
+        else {
+          if (!key) { histSt.err = 'no FRED_KEY'; continue; }
+          const ck = sp.s + '|' + e.d;
+          if (!cache.has(ck)) {
+            if (fetched >= HIST_PER_RUN) continue;   // the rest on the next run
+            fetched++;
+            const since = new Date(Date.parse(e.d + 'T00:00:00Z') - 460 * 864e5).toISOString().slice(0, 10);
+            try { cache.set(ck, parseFredJson(await fredApiGet(fredAsOfUrl(sp.s, key, since, e.d)))); } catch (x) { cache.set(ck, null); histSt.err = redact(x.message).slice(0, 160); }
+          }
+          S = cache.get(ck);
+        }
+        histSt.tried[e.id] = Date.now();
+        const h = S && histNumbers(S, sp, e);
+        if (!h) continue;
+        const r = ledgerSt.mem.rows[e.id] || (ledgerSt.mem.rows[e.id] = { t: e.t });
+        r.ac = h.ac; r.sa = tag; r.at = Date.now();
+        if (h.pv != null) { r.pv = h.pv; r.pvc = null; r.sp = tag; }
+        ledgerSt.dirty = true; histSt.filled++; histSt.err = null;
+      }
+    } catch (x) { histSt.err = redact(x && x.message).slice(0, 160); }
+    finally { histSt.running = false; }
+  })();
+  if (ctx) ctx.waitUntil(run);
 }
 
 // ---- actuals ledger (plan P8.30): the floor under the live sources, so a lapsed or cold source never drops a row back to the wire's number ----
@@ -813,7 +900,7 @@ let calMemo = null;   // { at, debug, body }: the page asks every 15-20 s around
 async function getCalendar(env, ctx, opts = {}) {
   const now = Date.now(), debug = !!opts.debug;
   if (calMemo && calMemo.debug === debug && now - calMemo.at < (opts.fresh ? 3000 : 10000)) return calMemo.body;   // ?fresh=1 (manual refresh) skips the 10 s reuse, at most every 3 s; the feeds, official source and KV writes keep their own throttles
-  await Promise.all([loadSync(env), firstSeed(env), ledgerSeed(env), policySeed(env)]);
+  await Promise.all([loadSync(env), firstSeed(env), ledgerSeed(env), policySeed(env), offSeed(env)]);
   const sch = schedule(now);
   syncLazy(env, ctx, now);
   policyLazy(env, ctx, sch, now);   // facts never built, or a decision the series does not show yet   // an overdue sync source starts in the background (D77)
@@ -843,6 +930,7 @@ async function getCalendar(env, ctx, opts = {}) {
   ledgerSt.restored = applyLedger(o.events, ledgerSt.mem, now);   // what the live sources lost (a cold start, a lapse) comes back from the ledger, with its original tag
   if (recordLedger(ledgerSt.mem, o.events, now)) ledgerSt.dirty = true;
   if (ledgerSt.dirty) pruneLedger(ledgerSt.mem, now);
+  histFill(env, ctx, base, now);   // older rows with no official actual in the ledger: read once from FRED's archive, in the background
   const gaps = forecastGaps(o.events, now, wireCovered);   // released rows the wire covers that still lack a forecast, previous or actual
   const pend = markPending(o.events, now);   // covered rows still without any actual: the page says "awaiting official figure"
   const lagNew = lagDetect(o.events, liveAc, now);
@@ -885,9 +973,9 @@ async function getCalendar(env, ctx, opts = {}) {
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
   };
-  if (debug) out.debug = { gaps: gaps.slice(0, 60), backfill: bfSt, policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
+  if (debug) out.debug = { gaps: gaps.slice(0, 60), backfill: bfSt, history: { ...histSt, tried: Object.keys(histSt.tried).length }, officialKv: { seeded: offKv.seeded, savedAt: offKv.savedAt || null }, policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
     fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
-    official: { via: offState.via, error: offState.err, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
+    official: { via: offState.via, error: offState.err, errors: offState.errList || [], lastRun: offState.lastRun || null, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
   calMemo = { at: now, debug, body, out };   // out: the same answer as an object, for /alerts (no second JSON.parse)
@@ -902,17 +990,16 @@ async function getAlerts(env, ctx, opts = {}) {
   const wire = opts.wire !== false, cal = opts.cal !== false, full = wire && cal, now = Date.now();
   if (full && alertMemo && Math.abs(now - alertMemo.at) < 5000) return alertMemo;
   const errors = [];
-  let dm = [], fj = [];
+  let fj = [];   // Walter Bloomberg was retired on 24 Nov (its Telegram preview went dark; the Finviz card replaced it): no dm posts are read, so buildAlerts gets its default dm = []
   if (wire) {
-    const r = await Promise.all([loadPosts(env, 'WalterBloomberg', 40), loadPosts(env, 'FinancialJuice', 60)]);
-    if (!r[0]) errors.push('Walter Bloomberg posts could not be read from D1');
-    if (!r[1]) errors.push('FinancialJuice posts could not be read from D1');
-    dm = r[0] || []; fj = r[1] || [];
+    const r = await loadPosts(env, 'FinancialJuice', 60);
+    if (!r) errors.push('FinancialJuice posts could not be read from D1');
+    fj = r || [];
   }
   let c = null;
   if (cal) { try { c = await getCalendarObj(env, ctx); } catch (e) { errors.push('calendar: ' + String(e && e.message).slice(0, 100)); } }
   const seen = c && c.events.some(e => e.ac != null) ? await loadLagSeen(env, now - 6 * 36e5) : {};
-  const list = buildAlerts({ now, dm, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal });
+  const list = buildAlerts({ now, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal });
   if (full) for (const t of await loadTests(env, now - 10 * 60e3)) list.unshift(testAlert(t));   // the test alerts of the last 10 minutes
   const out = { at: now, now, list, errors };
   if (full) alertMemo = out;
@@ -1162,6 +1249,14 @@ export default {
         const fresh = isFresh(req.url);                // ?fresh=1: poll again after 3 s instead of 10 s; the failure back-off still applies
         const body = channel ? await getFeed(env, ctx, { debug, channel, fresh }) : await getFeeds(env, ctx, { debug, fresh });
         return new Response(body, { headers: { ...json, 'Cache-Control': 'no-store' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
+      }
+    }
+    if (pathname === '/finviz') {   // Finviz news headlines parsed from finviz.com/news; ?fresh=1 = manual refresh, ?debug=1 adds row counts and health
+      try {
+        const q = new URL(req.url).searchParams, fresh = isFresh(req.url);
+        return new Response(await getFinviz(env, ctx, { fresh, debug: q.has('debug') }), { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=20' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }

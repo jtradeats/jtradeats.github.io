@@ -20,10 +20,7 @@ import { fmtVal } from './schedule.js';
 export const WIRE_KV = 'wire:actuals';
 export const WIRE_BEFORE = 30e3;          // a post can carry a timestamp a few seconds before the scheduled minute
 export const WIRE_AFTER = 45 * 60e3;      // after this a post is not taken for this release (the page's release alert uses the same 45 min)
-// INGEST_MAX_AGE was 6 hours: a post older than that was never read, so a release the wire missed (a rule name that was wrong on the day, a poller gap) could not be
-// filled once the rule was fixed, and typed numbers had to cover it (23 Nov flash PMIs, 19 Nov Philly Fed). The post still has to follow its row's release time
-// by 30 s to 45 min, so reading old posts again cannot match a post to the wrong release.
-const KEEP_MS = 35 * 864e5, LOG_MAX = 60, INGEST_MAX_AGE = 40 * 864e5;
+const KEEP_MS = 35 * 864e5, LOG_MAX = 60, INGEST_MAX_AGE = 6 * 864e5;   // 6 days (was 6 h): D1 keeps about 5 days of posts and index.js's backfill (P8.39) re-reads them; a post still only matches the row whose release time it follows
 
 // names: the wire's own name for the release, upper case, without "US " and without the mark. keys: rows of indicators.json ("<kind>|<row id>").
 // lo/hi: plausibility bounds in the row's unit (K rows in thousands, M rows in millions, % rows in percent). dp: fixed decimals shown.
@@ -73,7 +70,7 @@ const AUCTION = { 10: 'auc10|main', 30: 'auc30|main' };
 export const WIRE_KEYS = new Set([...RULES.flatMap(r => r.keys), ...Object.values(AUCTION)]);
 
 const LEAD = /^[\s*\u203C\u2757\uFE0F]*(?:BREAKING\s*:?\s*)?/i;   // "‼ BREAKING:" and a red mark are both removed
-const MACRO = /^(?:US\s+)?(.+?)\s+ACTUAL\s+(-?\d[\d,]*\.?\d*)\s*([KMB%]?)\s*\(\s*(?:FORECAST\s+(-?\d[\d,]*\.?\d*)\s*([KMB%]?)\s*)?(?:,?\s*PREVIOUS\s+(-?\d[\d,]*\.?\d*)\s*([KMB%]?)\s*)?\)/i;   // FORECAST and PREVIOUS are each optional
+const MACRO = /^(?:US\s+)?(.+?)\s+ACTUAL\s+(-?\d[\d,]*\.?\d*)\s*([KMB%]?)\s*\(\s*FORECAST\s+(-?\d[\d,]*\.?\d*)\s*([KMB%]?)\s*(?:,\s*PREVIOUS\s+(-?\d[\d,]*\.?\d*)\s*([KMB%]?)\s*)?\)/i;
 const AUC = /^US\s+(\d+)\s*YR\s+(NOTE|BOND)\s+AUCTION\b[\s\S]*?HIGH\s+YIELD\s+(\d+\.\d+)\s*%/i;
 const tok = (n, s) => (n == null ? null : { n: parseFloat(String(n).replace(/,/g, '')), s: String(s || '').toUpperCase() });
 
@@ -121,7 +118,6 @@ export function applyWire(events, posts, now, memo) {
   }
   for (const p of posts || []) {
     if (!p || p.t == null || now - p.t > INGEST_MAX_AGE) continue;
-    if (!/ACTUAL|AUCTION/i.test(p.text || '')) continue;   // most posts are not releases: skip them before the regexes (CPU)
     const x = parseWire(p.text);
     if (!x) continue;
     if (!x.rule) { unmatched.push({ id: p.id, t: p.t, text: String(p.text).replace(/\s+/g, ' ').slice(0, 110) }); continue; }

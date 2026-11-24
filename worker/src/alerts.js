@@ -7,6 +7,7 @@
 //
 // Every alert: { id, kind, t, src, tag, h, s, nt, nb, n? }
 //   id    stable across calls (a client shows each id once)        kind  wire | fj | remind | release | fix
+//   (kind wire = Walter Bloomberg, retired 24 Nov when the Finviz news card replaced it: no alert of that kind is produced any more; the Finviz card never alerts)
 //   t     when it happened (post time, reminder time, first sighting of the actual)
 //   src, tag, h, s   what the page's toast shows (source line, tag line, headline, text)
 //   nt, nb           what the page passes to notify() (title, body), which is what a phone notification should show
@@ -84,7 +85,7 @@ const CUT_REST = 1500;   // the rest of a long post is kept this long (the page 
 const pbWire = (sp, text) => sp.cut ? String(text || '').trim().slice(0, CUT_REST) : sp.head + (sp.rest ? '\n' + sp.rest.slice(0, CUT_REST) : '');
 const tc = x => x.charAt(0) + x.slice(1).toLowerCase();
 
-function wireAlerts(dm, now) {   // Walter Bloomberg: every new post
+function wireAlerts(dm, now) {   // the dm wire (Walter Bloomberg): retired 24 Nov, index.js no longer supplies posts, so this returns nothing; kept so the signature and the parity tests do not change
   const out = [];
   for (const p of dm || []) {
     if (!p || p.t == null || now - p.t > TTL.wire || p.t > now + 60000) continue;
@@ -111,12 +112,10 @@ function reminderAlerts(events, now) {   // high-impact USD releases: 15 min and
   for (const [t, list] of by) for (const r of REM) {
     const at = t - r * 60000;
     if (now < at || now > at + TTL.rem) continue;
-    if (r === 0 && list.some(x => x.ac != null)) continue;   // the actual is already in: the release alert carries it, so a "release now" reminder would only contradict it
     const one = list.length === 1 ? list[0] : null, mins = Math.max(1, Math.ceil((t - now) / 60000));
     const tag = 'HIGH IMPACT · ' + (r ? 'RELEASE IN ' + mins + ' MIN' : 'RELEASE NOW'), h = list.map(x => x.title).join(' · ');
-    // what the person can use before the number comes out: forecast and previous for every release in the group (up to 4)
-    const s = list.slice(0, 4).map(x => (one ? '' : x.title + ': ') + (x.fc ? 'Forecast ' + x.fc : 'No forecast yet') + (x.pv ? ' · previous ' + x.pv : '')).join('\n');
-    out.push({ id: 'rem|' + t + '|' + r, kind: 'remind', t: at, src: 'Calendar · USD', tag, h, s, nt: h, nb: (r ? 'Release in ' + mins + ' min' : 'Release at ' + etClock(t) + ' ET') + '\n' + s });
+    const s = list.slice(0, 4).map(x => (one ? '' : x.title + ': ') + (x.fc ? 'Forecast ' + x.fc : 'No forecast yet') + (x.pv ? ' \u00b7 previous ' + x.pv : '')).join('\n');   // same text as the page's remCheck (news.html), at the release too: forecast and previous, never a claim about the actual
+    out.push({ id: 'rem|' + t + '|' + r, kind: 'remind', t: at, src: 'Calendar · USD', tag, h, s, nt: h, nb: (r ? 'Release in ' + mins + ' min' : 'Release now') + '\n' + s });
   }
   return out;
 }

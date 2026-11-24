@@ -1,4 +1,6 @@
-// Finviz news scrape TEST (diagnostic only, nothing on the page uses it yet).
+// Finviz news: GET /finviz (the card's data) and GET /finviz-test (the diagnostic probe).
+// GET /finviz              -> { updated, items: [{ t, d, title, url, src, host }], blogs: [...] } parsed from finviz.com/news; ?fresh=1 = manual refresh; ?debug=1 adds table/row counts
+// The probe below stays for diagnosis:
 // GET /finviz-test            -> what finviz.com/news.ashx returns to this Worker: status, blocking signs, and the first headline links found
 // GET /finviz-test?v=2        -> the same for news.ashx?v=2 (digits 1 to 3 only; the address is fixed, this is never a proxy for other pages)
 // GET /finviz-test?raw=1      -> adds ~1,500 characters of raw markup around the first headline found, so the real parser can be written from it
@@ -81,3 +83,157 @@ export async function finvizProbe(reqUrl) {
   memo.set(key, { at: Date.now(), body });
   return body;
 }
+
+
+// ======================= the real route: GET /finviz =======================
+// Parses the public page's server-rendered rows:  <tr class="... news_table-row"> <td news_first-time-cell>(source icon)</td>
+//   <td news_date-cell>10:21PM</td> <td news_link-cell><a class="nn-tab-link" href="...">headline</a></td></tr>
+// Behaviour matches the other routes: a short reuse time, a negative cache after a failure, the last good copy served (flagged stale) when Finviz fails,
+// and a throttled KV snapshot for cold starts. A page that parses to fewer than MIN_ROWS rows counts as a failure, so a markup change shows "delayed"
+// on the card instead of wiping it.
+
+const KV_KEY = 'finviz:news';
+const TTL = 45000;            // reuse a built answer for 45 s (the card polls about every 60 s)
+const STALE_OK = 10 * 60000;  // an answer up to this old is served at once while a refresh runs
+const NEG_TTL = 60000;        // after a failed fetch leave Finviz alone for 60 s
+const MIN_FRESH = 5000;       // ?fresh=1 is honoured at most this often
+const KV_GAP = 15 * 60000;    // KV allows 1,000 writes/day: one snapshot per 15 min, only when the top headline changed
+const MIN_ROWS = 5, MAX_ITEMS = 60;
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+const ET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+function etFields(ms) { const o = {}; for (const p of ET.formatToParts(ms)) if (p.type !== 'literal') o[p.type] = +p.value; return o; }
+const offsetAt = ms => { const f = etFields(ms); return Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute) - Math.floor(ms / 60000) * 60000; };   // ET minus UTC at that moment (negative)
+function etWallToMs(y, mo, d, h, mi) { const g = Date.UTC(y, mo - 1, d, h, mi); return g - offsetAt(g - offsetAt(g)); }              // New York wall-clock time -> epoch ms (DST-safe)
+const addDays = (day, n) => { const u = new Date(Date.UTC(day.y, day.mo - 1, day.d + n)); return { y: u.getUTCFullYear(), mo: u.getUTCMonth() + 1, d: u.getUTCDate() }; };
+
+const SRC = { 'reuters.com': 'Reuters', 'bloomberg.com': 'Bloomberg', 'wsj.com': 'WSJ', 'cnbc.com': 'CNBC', 'nytimes.com': 'NYT', 'foxbusiness.com': 'Fox Business', 'marketwatch.com': 'MarketWatch',
+  'bbc.co.uk': 'BBC', 'bbc.com': 'BBC', 'ft.com': 'FT', 'barrons.com': "Barron's", 'finance.yahoo.com': 'Yahoo Finance', 'yahoo.com': 'Yahoo', 'investing.com': 'Investing.com',
+  'seekingalpha.com': 'Seeking Alpha', 'benzinga.com': 'Benzinga', 'apnews.com': 'AP', 'forbes.com': 'Forbes', 'businessinsider.com': 'Business Insider', 'theguardian.com': 'Guardian',
+  'axios.com': 'Axios', 'politico.com': 'Politico', 'washingtonpost.com': 'Washington Post', 'thestreet.com': 'TheStreet', 'fool.com': 'Motley Fool', 'cnn.com': 'CNN' };
+function srcName(host) {
+  host = String(host || '').replace(/^www\./, '');
+  if (SRC[host]) return SRC[host];
+  const parts = host.split('.'); if (parts.length < 2) return host;
+  const sld = /^(co|com|org|net|gov)$/.test(parts[parts.length - 2]) && parts.length > 2 ? parts[parts.length - 3] : parts[parts.length - 2];
+  return sld.charAt(0).toUpperCase() + sld.slice(1);
+}
+
+const TIME_RE = /^(?:(?:today\s+)|(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*-(\d{1,2})(?:-(\d{2,4}))?\s+))?(\d{1,2}):(\d{2})\s*(am|pm)$/i;
+
+// html -> [ { rows: [...] } per <table> that holds news rows ], rows newest first, times as epoch ms
+export function parseFinviz(html, now = Date.now()) {
+  const tables = [];
+  for (const chunk of html.split(/<table\b/i).slice(1)) {
+    const rows = [];
+    const re = /<tr\b[^>]*news_table-row[^>]*>([\s\S]*?)<\/tr>/gi;
+    let m;
+    while ((m = re.exec(chunk))) {
+      const row = m[1];
+      const a = row.match(/<a\b[^>]*nn-tab-link[^>]*>([\s\S]*?)<\/a>/i);
+      if (!a) continue;
+      const href = (a[0].match(/href="([^"]+)"/i) || [])[1];
+      if (!href || !/^https?:\/\//i.test(href)) continue;
+      const title = decode(a[1].replace(/<[^>]*>/g, ''));
+      const cell = (row.match(/news_date-cell[^>]*>([\s\S]*?)<\/td>/i) || [])[1];
+      const when = cell ? decode(cell.replace(/<[^>]*>/g, '')) : '';
+      if (!title) continue;
+      let host = ''; try { host = new URL(decode(href)).host.replace(/^www\./, ''); } catch (e) { continue; }
+      rows.push({ title, url: decode(href), host, when });
+    }
+    if (rows.length) tables.push(rows);
+  }
+  const nowEt = etFields(now);
+  const out = tables.map(rows => {
+    let day = { y: nowEt.year, mo: nowEt.month, d: nowEt.day }, prev = null;
+    const seen = new Set(), items = [];
+    for (const r of rows) {
+      const m = r.when.match(TIME_RE);
+      let t = null, d = 'i';
+      if (m) {
+        let h = +m[4] % 12; if (/pm/i.test(m[6])) h += 12;
+        const mi = +m[5];
+        if (m[1]) {                                           // an explicit date on the row: trust it
+          let y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : nowEt.year;
+          day = { y, mo: MONTHS[m[1].toLowerCase()], d: +m[2] };
+          t = etWallToMs(day.y, day.mo, day.d, h, mi);
+          if (!m[3] && t > now + 36e5 * 36) { day = { ...day, y: y - 1 }; t = etWallToMs(day.y, day.mo, day.d, h, mi); }
+          d = 'x';
+        } else {                                              // time only: newest first, so the day steps back whenever the clock jumps forward
+          t = etWallToMs(day.y, day.mo, day.d, h, mi);
+          for (let i = 0; i < 3 && t > (prev == null ? now + 10 * 60000 : prev + 5 * 60000); i++) { day = addDays(day, -1); t = etWallToMs(day.y, day.mo, day.d, h, mi); }
+        }
+        prev = t;
+      }
+      if (seen.has(r.title)) continue;
+      seen.add(r.title);
+      items.push({ t, d, title: r.title, url: r.url, src: srcName(r.host), host: r.host });
+    }
+    return items.slice(0, MAX_ITEMS);
+  });
+  return out;
+}
+
+const S = { memo: null, inflight: null, failAt: 0, err: null, seeded: false, lastKv: 0, lastSig: '' };
+
+async function build(env) {
+  const r = await fetch(BASE, { headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' }, redirect: 'follow', signal: AbortSignal.timeout(TIMEOUT) });
+  if (!r.ok) throw new Error(`HTTP ${r.status} from finviz.com`);
+  const html = await r.text();
+  if (BLOCK_SIGNS.test(html.slice(0, 4000)) && !/news_table-row/.test(html)) throw new Error('Finviz sent a challenge page');
+  const tables = parseFinviz(html, Date.now());
+  const news = tables[0] || [];
+  if (news.length < MIN_ROWS) throw new Error(`parser found ${news.length} headline rows (the markup may have changed)`);
+  return { updated: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), via: 'worker', source: 'finviz', n: news.length, items: news, blogs: tables[1] || [], tables: tables.map(t => t.length) };
+}
+
+async function seed(env) {
+  S.seeded = true;
+  if (!(env && env.MARKET_KV)) return;
+  try {
+    const snap = await env.MARKET_KV.get(KV_KEY, 'json');
+    if (snap && Array.isArray(snap.items) && snap.items.length) {
+      S.memo = { at: Date.parse(snap.updated) || 0, val: snap };
+      S.lastSig = sigOf(snap);
+    }
+  } catch (e) { /* KV unavailable: carry on without it */ }
+}
+const sigOf = v => (v.items[0] ? v.items[0].title : '') + '|' + v.items.length;
+
+function refresh(env, ctx) {
+  if (S.inflight) return S.inflight;
+  if (S.failAt && Date.now() - S.failAt < NEG_TTL && S.memo) return Promise.resolve(S.memo);   // just failed: do not ask again yet
+  S.inflight = build(env).then(val => {
+    S.memo = { at: Date.now(), val }; S.err = null; S.failAt = 0;
+    const sig = sigOf(val);
+    if (env && env.MARKET_KV && Date.now() - S.lastKv > KV_GAP && sig !== S.lastSig) {
+      S.lastKv = Date.now(); S.lastSig = sig;
+      const w = env.MARKET_KV.put(KV_KEY, JSON.stringify(val)).catch(() => {});   // a failed write never reaches the page
+      if (ctx) ctx.waitUntil(w);
+    }
+    return S.memo;
+  }).catch(e => {
+    S.failAt = Date.now(); S.err = String(e.message).slice(0, 160);
+    if (S.memo) return S.memo;      // keep showing the last good copy, flagged stale below
+    throw e;
+  }).finally(() => { S.inflight = null; });
+  return S.inflight;
+}
+
+function body(m, debug) {
+  const stale = !!S.err || Date.now() - m.at > TTL + 60000 * 5;
+  const o = { ...m.val, ...(stale ? { stale: true } : {}), ...(S.err ? { error: S.err } : {}) };
+  if (!debug) delete o.tables; else o.health = { age_s: Math.round((Date.now() - m.at) / 1000), failAt: S.failAt || null, err: S.err };
+  return JSON.stringify(o);
+}
+
+export async function getFinviz(env, ctx, opts = {}) {
+  if (!S.seeded) await seed(env);
+  const age = S.memo ? Date.now() - S.memo.at : Infinity;
+  if (opts.fresh && age >= MIN_FRESH) return body(await refresh(env, ctx), opts.debug);
+  if (age < TTL) return body(S.memo, opts.debug);
+  if (age < STALE_OK) { const p = refresh(env, ctx); if (ctx) ctx.waitUntil(p.catch(() => {})); return body(S.memo, opts.debug); }
+  return body(await refresh(env, ctx), opts.debug);
+}
+
+export const finvizHealth = () => ({ age_s: S.memo ? Math.round((Date.now() - S.memo.at) / 1000) : null, n: S.memo ? S.memo.val.items.length : 0, err: S.err });
