@@ -1256,18 +1256,18 @@ const provTxt=d=>{
   return p.join(' · ');
 };
 /* mode + offset -> [first, last] New York date. Weeks run Monday to Sunday, and from Sunday (New York time) "this week" is already the following week.
-   off steps whole days, weeks or months away from now; the month view runs from last month (off -1) to the first 14 days of next month (off 1). */
-const WK=864e5,MONTH_NEXT_DAYS=14,isoOf=x=>new Date(x).toISOString().slice(0,10);
+   off steps whole days, weeks or months away from now; the month view runs from last month (off -1) to the end of next month (off 1). */
+const WK=864e5,isoOf=x=>new Date(x).toISOString().slice(0,10);
 function rngBounds(mode,off,todayIso){
   const d=new Date(todayIso+'T00:00:00Z'),t=+d,dow=d.getUTCDay();
   if(mode==='day'){const x=isoOf(t+off*WK);return[x,x]}
-  if(mode==='month'){const y=d.getUTCFullYear(),m=d.getUTCMonth()+off;return[isoOf(Date.UTC(y,m,1)),off>0?isoOf(Date.UTC(y,m,MONTH_NEXT_DAYS)):isoOf(Date.UTC(y,m+1,0))]} /* off -1 = last month, 0 = this month, 1 = the first MONTH_NEXT_DAYS days of next month */
+  if(mode==='month'){const y=d.getUTCFullYear(),m=d.getUTCMonth()+off;return[isoOf(Date.UTC(y,m,1)),isoOf(Date.UTC(y,m+1,0))]} /* off -1 = last month, 0 = this month, 1 = all of next month */
   const mon=(dow===0?t+WK:t-(dow-1)*WK)+off*7*WK;
   return[isoOf(mon),isoOf(mon+6*WK)];
 }
 const dLbl=(iso,o)=>new Date(iso+'T12:00:00Z').toLocaleDateString('en-US',Object.assign({timeZone:'UTC'},o));
 function rngLabel(mode,off,lo,hi,todayIso){ /* the words for now, dates for anything else */
-  if(mode==='month')return off===0?'this month':off<0?dLbl(lo,{month:'long',year:'numeric'}):dLbl(lo,{month:'short'})+' 1\u2013'+(+hi.slice(8))+' (next month)';
+  if(mode==='month')return off===0?'this month':dLbl(lo,{month:'long',year:'numeric'});
   const yr=iso=>iso.slice(0,4)!==todayIso.slice(0,4);
   if(mode==='day')return off===0?'today':dLbl(lo,Object.assign({weekday:'short',month:'short',day:'numeric'},yr(lo)?{year:'numeric'}:{}));
   if(off===0)return 'this week';
@@ -1284,7 +1284,7 @@ function calNav(bar,d){ /* label, dropdown value and arrow state; an arrow is of
   if(d&&d.events)for(const e of d.events){if(!e.d)continue;if(!a||e.d<a)a=e.d;if(!z||e.d>z)z=e.d}
   pv.disabled=!!a&&rngBounds(calMode,calOff-1,today)[1]<a;
   nx.disabled=!!z&&rngBounds(calMode,calOff+1,today)[0]>z;
-  if(mo){pv.disabled=pv.disabled||calOff<=-1;nx.disabled=nx.disabled||calOff>=1} /* one month back, a fortnight of the next */
+  if(mo){pv.disabled=pv.disabled||calOff<=-1;nx.disabled=nx.disabled||calOff>=1} /* one month back, all of the next */
   pv.setAttribute('aria-label','previous '+calMode);nx.setAttribute('aria-label','next '+calMode);
 }
 const cal=el=>{
@@ -1427,10 +1427,11 @@ function remCheck(){
   for(const [t,list] of by)for(const r of REM){
     const at=t-r*60000,k=t+'|'+r;
     if(now<at||now>at+REM_WINDOW||fired.includes(k))continue; /* too late to be useful: skip, never replay old ones */
+    if(r===0&&list.some(x=>x.ac!=null))continue; /* the actual is already in: the release alert carries it */
     fired.push(k);dirty=true;
     const one=list.length===1?list[0]:null,mins=Math.max(1,Math.ceil((t-now)/60000));
     toast({src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 '+(r?'RELEASE IN '+mins+' MIN':'RELEASE NOW'),h:list.map(x=>x.title).join(' \u00b7 '),rel:true,ev:list[0],
-      s:r===0?'Waiting for the actual figure.':one?(one.fc?'Forecast '+one.fc:'Scheduled '+etClock(t)+' ET')+(one.pv?' \u00b7 previous '+one.pv:''):list.length+' releases at '+etClock(t)+' ET.',ms:60000});
+      s:list.slice(0,4).map(x=>(one?'':x.title+': ')+(x.fc?'Forecast '+x.fc:'No forecast yet')+(x.pv?' \u00b7 previous '+x.pv:'')).join('\n'),ms:60000});
   }
   if(dirty){fired=fired.filter(k=>+k.split('|')[0]>now-2*864e5);LS.s(KEY+'rem_fired',JSON.stringify(fired))}
 }
