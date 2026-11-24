@@ -55,7 +55,7 @@ export function scenIdx(e) {   // 0 above forecast, 1 in line, 2 below; rows wit
 export function relHead(e, now) {
   if (e.hol) return { c: '', h: e.title };
   const a = numOf(e.ac), f = numOf(e.fc);
-  if (e.ac == null) return e.t > now ? { c: '', h: 'Upcoming: ' + e.title } : { c: '', h: 'Released: ' + e.title + ' (actual not connected yet)' };
+  if (e.ac == null) return e.t > now ? { c: '', h: 'Upcoming: ' + e.title } : { c: '', h: 'Released: ' + e.title + ' (no actual yet)' };
   if (isNaN(a) || isNaN(f)) return { c: '', h: e.title + ': ' + e.ac + (e.pv ? ' (previous ' + e.pv + ')' : '') };
   if (a === f) return { c: '', h: e.title + ' came in line with forecast' };
   const up = a > f, w = up ? 'above' : 'below', dir = e.dir;
@@ -113,7 +113,7 @@ function reminderAlerts(events, now) {   // high-impact USD releases: 15 min and
     if (now < at || now > at + TTL.rem) continue;
     const one = list.length === 1 ? list[0] : null, mins = Math.max(1, Math.ceil((t - now) / 60000));
     const tag = 'HIGH IMPACT · ' + (r ? 'RELEASE IN ' + mins + ' MIN' : 'RELEASE NOW'), h = list.map(x => x.title).join(' · ');
-    const s = r === 0 ? 'Actual figures are not connected yet.' : one ? (one.fc ? 'Forecast ' + one.fc : 'Scheduled ' + etClock(t) + ' ET') + (one.pv ? ' · previous ' + one.pv : '') : list.length + ' releases at ' + etClock(t) + ' ET.';
+    const s = r === 0 ? 'Waiting for the actual figure.' : one ? (one.fc ? 'Forecast ' + one.fc : 'Scheduled ' + etClock(t) + ' ET') + (one.pv ? ' · previous ' + one.pv : '') : list.length + ' releases at ' + etClock(t) + ' ET.';
     out.push({ id: 'rem|' + t + '|' + r, kind: 'remind', t: at, src: 'Calendar · USD', tag, h, s, nt: h, nb: (r ? 'Release in ' + mins + ' min' : 'Release now') + '\n' + s });
   }
   return out;

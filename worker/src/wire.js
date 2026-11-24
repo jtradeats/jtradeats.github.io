@@ -13,13 +13,14 @@
 //   - the number must pass the row's bounds and its unit must fit the row (K, M, %, plain)
 //   - two different actuals for one row from two posts: the first stays, the row is flagged, the official number decides
 //   - official.js replaces it silently when FRED agrees, and replaces it with a visible correction when FRED differs
-//   - kept in a small memo (isolate memory + one KV key) so the number outlives the 50-post window and a cold start
+//   - kept in a small memo (isolate memory + one KV key) so the number outlives the 50-post window and a cold start.
+//     35 days (was 3): the memo is also where a released row's FORECAST and PREVIOUS live once the feed has dropped last week, so pruning it at 3 days emptied last week's forecast column
 import { fmtVal } from './schedule.js';
 
 export const WIRE_KV = 'wire:actuals';
 export const WIRE_BEFORE = 30e3;          // a post can carry a timestamp a few seconds before the scheduled minute
 export const WIRE_AFTER = 45 * 60e3;      // after this a post is not taken for this release (the page's release alert uses the same 45 min)
-const KEEP_MS = 3 * 864e5, LOG_MAX = 60, INGEST_MAX_AGE = 6 * 3600e3;
+const KEEP_MS = 35 * 864e5, LOG_MAX = 60, INGEST_MAX_AGE = 6 * 3600e3;
 
 // names: the wire's own name for the release, upper case, without "US " and without the mark. keys: rows of indicators.json ("<kind>|<row id>").
 // lo/hi: plausibility bounds in the row's unit (K rows in thousands, M rows in millions, % rows in percent). dp: fixed decimals shown.
@@ -51,8 +52,13 @@ export const RULES = [
   R(['ISM SERVICES PMI', 'ISM NON MANUFACTURING PMI', 'ISM NON-MANUFACTURING PMI'], 'ism_s|pmi', 20, 80),
   R('ISM MANUFACTURING PRICES', 'ism_m|prices', 20, 110),
   R(['ISM SERVICES PRICES', 'ISM NON MANUFACTURING PRICES', 'ISM NON-MANUFACTURING PRICES'], 'ism_s|prices', 20, 110),
-  R('S&P GLOBAL MANUFACTURING PMI', ['spg_m|main', 'spg_f|mfg'], 20, 80),
-  R('S&P GLOBAL SERVICES PMI', ['spg_s|main', 'spg_f|svc'], 20, 80),
+  // flash PMIs, seen 23 Nov 2026: "US S&P SERVICES PMI FLASH ACTUAL 54.7 (FORECAST 55.5, PREVIOUS 56.1)" and "US S&P MANUFACTURING PMI FLASH ACTUAL 54.5 (...)".
+  // FJ drops "GLOBAL" and puts FLASH last, so the old 'S&P GLOBAL ... PMI' names never matched and the rows stayed blank.
+  R(['S&P MANUFACTURING PMI FLASH', 'S&P GLOBAL MANUFACTURING PMI FLASH'], 'spg_f|mfg', 20, 80, { seen: 1 }),
+  R(['S&P SERVICES PMI FLASH', 'S&P GLOBAL SERVICES PMI FLASH'], 'spg_f|svc', 20, 80, { seen: 1 }),
+  // final PMIs (1st and 3rd business day): wording assumed to follow the same pattern without FLASH; harmless if wrong (no match, no fill)
+  R(['S&P GLOBAL MANUFACTURING PMI', 'S&P MANUFACTURING PMI', 'S&P MANUFACTURING PMI FINAL'], 'spg_m|main', 20, 80),
+  R(['S&P GLOBAL SERVICES PMI', 'S&P SERVICES PMI', 'S&P SERVICES PMI FINAL'], 'spg_s|main', 20, 80),
   R('CHICAGO PMI', 'chi|main', 20, 90),
   R(['CB CONSUMER CONFIDENCE', 'CONSUMER CONFIDENCE'], 'cb|main', 30, 160),
   R(['PHILADELPHIA FED MANUFACTURING INDEX', 'PHILLY FED MANUFACTURING INDEX'], 'philly|main', -80, 80),
