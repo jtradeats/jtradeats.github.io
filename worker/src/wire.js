@@ -61,7 +61,7 @@ export const RULES = [
   R(['S&P GLOBAL SERVICES PMI', 'S&P SERVICES PMI', 'S&P SERVICES PMI FINAL'], 'spg_s|main', 20, 80),
   R('CHICAGO PMI', 'chi|main', 20, 90),
   R(['CB CONSUMER CONFIDENCE', 'CONSUMER CONFIDENCE'], 'cb|main', 30, 160),
-  R(['PHILADELPHIA FED MANUFACTURING INDEX', 'PHILLY FED MANUFACTURING INDEX'], 'philly|main', -80, 80),
+  R(['PHILLY FED BUSINESS INDEX', 'PHILADELPHIA FED MANUFACTURING INDEX', 'PHILLY FED MANUFACTURING INDEX'], 'philly|main', -80, 80, { seen: 1 }),   // "US PHILLY FED BUSINESS INDEX ACTUAL 6.3 (FORECAST 20.1, PREVIOUS 20.9)" seen 19 Nov 2026: the earlier names never matched
 ];
 const BY_NAME = new Map();
 for (const r of RULES) for (const n of r.names) BY_NAME.set(n, r);

@@ -324,7 +324,9 @@ const CAL_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'h
 // Refresh times live in src/feedpoll.js: both files every 30 min in quiet hours; around a release (10 min before to 45 min after) only this week's file, every 5 min.
 const CAL_USE_MAX = 12 * 3600e3;     // never lay a feed copy older than this over the schedule
 const CAL_WAIT = 1200;               // a first request waits at most this long for the providers, then answers without them
-const CAL_WINDOW = [-31 * 864e5, 60 * 864e5];   // "this month" and "yesterday" need the past, "next week" the future
+// The calendar the page gets: from the first day of last month to the 14th of next month (the page's month view steps last month, this month, first 14 days of next month).
+// A day of margin each side covers the New York / UTC difference; the page filters by New York date.
+const calWindow = now => { const d = new Date(now), y = d.getUTCFullYear(), m = d.getUTCMonth(); return [Date.UTC(y, m - 1, 1) - 864e5, Date.UTC(y, m + 1, 15) + 864e5]; };
 const CAL_KEY = 'calendar:last';
 const feedState = { events: null, at: 0, failAt: 0, err: null, status: 'none', inflight: null };
 
@@ -796,8 +798,8 @@ async function getCalendar(env, ctx, opts = {}) {
   const p = Promise.all([feedRefresh(env, ctx, ffFast), fmpRefresh(env, ctx, sch), offRefresh(env, ctx, sch)]);
   if (!feedState.events && !fmpState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
-  const [lo, hi] = CAL_WINDOW;
-  const base = sch.events.filter(e => e.t >= now + lo && e.t <= now + hi);
+  const [lo, hi] = calWindow(now);
+  const base = sch.events.filter(e => e.t >= lo && e.t <= hi);
   const feeds = [];
   if (feedState.events && now - feedState.at < CAL_USE_MAX) feeds.push({ name: 'Fair Economy', rows: feedState.events });
   if (fmpState.events && now - fmpState.at < CAL_USE_MAX) feeds.push({ name: 'FMP', rows: fmpState.events });
