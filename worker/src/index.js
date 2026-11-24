@@ -23,6 +23,7 @@ import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
+import { finvizProbe } from './finviz.js';   // TEST ONLY: what finviz.com/news.ashx returns to this Worker (GET /finviz-test)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 import { rulesFrom, rangeFail, checkJump } from './validate.js';   // price validation: V1 range, V2 jump (plan P8.16)
 
@@ -1164,6 +1165,10 @@ export default {
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
+    }
+    if (pathname === '/finviz-test') {   // TEST ONLY, read only: one request to Finviz at most every 60 s; remove once the real route replaces it
+      try { return new Response(await finvizProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
     }
     return new Response('{"error":"not found"}', { status: 404, headers: json });
   },
