@@ -94,8 +94,8 @@ function wireAlerts(dm, now) {   // the dm wire (Walter Bloomberg): retired 24 N
   }
   return out;
 }
-function fjAlerts(fj, now) {   // FinancialJuice: only posts marked with the red mark, one alert per story
-  const posts = (fj || []).filter(p => p && p.hot === true && p.t != null && now - p.t <= TTL.wire + GROUP_MS * 3 && p.t <= now + 60000).sort((a, b) => b.id - a.id);
+function fjAlerts(fj, now) {   // FinancialJuice: every post, one alert per story (until 24 Nov only posts with the red mark alerted; those are still hot:true on the card)
+  const posts = (fj || []).filter(p => p && p.t != null && now - p.t <= TTL.wire + GROUP_MS * 3 && p.t <= now + 60000).sort((a, b) => b.id - a.id);
   const out = [];
   for (const g of wireGroup(posts, [], now)) {
     const first = g.ps[0];   // the story is as old as its first post: that is when the page would have alerted
