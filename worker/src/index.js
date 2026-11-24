@@ -8,13 +8,13 @@ import INDICATORS from '../config/indicators.json';
 import RESULTS from '../config/results.json';
 import HISTORY from '../config/schedule_history.json';   // last month's releases, which schedule.json (it starts on 2 Nov) does not hold (P8.40)
 import POLICY_CFG from '../config/policy.json';   // FOMC decision dates already held (plan P8.9)
-import { etToMs, etParts, expand, audit, overlay, normFair, normFmp, applyResults, typedReplaced, chainPrevious } from './schedule.js';
+import { etToMs, etParts, expand, audit, overlay, normFair, applyResults, typedReplaced, chainPrevious } from './schedule.js';
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger, forecastGaps, rankOf } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
-import { buildAlerts, filterAlerts, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
-import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth } from './push.js';   // Web Push to the phone (plan P8.34 stage 3)
+import { buildAlerts, filterAlerts, filterPrefs, PREF_KINDS, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
+import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth, loadPrefs, savePrefs } from './push.js';   // Web Push to the phone (plan P8.34 stages 3 and 4)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
@@ -317,10 +317,10 @@ async function getFng() {
 
 // ---- economic calendar ----
 // The schedule (worker/config/schedule.json: official release dates and times) is the calendar and never depends on the network.
-// Numbers come from three optional layers, lowest priority first:
+// Numbers come from these layers, lowest priority first (Financial Modeling Prep was removed on 24 Nov, plan P8.14: its free plan was rejected, HTTP 402, and nothing depended on it):
 //   1. Fair Economy / Forex Factory weekly feeds: forecast and previous, no actuals, rate-limits shared Cloudflare IPs (HTTP 429). No key.
-//   2. Financial Modeling Prep economic calendar: forecast, previous AND actual. Needs a free key in the Worker secret FMP_KEY.
-//   3. worker/config/results.json: numbers typed in by hand. PLACEHOLDERS: they fill only what no real source has supplied, and the wire and FRED replace them.
+//   2. worker/config/results.json: numbers typed in by hand. PLACEHOLDERS: they fill only what no real source has supplied, and the wire and FRED replace them.
+//   On top of both: the FinancialJuice wire (blanks only) and the official FRED and EIA series.
 // A failure in any layer leaves the schedule untouched and only changes the status fields.
 const CAL_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
 // Refresh times live in src/feedpoll.js: both files every 30 min in quiet hours; around a release (10 min before to 45 min after) only this week's file, every 5 min.
@@ -391,58 +391,6 @@ function feedRefresh(env, ctx, hot) {
     if (ctx) ctx.waitUntil(feedState.inflight);
   }
   return feedState.inflight;
-}
-
-// ---- Financial Modeling Prep (licensed API, free key; gives actuals) ----
-// Polls every 30 min, and every 90 s from 25 min before to 2 min after a high-impact release, so an actual lands on the page within about a minute or two.
-// Worst case about 120 calls a day (free plan: 250). KV share: at most one write per 10 min, only when the slow tier refreshed or an actual appeared.
-const FMP_URL = 'https://financialmodelingprep.com/stable/economic-calendar';
-const FMP_SLOW = 30 * 60000, FMP_FAST = 90000, FMP_RETRY = 5 * 60000, FMP_RETRY_LIMIT = 30 * 60000, FMP_KV = 'calendar:fmp', FMP_KV_GAP = 10 * 60000;
-const fmpState = { events: null, at: 0, failAt: 0, err: null, status: 'no-key', inflight: null, lastKv: 0, nAct: 0, sample: null, limited: false };
-
-async function loadFmp(env) {
-  const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
-  const j = JSON.parse(await get(`${FMP_URL}?from=${day(-4)}&to=${day(35)}&country=US&apikey=${encodeURIComponent(env.FMP_KEY)}`, { Accept: 'application/json' }, 6000));
-  if (!Array.isArray(j)) throw new Error(String((j && (j['Error Message'] || j.message || j.error)) || 'unexpected payload').slice(0, 140));
-  fmpState.sample = j.slice(0, 3);
-  return normFmp(j);
-}
-
-async function refreshFmp(env, sch) {
-  if (!(env && env.FMP_KEY)) { fmpState.status = 'no-key'; return; }
-  const now = Date.now();
-  const near = sch.events.some(e => e.imp === 3 && !e.hol && e.t > now - 25 * 60000 && e.t < now + 120000);
-  if (fmpState.events && now - fmpState.at < (near ? FMP_FAST : FMP_SLOW)) return;
-  if (!fmpState.events && env.MARKET_KV) {
-    try {
-      const sn = await env.MARKET_KV.get(FMP_KV, 'json');
-      if (sn && sn.events && sn.at > fmpState.at) { fmpState.events = sn.events; fmpState.at = sn.at; fmpState.status = 'ok'; fmpState.nAct = sn.events.filter(x => x.ac != null).length; }
-    } catch (e) { /* KV unavailable: carry on */ }
-    if (fmpState.events && Date.now() - fmpState.at < (near ? FMP_FAST : FMP_SLOW)) return;
-  }
-  if (fmpState.failAt && now - fmpState.failAt < (fmpState.limited ? FMP_RETRY_LIMIT : FMP_RETRY)) return;
-  try {
-    const ev = await loadFmp(env);
-    const nAct = ev.filter(x => x.ac != null).length, changed = nAct !== fmpState.nAct;
-    fmpState.events = ev; fmpState.at = Date.now(); fmpState.failAt = 0; fmpState.err = null; fmpState.limited = false; fmpState.status = 'ok'; fmpState.nAct = nAct;
-    if (env.MARKET_KV && Date.now() - fmpState.lastKv > FMP_KV_GAP && (!near || changed)) {
-      fmpState.lastKv = Date.now();
-      try { await env.MARKET_KV.put(FMP_KV, JSON.stringify({ at: fmpState.at, events: ev })); } catch (e) { /* ignore */ }
-    }
-  } catch (e) {
-    fmpState.failAt = Date.now(); fmpState.err = String(e.message).replace(/apikey=[^&\s]*/gi, 'apikey=***').slice(0, 200);
-    fmpState.limited = /HTTP (402|403|429)|limit|plan|subscription/i.test(fmpState.err);
-    fmpState.status = /HTTP (401|402|403)|invalid|plan|subscription/i.test(fmpState.err) ? 'rejected' : fmpState.limited ? 'rate-limited' : 'unavailable';
-  }
-}
-// never "no-key" while a key is set (a cold isolate has not asked yet); FMP's free plan was rejected (HTTP 402) and the design no longer depends on it (D114)
-const fmpStatus = env => (fmpState.status === 'no-key' && env && env.FMP_KEY ? 'not polled yet' : fmpState.status);
-function fmpRefresh(env, ctx, sch) {
-  if (!fmpState.inflight) {
-    fmpState.inflight = refreshFmp(env, sch).finally(() => { fmpState.inflight = null; });
-    if (ctx) ctx.waitUntil(fmpState.inflight);
-  }
-  return fmpState.inflight;
 }
 
 // ---- official actuals (plan 3.5): the release numbers computed from FRED series (see SPEC in official.js for which rows) ----
@@ -588,7 +536,7 @@ async function pollCalendar(env, ctx, at) {
   const sch = schedule(at), min = Math.floor(at / 60000);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
   // a reminder (15 min, 5 min, at the release) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
-  const due = !near && min % 10 !== 0 ? reminderIdsDue(sch.events, at) : [];
+  const due = !near && min % 10 !== 0 && (await loadPrefs(env)).kinds.remind ? reminderIdsDue(sch.events, at) : [];   // reminders switched off for the phone (stage 4): nothing to wait for
   if (!near && min % 10 !== 0 && !(due.length && await anyUnsent(env, due))) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
   await getCalendar(env, ctx, {});
   await beat(env, near ? 'cal_near' : 'cal', Date.now());
@@ -609,7 +557,7 @@ async function loadSync(env, force) {
   return syncState.rec;
 }
 
-// Fair Economy (two weeks) and, with the FMP_KEY secret, FMP (35 days), lowest priority first. A provider that fails is reported, never thrown.
+// Fair Economy (two weeks). A provider that fails is reported, never thrown. (FMP was a second provider until 24 Nov, plan P8.14.)
 async function gatherProvider(env) {
   const feeds = [], clean = e => String(e.message).replace(/apikey=[^&\s]*/gi, 'apikey=***').slice(0, 100);
   try {   // the calendar's shared copy (memory, then KV, with its own 429 back-off): the sync never makes a second direct ask of Fair Economy, which is what kept hitting HTTP 429
@@ -617,7 +565,6 @@ async function gatherProvider(env) {
     if (!feedState.events || Date.now() - feedState.at > CAL_USE_MAX) throw new Error(feedState.err || 'no recent Fair Economy copy');
     feeds.push({ name: 'Fair Economy', rows: feedState.events });
   } catch (e) { feeds.push({ name: 'Fair Economy', rows: [], err: clean(e) }); }
-  if (env && env.FMP_KEY) { try { feeds.push({ name: 'FMP', rows: await loadFmp(env) }); } catch (e) { feeds.push({ name: 'FMP', rows: [], err: clean(e) }); } }
   return feeds;
 }
 
@@ -663,7 +610,7 @@ async function runSyncSource(name, env) {
 
 function syncLazy(env, ctx, now) {
   if (syncState.running) return;
-  const rec = syncState.rec, due = dueSources(rec, now, !!(env && env.FMP_KEY));
+  const rec = syncState.rec, due = dueSources(rec, now, false);
   const name = due.find(n => now - (syncState.tried[n] || 0) > (rec && rec.src && rec.src[n] ? LAZY_GAP : LAZY_GAP_NEVER));
   if (!name) return;
   syncState.tried[name] = now; syncState.running = true;
@@ -907,14 +854,13 @@ async function getCalendar(env, ctx, opts = {}) {
   const pw = wireSeed(env).then(() => feedWindow(env, ctx, 'FinancialJuice', wireHot(sch.events, now)))
     .catch(e => { wireSt.err = String(e.message).slice(0, 120); return { posts: [], status: 'broken' }; });   // polls Telegram only around a covered release
   const ffFast = ffHot(sch.events, now);   // a scheduled release is about to happen or just happened
-  const p = Promise.all([feedRefresh(env, ctx, ffFast), fmpRefresh(env, ctx, sch), offRefresh(env, ctx, sch)]);
-  if (!feedState.events && !fmpState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
+  const p = Promise.all([feedRefresh(env, ctx, ffFast), offRefresh(env, ctx, sch)]);
+  if (!feedState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
   const [lo, hi] = calWindow(now);
   const base = sch.events.filter(e => e.t >= lo && e.t <= hi);
   const feeds = [];
   if (feedState.events && now - feedState.at < CAL_USE_MAX) feeds.push({ name: 'Fair Economy', rows: feedState.events });
-  if (fmpState.events && now - fmpState.at < CAL_USE_MAX) feeds.push({ name: 'FMP', rows: fmpState.events });
   const o = overlay(base, feeds, INDICATORS, now);
   const nRes = applyResults(o.events, RESULTS);
   const fw = await pw, wr = applyWire(o.events, fw.posts, now, wireSt.memo);   // blanks only; typed numbers (above) and provider numbers win
@@ -943,15 +889,13 @@ async function getCalendar(env, ctx, opts = {}) {
   const sv = wireSave(env, now); if (ctx) ctx.waitUntil(sv);
   const fv = firstSave(env, now); if (ctx) ctx.waitUntil(fv);
   const lv = ledgerSave(env, now); if (ctx) ctx.waitUntil(lv);
-  o.issues.push(...sch.merged.issues, ...syncIssues(syncState.rec, now, INDICATORS, !!(env && env.FMP_KEY)));   // schedule sync: failures, overdue sources, dates that moved overnight
+  o.issues.push(...sch.merged.issues, ...syncIssues(syncState.rec, now, INDICATORS, false));   // schedule sync: failures, overdue sources, dates that moved overnight
   chainPrevious(o.events);
   const repl = typedReplaced(o.events, RESULTS);   // typed placeholders a real source has replaced: safe to delete from results.json
 
   let fstat = feedState.status;
   if (feedState.events && ffStale(now - feedState.at, ffFast)) fstat = 'stale';
   else if (fstat === 'none' && feedState.failAt) fstat = 'unavailable';
-  let mstat = fmpStatus(env);
-  if (mstat === 'ok' && now - fmpState.at > FMP_SLOW * 2) mstat = 'stale';
 
   let ostat = offState.status;
   if (ostat === 'ok' && now - offState.at > OFF_SLOW * 2) ostat = 'stale';
@@ -963,7 +907,6 @@ async function getCalendar(env, ctx, opts = {}) {
     src: 'official release schedule',
     sources: SCHEDULE.sources, checked: sch.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop,   // what the page needs to explain each release
     feed: { status: fstat, mode: ffFast ? 'release window (5 min, this week only)' : 'normal (30 min)', at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
-    fmp: { status: mstat, at: fmpState.at || null, error: mstat === 'ok' ? null : fmpState.err },
     official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: offState.err, awaiting: pend.length, held: off.skipped.length },   // held: rows FRED has a value for that was not shown, with the reason in ?debug=1
     ledger: { rows: Object.keys(ledgerSt.mem.rows).length, restored: ledgerSt.restored, gaps: gaps.length },   // restored: fields put back this time because a live source had none or a lesser one
     results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length, first: Object.keys(firstSt.mem.rows).length },
@@ -974,7 +917,6 @@ async function getCalendar(env, ctx, opts = {}) {
     events: o.events,
   };
   if (debug) out.debug = { gaps: gaps.slice(0, 60), backfill: bfSt, history: { ...histSt, tried: Object.keys(histSt.tried).length }, officialKv: { seeded: offKv.seeded, savedAt: offKv.savedAt || null }, policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
-    fmp: { n: (fmpState.events || []).length, rawSample: fmpState.sample, withActual: fmpState.nAct },
     official: { via: offState.via, error: offState.err, errors: offState.errList || [], lastRun: offState.lastRun || null, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
@@ -1116,7 +1058,7 @@ export default {
     const origin = req.headers.get('Origin');
     const cors = {
       'Access-Control-Allow-Origin': ALLOWED.includes(origin) ? origin : ALLOWED[0],
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-Push-Key',
       'Access-Control-Expose-Headers': 'X-Server-Time',   // P8.38: lets the page read the Worker's clock at the moment of the reply (the body's `now` is the build time, up to 10 s older)
       Vary: 'Origin',
@@ -1134,7 +1076,6 @@ export default {
         memo_age_s: memo ? Math.round((now - memo.at) / 1000) : null,
         cached_items: itemCache.size,
         calendar: { audit: schedule(now).aud.status, feed: feedState.status === 'none' && feedState.events ? 'ok' : feedState.status, feed_age_s: ageOf(feedState.at),
-          fmp: fmpStatus(env), fmp_age_s: ageOf(fmpState.at),
           official: offState.status === 'none' && offAge != null ? 'ok' : offState.status, official_age_s: offAge,
           wire: { feed: wireSt.feed === 'none' ? 'idle' : wireSt.feed, ...wireSummary(wireSt.memo || newMemo()) } },   // idle = no release the wire covers has needed a poll in this isolate yet
         tv: tvHealth(await loadTv(env), env),
@@ -1188,10 +1129,15 @@ export default {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
     }
-    if (pathname.startsWith('/push/')) {   // phone setup. Every route needs the pairing key (the secret PUSH_KEY) in the X-Push-Key header
-      if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'POST only' }), { status: 405, headers: json });
+    const keyGate = () => {   // the pairing key (the secret PUSH_KEY) in the X-Push-Key header: null when it is right, otherwise the refusal to return
       if (!(env && env.PUSH_KEY)) return new Response(JSON.stringify({ error: 'PUSH_KEY is not set: add it as a secret in Cloudflare (Worker, Settings, Variables and Secrets)' }), { status: 503, headers: json });
       if (!checkKey(env, req.headers.get('X-Push-Key'))) return new Response(JSON.stringify({ error: 'wrong pairing key' }), { status: 401, headers: json });
+      return null;
+    };
+    if (pathname.startsWith('/push/')) {   // phone setup. Every route needs the pairing key
+      if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'POST only' }), { status: 405, headers: json });
+      const denied = keyGate();
+      if (denied) return denied;
       let body = {};
       try { body = await req.json(); } catch (e) { /* an empty body is fine */ }
       const reply = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...json, 'Cache-Control': 'no-store' } });
@@ -1214,10 +1160,26 @@ export default {
       }
       return reply({ error: 'unknown push route' }, 404);
     }
-    if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once
+    if (pathname === '/alerts/prefs') {   // which alert kinds reach the phone (plan P8.34 stage 4). GET = the switches, PUT { kinds: { fj: false, ... } } = change some of them. Needs the pairing key
+      if (req.method !== 'GET' && req.method !== 'PUT') return new Response(JSON.stringify({ error: 'GET or PUT only' }), { status: 405, headers: json });
+      const denied = keyGate();
+      if (denied) return denied;
+      const reply = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...json, 'Cache-Control': 'no-store' } });
+      if (req.method === 'PUT') {
+        let body = null;
+        try { body = await req.json(); } catch (e) { return reply({ error: 'the body must be JSON, for example { "kinds": { "fj": false } }' }, 400); }
+        const saved = await savePrefs(env, body && body.kinds, Date.now());
+        if (!saved) return reply({ error: 'nothing saved: send at least one of ' + PREF_KINDS.join(', ') + ' as true or false (and the Worker needs its KV binding)' }, 400);
+        return reply({ ok: true, kinds: saved.kinds, at: saved.at, available: PREF_KINDS });
+      }
+      const p = await loadPrefs(env);
+      return reply({ kinds: p.kinds, at: p.at, available: PREF_KINDS });
+    }
+    if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once. The phone's switches (stage 4) apply, so the phone shows exactly what a push was sent for; ?all=1 lists everything (diagnosis)
       try {
-        const a = await getAlerts(env, ctx), since = Number(new URL(req.url).searchParams.get('since')) || 0;
-        return new Response(JSON.stringify({ now: a.now, since, alerts: filterAlerts(a.list, since), errors: a.errors }), { headers: { ...json, 'Cache-Control': 'no-store' } });
+        const q = new URL(req.url).searchParams, a = await getAlerts(env, ctx), since = Number(q.get('since')) || 0;
+        const list = q.has('all') ? a.list : filterPrefs(a.list, await loadPrefs(env));
+        return new Response(JSON.stringify({ now: a.now, since, alerts: filterAlerts(list, since), errors: a.errors }), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
       }
@@ -1234,7 +1196,7 @@ export default {
       await loadSync(env, true);
       const now = Date.now(), rec = syncState.rec, m = schedule(now).merged;
       const body = { now, crons: SYNC_CRONS, running: syncState.running, lastRun: syncState.last, ...syncSummary(rec), tiers: m.tiers, stats: m.stats,
-        issues: syncIssues(rec, now, INDICATORS, !!(env && env.FMP_KEY)).concat(m.issues) };
+        issues: syncIssues(rec, now, INDICATORS, false).concat(m.issues) };
       if (new URL(req.url).searchParams.has('debug') && rec) body.debug = Object.fromEntries(Object.entries(rec.src || {}).filter(([, s]) => s.debug).map(([n, s]) => [n, s.debug]));
       return new Response(JSON.stringify(body), { headers: { ...json, 'Cache-Control': 'no-store' } });
     }

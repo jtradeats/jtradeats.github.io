@@ -100,8 +100,8 @@ function fjAlerts(fj, now) {   // FinancialJuice: every post, one alert per stor
   for (const g of wireGroup(posts, [], now)) {
     const first = g.ps[0];   // the story is as old as its first post: that is when the page would have alerted
     if (now - first.t > TTL.wire) continue;
-    const sp = wireSplit(g.p);
-    out.push({ id: 'fj:' + first.id, kind: 'fj', t: first.t, n: g.n, src: 'FinancialJuice', tag: g.n > 1 ? 'ALERT · ' + g.n + ' POSTS' : 'ALERT', h: sp.head, s: (sp.rest || '').slice(0, CUT_REST), nt: 'FinancialJuice', nb: sp.head, pb: pbWire(sp, g.p.text) });
+    const sp = wireSplit(g.p), hot = g.ps.some(p => p.hot === true);   // hot: the channel's red mark (single or double) on any post of the story; the card tints those red, a phone notification gets a leading red exclamation mark
+    out.push({ id: 'fj:' + first.id, kind: 'fj', t: first.t, n: g.n, ...(hot ? { hot: true } : {}), src: 'FinancialJuice', tag: g.n > 1 ? 'ALERT · ' + g.n + ' POSTS' : 'ALERT', h: sp.head, s: (sp.rest || '').slice(0, CUT_REST), nt: 'FinancialJuice', nb: sp.head, pb: pbWire(sp, g.p.text) });
   }
   return out;
 }
@@ -140,7 +140,10 @@ function releaseAlerts(events, fams, seen, now) {   // actual vs forecast vs pre
 
 // every alert that is alive now, newest first. seen: { eventId: ms the first actual was seen } from the actuals lag log (optional).
 // pt, pb: the phone notification's title and body (P8.34 stage 3); the page's own toasts do not use them
-const withPush = a => ({ ...a, pt: a.kind === 'remind' ? tc(a.tag) : a.kind === 'fix' ? a.src.replace(/^Release/, 'Corrected') : a.kind === 'fj' && a.n > 1 ? a.src + ' \u00b7 ' + a.n + ' posts' : a.src, pb: a.pb || a.h + (a.s ? '\n' + a.s : '') });
+// a FinancialJuice notification does not name its source (the app's icon already says where it comes from): the title is just "News", with a leading red exclamation mark
+// when the post carries the channel's red mark, and the post count for a story that was posted several times; the headline and text are in the body
+const fjTitle = a => (a.hot ? '\u2757 ' : '') + 'News' + (a.n > 1 ? ' \u00b7 ' + a.n + ' posts' : '');
+const withPush = a => ({ ...a, pt: a.kind === 'remind' ? tc(a.tag) : a.kind === 'fix' ? a.src.replace(/^Release/, 'Corrected') : a.kind === 'fj' ? fjTitle(a) : a.src, pb: a.pb || a.h + (a.s ? '\n' + a.s : '') });
 // which parts to build: the wires (D1 posts) and the calendar (events) are fed by different pollers, each of which builds only its own part
 export function buildAlerts({ now, dm = [], fj = [], events = [], fams = {}, seen = {}, wire = true, cal = true }) {
   return [...(wire ? [...wireAlerts(dm, now), ...fjAlerts(fj, now)] : []), ...(cal ? [...reminderAlerts(events, now), ...releaseAlerts(events, fams, seen, now)] : [])]
@@ -157,3 +160,29 @@ export function reminderIdsDue(events, now) {
 export const testAlert = t => withPush({ id: 'test|' + t, kind: 'test', t, src: 'Market Dashboard', tag: 'TEST', h: 'Test alert', s: 'Phone alerts are working. This was sent from the Worker.', nt: 'Test alert', nb: 'Phone alerts are working.' });
 // since: only what happened after that moment; a corrected figure (sticky) is always listed, because its moment is the release, not the correction
 export const filterAlerts = (list, since) => !since ? list : list.filter(a => a.sticky || a.t > since);
+
+// ---- which kinds reach the phone (P8.34 stage 4) ----
+// The phone's switches are one set for the whole Worker (one owner, one pairing key), kept in KV by push.js. They decide two things with the same function:
+// whether a push is sent at all (pushNew) and what GET /alerts lists, which is what sw.js turns into notifications. Both must agree: a push that wakes the phone
+// and then finds nothing to show would count as a silent push, and iOS cancels a subscription that does that too often.
+//   prefs = { kinds: { fj, remind, release, fix: true|false }, at: { kind: ms the kind was last switched on } }
+// A kind switched on later starts from that moment: what happened while it was off is not sent afterwards. A corrected figure (sticky) is exempt from that,
+// because its moment is the release, not the correction. A test alert always passes, and so does a kind this list does not know (a new kind must not vanish silently).
+export const PREF_KINDS = ['fj', 'remind', 'release', 'fix'];
+export const defaultPrefs = () => ({ kinds: { fj: true, remind: true, release: true, fix: true }, at: {} });
+export function normPrefs(p) {   // anything -> a complete, safe prefs object (a missing or odd value means the default, which is on)
+  const out = defaultPrefs(), o = p && typeof p === 'object' ? p : {}, k = o.kinds && typeof o.kinds === 'object' ? o.kinds : {}, at = o.at && typeof o.at === 'object' ? o.at : {};
+  for (const x of PREF_KINDS) {
+    if (typeof k[x] === 'boolean') out.kinds[x] = k[x];
+    if (Number.isFinite(at[x]) && at[x] > 0) out.at[x] = Math.floor(at[x]);
+  }
+  return out;
+}
+export function allowAlert(a, prefs) {
+  if (!a || a.kind === 'test' || !PREF_KINDS.includes(a.kind)) return true;
+  const p = prefs || defaultPrefs();
+  if (p.kinds[a.kind] === false) return false;
+  return !!a.sticky || !(p.at && p.at[a.kind]) || a.t >= p.at[a.kind];
+}
+export const filterPrefs = (list, prefs) => (list || []).filter(a => allowAlert(a, prefs));
+export const anyKindOn = prefs => PREF_KINDS.some(k => !prefs || !prefs.kinds || prefs.kinds[k] !== false);

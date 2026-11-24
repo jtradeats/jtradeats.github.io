@@ -7,8 +7,11 @@
 // Secrets: PUSH_KEY (a Cloudflare secret you choose) pairs the page with the Worker; the VAPID private key is made inside the Worker on first setup and
 // kept in KV ("push:vapid"). Neither is in the repository. Every function is safe without D1 or KV and never throws.
 import { ensurePosts } from './posts.js';
+import { PREF_KINDS, defaultPrefs, normPrefs, filterPrefs, anyKindOn } from './alerts.js';
 
 export const VAPID_KV = 'push:vapid';
+export const PREFS_KV = 'push:prefs';               // which alert kinds reach the phone (stage 4): one small JSON value, written only when a switch is changed
+export const PREFS_REUSE_MS = 15000;                // a Worker instance re-reads the switches at most this often; a change made through PUT is seen at once by the instance that took it
 export const JWT_TTL_S = 12 * 3600;                 // a VAPID token may live up to 24 h; 12 h is cached and reused
 export const PUSH_TTL_S = 600;                      // the push service drops an undelivered push after 10 minutes (alerts go stale)
 export const SENT_KEEP_MS = 2 * 86400000;           // alert ids are remembered for two days
@@ -19,9 +22,9 @@ const enc = new TextEncoder();
 export const b64u = buf => { const b = new Uint8Array(buf); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 export const unb64u = s => { const t = String(s).replace(/-/g, '+').replace(/_/g, '/'), p = t + '='.repeat((4 - t.length % 4) % 4), r = atob(p), o = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; };
 const db = env => (env && env.DB && typeof env.DB.prepare === 'function' ? env.DB : null);
-const state = { err: null, jwt: new Map(), vapid: null };
+const state = { err: null, jwt: new Map(), vapid: null, prefs: null };
 export const pushError = () => state.err;
-export const _resetPush = () => { state.err = null; state.jwt.clear(); state.vapid = null; };
+export const _resetPush = () => { state.err = null; state.jwt.clear(); state.vapid = null; state.prefs = null; };
 const fail = e => { state.err = String(e && e.message).slice(0, 120); return null; };
 
 // ---- the pairing key ----
@@ -62,6 +65,33 @@ export async function vapidHeader(v, endpoint, sub, now = Date.now()) {
   let t = c && c.exp - now > 3600e3 ? c.t : null;
   if (!t) { t = await signJwt(v, aud, sub, now); state.jwt.set(aud, { t, exp: now + JWT_TTL_S * 1000 }); }
   return 'vapid t=' + t + ', k=' + v.pub;
+}
+
+// ---- which kinds reach the phone (stage 4) ----
+// Kept in KV, not D1: it is one small value that changes rarely, and it needs no table. Without KV, or when the read fails, every kind stays on (the behaviour before stage 4):
+// a lost switch must never mean a lost alert.
+export async function loadPrefs(env, now = Date.now()) {
+  if (state.prefs && now - state.prefs.at < PREFS_REUSE_MS) return state.prefs.v;
+  let v = defaultPrefs();
+  if (env && env.MARKET_KV) {
+    try { v = normPrefs(await env.MARKET_KV.get(PREFS_KV, 'json')); } catch (e) { fail(e); if (state.prefs) return state.prefs.v; }
+  }
+  state.prefs = { v, at: now };
+  return v;
+}
+// change some switches: kinds = { fj: false, ... } (only the four known kinds count; anything else is ignored). A kind going from off to on records the moment,
+// so what happened while it was off is not sent afterwards. Returns the new prefs, or null when nothing valid was given or KV could not be written.
+export async function savePrefs(env, kinds, now = Date.now()) {
+  if (!env || !env.MARKET_KV || !kinds || typeof kinds !== 'object') return null;
+  const given = PREF_KINDS.filter(k => typeof kinds[k] === 'boolean');
+  if (!given.length) return null;
+  try {
+    const cur = normPrefs(await env.MARKET_KV.get(PREFS_KV, 'json'));
+    for (const k of given) { if (kinds[k] && !cur.kinds[k]) cur.at[k] = now; cur.kinds[k] = kinds[k]; }
+    await env.MARKET_KV.put(PREFS_KV, JSON.stringify(cur));
+    state.prefs = { v: cur, at: now };
+    return cur;
+  } catch (e) { fail(e); return null; }
 }
 
 // ---- subscriptions and the "already told" list (D1) ----
@@ -164,8 +194,11 @@ export async function pushNew(env, makeAlerts, now = Date.now()) {
     const subs = await loadSubs(env);
     out.subs = subs.length;
     if (!subs.length) { out.skipped = 'no subscribers'; return out; }
+    const prefs = await loadPrefs(env, now);
+    if (!anyKindOn(prefs)) { out.skipped = 'every kind is switched off'; return out; }
     const from = Math.min(...subs.map(s => s.created)) - 60000;   // what happened before the first subscription is not sent
-    const cand = (await makeAlerts()).filter(a => a.sticky || a.t >= from);
+    // the switches are applied BEFORE claiming: an alert of a kind that is off is not marked as sent and sends no push, because a push that leaves nothing to show is a silent push
+    const cand = filterPrefs((await makeAlerts()).filter(a => a.sticky || a.t >= from), prefs);
     const fresh = await claim(env, cand, now);
     out.fresh = fresh.length;
     if (!fresh.length) { out.skipped = 'nothing new'; return out; }
@@ -177,7 +210,7 @@ export async function pushNew(env, makeAlerts, now = Date.now()) {
 export async function pushHealth(env, now = Date.now()) {
   const subs = await loadSubs(env), v = await getVapid(env, false), age = t => (t ? Math.round((now - t) / 1000) : null);
   return {
-    key_set: !!(env && env.PUSH_KEY), vapid: !!v, subs: subs.length,
+    key_set: !!(env && env.PUSH_KEY), vapid: !!v, subs: subs.length, kinds: (await loadPrefs(env, now)).kinds,
     list: subs.map(s => { let host = '?'; try { host = new URL(s.endpoint).hostname; } catch (e) { /* kept */ } return { host, created_age_s: age(s.created), last_ok_age_s: age(s.last_ok), fails: s.fails || 0, last_err: s.last_err || null }; }),
     error: state.err,
   };
