@@ -936,15 +936,15 @@ const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1
 const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
   '15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session'),'gx');
 /* Telegram wire card (plan P1; D46 to D49, D78 to D81). FinancialJuice, read by the Worker's /feed from the public Telegram preview. (The Walter Bloomberg
-   card was removed on 24 Nov: its Telegram channel switched web preview off, so it could no longer be read; the Finviz news card replaced it.) FinancialJuice alerts only on posts
-   that start with the red ❗ (the Worker marks them hot:true) and those rows are tinted pastel red (--hot). Display only. Every post is built with
+   card was removed on 24 Nov: its Telegram channel switched web preview off, so it could no longer be read; the Finviz news card replaced it.) FinancialJuice alerts on every post (since 24 Nov; before that only on posts
+   that start with the red ❗, which the Worker marks hot:true); those red posts are still tinted pastel red (--hot). Display only. Every post is built with
    textContent, never innerHTML, because the text comes from a third party (R32). No link to the source (D80); no status text unless something fails (D81).
    Polls only while a card is on screen (news tab, card open, source shown, page visible) unless its alerts are on. Health comes from the poll,
    never from post age: gaps of an hour or more are normal, so a quiet wire shows nothing, while a failed poll is flagged. */
 const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
 const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280,GROUP_MS=120000,GROUP_SIM=0.6;
 const mkWire=cfg=>({...cfg,al:LS.g(KEY+cfg.ls,'0')==='1',d:null,err:null,at:0,maxId:0,fresh:new Map(),open:new Set(),el:null,recent:[]}); /* al: alerts are off until switched on, remembered per browser */
-const FJW=mkWire({key:'fj',ls:'al_fj',blk:a=>a.fj,name:'FinancialJuice',hot:true,pick:p=>p.hot===true}); /* only posts the channel marks with the red ❗ or ‼ */
+const FJW=mkWire({key:'fj',ls:'al_fj',blk:a=>a.fj,name:'FinancialJuice',hot:true,pick:p=>true}); /* every post alerts (24 Nov); it was only the posts the channel marks with the red ❗ or ‼, which keep their red tint on the card */
 const WIRES=[FJW];
 /* FinancialJuice posts one story several times within a minute or two. For alerts only (the card shows every post): posts within GROUP_MS of
    each other whose words overlap by GROUP_SIM or more are one story; a story already toasted is not toasted again. */
@@ -1030,7 +1030,7 @@ function wirePanArm(P){ /* auto-dismiss only while nobody is reading it */
 }
 function wirePanDraw(P,top){
   const w=P.w,mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
-  P.tag.textContent=w.hot?(P.n>1?P.n+' ALERTS':'ALERT'):(P.n>1?P.n+' NEW POSTS':'NEW POST'); /* no marks: only red-alert posts reach this panel anyway */
+  P.tag.textContent=w.hot?(P.n>1?P.n+' ALERTS':'ALERT'):(P.n>1?P.n+' NEW POSTS':'NEW POST'); /* every post of this wire reaches the panel; repeats of one story are grouped */
   const keep=P.body.scrollTop;P.body.textContent='';
   for(const g of P.items){
     const p=g.p,sp=wireSplit(p),it=mk('div','wi'),open=P.open.has(p.id),hd=mk('div','hd');
@@ -1414,8 +1414,8 @@ const ALERT={
     on:'Alerts on: reminders 15 and 5 min before a high-impact release, then actual vs forecast vs previous when it prints (this page must be open). Click to turn off',
     off:'Alerts off. Click to turn on reminders and release alerts'},
   news:{get:()=>FJW.al,set:v=>{FJW.al=v;LS.s(KEY+FJW.ls,v?'1':'0');if(v)feedLoad()},
-    on:'Alerts on: a toast only for FinancialJuice posts marked with the red \u2757, bursts grouped (this page must be open). Click to turn off',
-    off:'Alerts off. Click to turn on toasts for FinancialJuice posts marked \u2757 (all other posts stay silent)'}
+    on:'Alerts on: a toast for every FinancialJuice post, repeats of one story grouped (this page must be open). Click to turn off',
+    off:'Alerts off. Click to turn on toasts for every FinancialJuice post'}
 };
 function paintAlert(k){
   const c=C[k];if(!c||!c.alert)return;
