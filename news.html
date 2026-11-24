@@ -242,6 +242,7 @@ html.mobile .sct.w6{grid-template-columns:repeat(2,minmax(0,1fr))}
 .wh a{color:var(--t2)}
 .wt{margin-top:2px;font-size:var(--fbase);line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
 .wt.media{color:var(--t3);font-style:italic}
+.wt a{color:inherit;text-decoration:none}.wt a:hover{text-decoration:underline}
 .wmore{background:none;border:0;color:var(--tabdash);cursor:pointer;font:inherit;font-size:var(--fxs);padding:0 0 0 6px}
 .wnote{padding:8px 12px;font-size:var(--fsm);line-height:1.4;border-bottom:.5px solid var(--bd);color:var(--t2)}
 .wnote.bad{color:var(--r)}.wnote.warn{color:#C98A2E}
@@ -934,8 +935,8 @@ const finviz=(t,wid)=>el=>embed(el,'https://finviz.com/widgets/map?t='+t+'&st=d1
   '<a href="https://finviz.com/map?t='+t+'&st=d1&utm_source=finviz_widget&utm_medium=widget&utm_campaign=map&utm_content='+wid+'" target="_blank" rel="noopener">Market map by FINVIZ</a>');
 const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark':'light'),n+' gamma levels by ZeroGEX',
   '15 min delayed'+(cashOpen()?'':' \u00b7 market closed, last session'),'gx');
-/* Telegram wire cards (plan P1; D46 to D49, D78 to D81). Two wires, read by the Worker's /feed from the public Telegram preview: Walter Bloomberg
-   (DeItaone) and FinancialJuice. One request serves both. Walter Bloomberg alerts on every new post (a digest); FinancialJuice alerts only on posts
+/* Telegram wire card (plan P1; D46 to D49, D78 to D81). FinancialJuice, read by the Worker's /feed from the public Telegram preview. (The Walter Bloomberg
+   card was removed on 24 Nov: its Telegram channel switched web preview off, so it could no longer be read; the Finviz news card replaced it.) FinancialJuice alerts only on posts
    that start with the red ❗ (the Worker marks them hot:true) and those rows are tinted pastel red (--hot). Display only. Every post is built with
    textContent, never innerHTML, because the text comes from a third party (R32). No link to the source (D80); no status text unless something fails (D81).
    Polls only while a card is on screen (news tab, card open, source shown, page visible) unless its alerts are on. Health comes from the poll,
@@ -943,9 +944,8 @@ const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark'
 const FEED_URL=WORKER_URL.replace(/\/market$/,'/feed');
 const WIRE_POLL=12000,WIRE_NEW_MS=45000,WIRE_CUT=280,GROUP_MS=120000,GROUP_SIM=0.6;
 const mkWire=cfg=>({...cfg,al:LS.g(KEY+cfg.ls,'0')==='1',d:null,err:null,at:0,maxId:0,fresh:new Map(),open:new Set(),el:null,recent:[]}); /* al: alerts are off until switched on, remembered per browser */
-const WIRE=mkWire({key:'dm',ls:'al_wire',blk:a=>a,name:'Walter Bloomberg',pick:p=>true});
 const FJW=mkWire({key:'fj',ls:'al_fj',blk:a=>a.fj,name:'FinancialJuice',hot:true,pick:p=>p.hot===true}); /* only posts the channel marks with the red ❗ or ‼ */
-const WIRES=[WIRE,FJW];
+const WIRES=[FJW];
 /* FinancialJuice posts one story several times within a minute or two. For alerts only (the card shows every post): posts within GROUP_MS of
    each other whose words overlap by GROUP_SIM or more are one story; a story already toasted is not toasted again. */
 const wtok=s=>new Set(String(s||'').toLowerCase().replace(/[^a-z0-9.%$ ]+/g,' ').split(/\s+/).filter(x=>x.length>2));
@@ -971,7 +971,7 @@ async function feedLoad(fresh){ /* one request, both wires; fresh = a manual ref
     const r=await fetch(FEED_URL+(fresh?'?fresh=1':''),{cache:'no-store'});
     if(!r.ok)throw new Error('Worker /feed answered '+r.status);
     all=await r.json();
-    if(!Array.isArray(all.posts))throw new Error(all.error||'bad payload');
+    if(!all||(!all.fj&&!Array.isArray(all.posts)))throw new Error((all&&all.error)||'bad payload');
   }catch(e){err=String(e.message||e)}
   for(const w of WIRES){
     try{
@@ -993,7 +993,7 @@ function wireIngest(w,d){
   w.d=d;w.err=null;
   if(!first&&w.al){const nw=d.posts.filter(p=>p.id>prevMax&&w.pick(p));if(nw.length)wireAlert(w,nw)} /* never on the first load, so opening the page does not alert for old posts */
 }
-/* Alert panels: one per wire (FinancialJuice, Walter), each a stack of every alerted post, newest first, with its own close button.
+/* Alert panels: one per wire (FinancialJuice), each a stack of every alerted post, newest first, with its own close button.
    The headline is the first line (cut at WH_CUT); "read more" opens the whole post. Third-party text goes in with textContent only (R32). */
 const WH_CUT=160,WPAN_ITEMS=30,WPAN_MS=20000,WPAN={};
 const wireSplit=p=>{
@@ -1099,10 +1099,55 @@ const wireCard=w=>el=>{
   el.innerHTML='<div class="emb" data-wire="'+w.key+'"><div class="xw"></div></div>';
   wirePaint(w);feedLoad();
 };
-const wire=wireCard(WIRE),fjwire=wireCard(FJW);
+const fjwire=wireCard(FJW);
 setInterval(()=>{if(WIRES.some(w=>wireVisible(w)||w.al))feedLoad()},WIRE_POLL); /* with alerts on it keeps polling in a background tab (the browser slows it) */
 setInterval(()=>{for(const w of WIRES)if(wireVisible(w))wirePaint(w)},15000); /* keeps the ages moving between polls */
 document.addEventListener('visibilitychange',()=>{if(WIRES.some(wireVisible))feedLoad()});
+/* Finviz news card (replaces the Walter Bloomberg card, 24 Nov). Headlines from the Worker's /finviz, which parses finviz.com/news: time, source, and a link to the
+   publisher's article. Display only, no alerts. Third-party text goes in with textContent, and a link is made only for http(s) addresses (R32). Failure only
+   is shown (D81): a healthy feed shows no status text. Polls only while the card is on screen (news tab, card open, page visible). Times are New York time
+   from Finviz, shown in the visitor's own zone; a row whose date Finviz does not state is dated by the Worker (d:'i'). */
+const FV_URL=WORKER_URL.replace(/\/market$/,'/finviz'),FV_POLL=60000,FV_MAX=40;
+const FV={d:null,err:null,at:0,busy:false,el:null};
+const fvRoot=()=>FV.el&&FV.el.isConnected?$('[data-fv]',FV.el):null;
+const fvVisible=()=>!document.hidden&&tab==='news'&&!!fvRoot()&&!FV.el.closest('.card.closed');
+async function fvLoad(fresh){ /* fresh = a manual refresh (?fresh=1) */
+  if(FV.busy)return;FV.busy=true;
+  try{
+    const r=await fetch(FV_URL+(fresh?'?fresh=1':''),{cache:'no-store'});
+    if(!r.ok)throw new Error('Worker /finviz answered '+r.status);
+    const d=await r.json();
+    if(!d||!Array.isArray(d.items))throw new Error((d&&d.error)||'bad payload');
+    FV.d=d;FV.err=null;
+  }catch(e){FV.err=String(e.message||e)}
+  FV.at=Date.now();FV.busy=false;fvPaint();
+}
+function fvPaint(){
+  const root=fvRoot();if(!root)return;
+  const box=$('.xw',root);if(!box)return;
+  const d=FV.d,now=NOW(),mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+  const oldTop=box.scrollTop;
+  box.textContent='';
+  if(!d){box.appendChild(mk('div','wnote'+(FV.err?' bad':''),FV.err?'News unavailable: '+FV.err:'loading\u2026'));return}
+  if(FV.err||d.stale){const up=Date.parse(d.updated),n=mk('div','wnote warn','News delayed \u00b7 last update '+(up?ago(now-up):'unknown'));if(FV.err||d.error)n.title=FV.err||d.error;box.appendChild(n)}
+  if(!d.items.length)box.appendChild(mk('div','wnote','No headlines yet.'));
+  for(const it of d.items.slice(0,FV_MAX)){
+    const row=mk('div','wp'),h=mk('div','wh'),ok=it.t&&it.t<=now+120000;
+    h.appendChild(mk('span','',ok?asOf(it.t):''));
+    h.appendChild(mk('span','wa',ok?fmtAge(now-it.t)+' ago':''));
+    h.appendChild(mk('span','',it.src||''));
+    row.appendChild(h);
+    const t=mk('div','wt');
+    if(/^https?:\/\//i.test(it.url||'')){const a=mk('a','',it.title);a.href=it.url;a.target='_blank';a.rel='noopener noreferrer nofollow';t.appendChild(a)}
+    else t.textContent=it.title||'';
+    row.appendChild(t);box.appendChild(row);
+  }
+  box.scrollTop=oldTop>8?oldTop:0;
+}
+const fvnews=el=>{FV.el=el;el.innerHTML='<div class="emb" data-fv="1"><div class="xw"></div></div>';fvPaint();fvLoad()};
+setInterval(()=>{if(fvVisible())fvLoad()},FV_POLL);
+setInterval(()=>{if(fvVisible())fvPaint()},30000); /* keeps the ages moving between polls */
+document.addEventListener('visibilitychange',()=>{if(fvVisible())fvLoad()});
 /* Symbol overview (area chart + 50 MA), options as supplied by J. Only the symbol follows the lookup box; transparent so it takes the card colour
    in both themes (the supplied #0F0F0F would show as a darker box on the dark card); font and grid colours switch with the theme. */
 const symChart=tv('symbol-overview',()=>{const d=dark();return{
@@ -1361,15 +1406,13 @@ const REM=[15,5,0],REM_WINDOW=150000;
 let remOn=LS.g(KEY+'rem_on','1')==='1',fired=[];
 try{fired=JSON.parse(LS.g(KEY+'rem_fired','[]'))||[]}catch(e){}
 /* ---- alert switches: one per card that can alert, all in the same header slot (refresh, alert, expand, collapse); the master button in the page header mutes all of them ----
-   cal: calendar reminders and release alerts (the same switch as the bell in the countdown card). wire: new Walter Bloomberg posts.
+   cal: calendar reminders and release alerts (the same switch as the bell in the countdown card).
    news: FinancialJuice posts that start with the red \u2757 only (plan 4.3, D78); the TradingView news source cannot be read and never alerts. */
 let masterOn=LS.g(KEY+'master','1')==='1'; /* master off mutes every alert: toasts, reminders, release alerts, browser notifications. Muted alerts are dropped, not queued */
 const ALERT={
   cal:{get:()=>remOn,set:v=>{remOn=v;LS.s(KEY+'rem_on',v?'1':'0')},
     on:'Alerts on: reminders 15 and 5 min before a high-impact release, then actual vs forecast vs previous when it prints (this page must be open). Click to turn off',
     off:'Alerts off. Click to turn on reminders and release alerts'},
-  wire:{get:()=>WIRE.al,set:v=>{WIRE.al=v;LS.s(KEY+WIRE.ls,v?'1':'0');if(v)feedLoad()},
-    on:'Alerts on: a toast for new Walter Bloomberg posts, bursts grouped (this page must be open). Click to turn off',off:'Alerts off. Click to turn on new-post alerts'},
   news:{get:()=>FJW.al,set:v=>{FJW.al=v;LS.s(KEY+FJW.ls,v?'1':'0');if(v)feedLoad()},
     on:'Alerts on: a toast only for FinancialJuice posts marked with the red \u2757, bursts grouped (this page must be open). Click to turn off',
     off:'Alerts off. Click to turn on toasts for FinancialJuice posts marked \u2757 (all other posts stay silent)'}
@@ -1875,8 +1918,8 @@ const C={
   news:{page:'news',col:true,t:'news',alert:'news',sp:5,h:500,hm:460,full:1100,fullm:1000,src:{
     fj:{l:'FinancialJuice',r:fjwire},
     tv:{l:'TradingView',r:tvwc('tv-news-feed',{'news-type':'all',transparent:''},'TradingView news')}}},
-  wire:{page:'news',col:true,t:'walter bloomberg',alert:'wire',sp:5,h:320,hm:420,full:900,fullm:900,src:{
-    tg:{l:'Walter Bloomberg',r:wire}}},
+  fvnews:{page:'news',col:true,t:'finviz news',sp:5,h:320,hm:420,full:900,fullm:900,src:{
+    fv:{l:'Finviz',r:fvnews}}},
   earn:{page:'earn',t:'earnings calendar',sp:12,h:640,hm:520,full:1150,fullm:1900,src:{
     eh:{l:'Earnings Hub',r:el=>frame(el,'https://earningshub.com/embed/calendar?theme='+(dark()?'dark':'light')+'&calendarView=week&filter=popular','Earnings Hub calendar')}}},
   look:{page:'tech',t:'ticker lookup',sp:8,h:460,hm:780,full:600,fullm:900,tb:true,stretch:true,noexp:true,src:{
@@ -1951,7 +1994,7 @@ document.addEventListener('click',e=>{
   if(sb){c.cur=sb.dataset.s;LS.s(KEY+'src_'+k,c.cur);draw(k)}
   if(!ab)return;
   const a=ab.dataset.a;
-  if(a==='r'){if(LIVE[k])LIVE[k].load(true);draw(k)}
+  if(a==='r'){if(LIVE[k])LIVE[k].load(true);if(k==='fvnews')fvLoad(true);draw(k)}
   if(a==='al')setAlert(c.alert,!(ALERT[c.alert]&&ALERT[c.alert].get&&ALERT[c.alert].get()));
   if(a==='f')setTall(k,!card.classList.contains('tall'));
   if(a==='c')setClosed(k,!card.classList.contains('closed'));
