@@ -287,6 +287,7 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .phb{font-family:var(--sans);font-size:14px;background:none;color:var(--t);border:.5px solid var(--bdm);border-radius:999px;padding:7px 16px;margin:4px 6px 4px 0;cursor:pointer}
 .phb.go{background:var(--g);color:#fff;border-color:var(--g)}
 .phm{font-size:13px;color:var(--t2);min-height:1.4em;margin-top:6px}.phm.bad{color:var(--r)}
+.pk{display:flex;gap:10px;align-items:center;padding:5px 0;font-size:14px;cursor:pointer}.pk input{width:auto;margin:0;accent-color:var(--g)}.pk input:disabled+span{opacity:.5} /* phone alert kinds (stage 4) */
 .calbar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .audit{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
 .audit:hover{border-color:var(--bdm);color:var(--t)}
@@ -1212,7 +1213,7 @@ async function calStatic(){
   let n=0;const rr=(res&&res.rows)||{};
   events.forEach(e=>{const x=rr[e.id];if(!x)return;n++;['fc','pv','ac'].forEach(f=>{if(x[f]!=null&&x[f]!=='')e[f]=x[f]});if(x.pvc)e.pvc=x.pvc});
   const now=Date.now(),ch=Object.values(sc.checked||{}).sort();
-  return{updated:new Date().toISOString(),now:null,src:'schedule file',offline:true,feed:{status:'none'},fmp:{status:'none'},results:{asof:res.asof||null,n},sources:sc.sources,checked:sc.checked,kinds:ind.kinds,fams:ind.fams,backdrop:ind.backdrop,
+  return{updated:new Date().toISOString(),now:null,src:'schedule file',offline:true,feed:{status:'none'},results:{asof:res.asof||null,n},sources:sc.sources,checked:sc.checked,kinds:ind.kinds,fams:ind.fams,backdrop:ind.backdrop,
     audit:{status:'unk',nIssues:0,counts:null,total:sc.releases.length,horizon:sc.releases.reduce((m,r)=>r.d>m?r.d:m,''),checked:ch[0]||null,issues:[]},
     events:events.filter(e=>e.t>=now-31*864e5&&e.t<=now+60*864e5)};
 }
@@ -1283,20 +1284,19 @@ const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff
 const AGO=ms=>{const m=Math.max(1,Math.round(ms/60000));return m<90?m+' min':m<2880?Math.round(m/60)+' h':Math.round(m/1440)+' days'};
 /* What the page can truthfully say about where the numbers come from. Each line describes what happened in THIS reply, not a standing fact. */
 const provTxt=d=>{
-  const f=d.feed||{},m=(d.fmp||{}).status,o=d.official||{},p=[];
+  const f=d.feed||{},o=d.official||{},p=[];
   if(d.offline){
     p.push('Worker not reachable: showing the schedule file'+(d.cacheAt?' with the forecasts and actuals this device saved '+AGO(NOW()-d.cacheAt)+' ago':' and the numbers typed in '+(d.results&&d.results.asof?'on '+fmtIso(d.results.asof):'earlier'))+'; nothing here is live');
     return p.join(' · ');
   }
-  if(m==='ok')p.push('forecast and actual: FMP');
-  else if(o.status==='ok')p.push('actuals: official sources (FRED, EIA) for the releases they cover');
+  if(o.status==='ok')p.push('actuals: official sources (FRED, EIA) for the releases they cover');
   else if(o.status==='stale')p.push('actuals: official sources, but the last download is over 6 h old');
   else if(o.status==='unavailable')p.push('official actuals: FRED/EIA did not answer; figures already seen are kept');
   else p.push('official actuals: not loaded yet in this reply (the Worker has just woken); figures already seen are kept, refresh in a minute');
   if(o.status==='ok'&&o.error)p.push('official source problem: '+String(o.error).slice(0,120));
   const w=(d.wire||{}).status;if(w==='ok'||w==='stale')p.push('first figure: FinancialJuice wire (marked fj; replaced if an official source covers the release)');
-  if(f.status==='ok'&&m!=='ok')p.push('forecast: unofficial feed');
-  else if(m!=='ok')p.push('forecast: the unofficial feed is not answering'+(f.at?' (last answer '+AGO(NOW()-f.at)+' ago)':'')+'; the Worker shows the forecasts it saved');
+  if(f.status==='ok')p.push('forecast: unofficial feed');
+  else p.push('forecast: the unofficial feed is not answering'+(f.at?' (last answer '+AGO(NOW()-f.at)+' ago)':'')+'; the Worker shows the forecasts it saved');
   if(d.results&&d.results.n)p.push('rows no source covers use numbers typed in on '+fmtIso(d.results.asof));
   return p.join(' · ');
 };
@@ -2114,8 +2114,8 @@ async function pushReg(){
   if(!reg.active)throw new Error('The service worker did not start. Close the app, open it again and retry.');
   return reg;
 }
-async function pushCall(path,key,body){
-  const r=await fetch(PUSH_API+path,{method:'POST',headers:{'X-Push-Key':key,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+async function pushCall(path,key,body,method){ /* method: POST (default), or GET and PUT for /alerts/prefs */
+  const m=method||'POST',r=await fetch(PUSH_API+path,{method:m,headers:{'X-Push-Key':key,'Content-Type':'application/json'},body:m==='GET'?undefined:JSON.stringify(body||{})});
   let j={};try{j=await r.json()}catch(e){}
   if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
   return j;
@@ -2139,13 +2139,29 @@ async function phoneDisable(){
   if(sub){try{await pushCall('/push/unsubscribe',LS.g(PK,''),{endpoint:sub.endpoint})}catch(e){}await sub.unsubscribe()}
   LS.s(PON,'0');paintPhone();
 }
+const PHONE_KINDS=[['fj','FinancialJuice posts'],['remind','Reminders before a high-impact release'],['release','Releases: actual vs forecast'],['fix','Corrections to a released figure']]; /* the kinds the Worker can switch (plan P8.34 stage 4); the same four as PREF_KINDS in alerts.js. A test alert always arrives. */
+async function phoneKinds(say){ /* reads the switches from the Worker, then writes each change at once (PUT /alerts/prefs); a failed change puts the box back */
+  const box=$('#pks',relBox);if(!box)return;
+  const boxes=[...box.querySelectorAll('input[data-k]')],key=LS.g(PK,'');
+  try{
+    const j=await pushCall('/alerts/prefs',key,null,'GET');
+    for(const c of boxes){c.checked=(j.kinds||{})[c.dataset.k]!==false;c.disabled=false}
+  }catch(e){say('Could not read the alert kinds: '+String(e&&e.message||e),1);return}
+  for(const c of boxes)c.onchange=async()=>{
+    const want=c.checked;c.disabled=true;
+    try{const j=await pushCall('/alerts/prefs',key,{kinds:{[c.dataset.k]:want}},'PUT');for(const x of boxes)x.checked=(j.kinds||{})[x.dataset.k]!==false;say(want?'Switched on. Only what happens from now on is sent.':'Switched off.')}
+    catch(e){c.checked=!want;say('Not saved: '+String(e&&e.message||e),1)}
+    c.disabled=false;
+  };
+}
 function alertsPanel(msg,bad){ /* one panel for both: this page (mute) and this phone (push) */
   const on=phoneOn(),saved=LS.g(PK,'');
   relShell('Alerts','<h4>This page</h4><div class="phs">'+(masterOn?'<b>On.</b> Toasts, reminders and release alerts appear while this page is open, and a browser notification shows if the tab is in the background. Each card has its own bell for what it alerts on.':'<b>Muted.</b> Nothing pops up on this page. Muted alerts are dropped, not queued.')+
     '<div><button class="phb'+(masterOn?'':' go')+'" id="amute">'+(masterOn?'Mute all':'Unmute')+'</button></div></div>'+
-    '<h4>Phone</h4><div class="phs">'+(on?'<b>On.</b> The Worker sends each alert to this phone as a notification. Delivery while the app is closed depends on the phone and has not been confirmed in testing yet. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive every dashboard alert as a phone notification.')+
+    '<h4>Phone</h4><div class="phs">'+(on?'<b>On.</b> The Worker sends the alerts ticked below to this phone as notifications. Delivery while the app is closed depends on the phone and has not been confirmed in testing yet. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive dashboard alerts as phone notifications. You can then choose which kinds.')+
     (on?'':'<input id="pkey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Pairing key (PUSH_KEY)" value="'+esc(saved)+'">')+
     '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>')+'</div>'+
+    (on?'<div id="pks"><div class="phm">Send to this phone:</div>'+PHONE_KINDS.map(([k,l])=>'<label class="pk"><input type="checkbox" data-k="'+k+'" disabled><span>'+esc(l)+'</span></label>').join('')+'</div>':'')+
     '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div>'+
     '<div class="phm">Muting this page does not mute the phone. Turn the phone off here. Needs the dashboard opened from its Home Screen icon.</div></div>');
   const say=(t,b)=>{const m=$('#pmsg',relBox);if(m){m.textContent=t;m.classList.toggle('bad',!!b)}};
@@ -2156,6 +2172,7 @@ function alertsPanel(msg,bad){ /* one panel for both: this page (mute) and this 
     alertsPanel()};
   if(bOn)bOn.onclick=()=>{const key=($('#pkey',relBox).value||'').trim();say('Working…');run(()=>phoneEnable(key),'Turned on. Tap "Send a test" to check.')};
   if(bOff)bOff.onclick=()=>run(phoneDisable,'Turned off.');
+  if(on)phoneKinds(say);
   if(bT)bT.onclick=async()=>{say('Sending…');try{const j=await pushCall('/push/test',LS.g(PK,''));say(j.sent?'Sent to '+j.sent+' phone'+(j.sent>1?'s':'')+'. It should appear within a few seconds.':'The push service did not accept it: '+((j.results&&j.results[0]&&j.results[0].err)||j.error||'no subscription found')+'. Try Turn off, then Turn on.',!j.sent)}catch(e){say(String(e&&e.message||e),1)}};
 }
 paintPhone();
