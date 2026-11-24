@@ -1133,7 +1133,7 @@ function fvPaint(){
   if(!d.items.length)box.appendChild(mk('div','wnote','No headlines yet.'));
   for(const it of d.items.slice(0,FV_MAX)){
     const row=mk('div','wp'),h=mk('div','wh'),ok=it.t&&it.t<=now+120000;
-    h.appendChild(mk('span','',ok?asOf(it.t):''));
+    h.appendChild(mk('span','',ok?asOf(it.t):it.day?dLbl(it.day,Object.assign({month:'short',day:'numeric'},it.day.slice(0,4)!==etP(NOW()).iso.slice(0,4)?{year:'numeric'}:{})):''));
     h.appendChild(mk('span','wa',ok?fmtAge(now-it.t)+' ago':''));
     h.appendChild(mk('span','',it.src||''));
     row.appendChild(h);
