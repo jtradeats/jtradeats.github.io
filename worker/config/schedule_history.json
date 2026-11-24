@@ -1,0 +1,213 @@
+{
+ "_note": "One-time backfill of LAST MONTH (October 2026): schedule.json's baseline starts on 2 Nov, so these releases did not exist for the page's last-month view. index.js appends them to the schedule (a line already in schedule.json or the sync wins). Lines have the same fields as schedule.json. Tier v: official = read on the agency's own page; ref = confirmed by a published week-ahead calendar; rule = derived from the agency's pattern. NOT included because no source was confirmed: existing home sales (NAR), the 10-year and 30-year Treasury auctions, and Fed speeches. ADP and JOLTS had no release in October (30 Sep and 29 Sep / 3 Nov). Actuals and previous come from the official series (FRED archive, EIA); forecasts for October were not kept by any source and stay blank.",
+ "built": "2026-11-24",
+ "releases": [
+  {
+   "k": "claims",
+   "d": "2026-10-01",
+   "t": "08:30",
+   "v": "ref"
+  },
+  {
+   "k": "spg_m",
+   "d": "2026-10-01",
+   "t": "09:45",
+   "p": "Sep",
+   "v": "ref"
+  },
+  {
+   "k": "ism_m",
+   "d": "2026-10-01",
+   "t": "10:00",
+   "p": "Sep",
+   "v": "ref"
+  },
+  {
+   "k": "nfp",
+   "d": "2026-10-02",
+   "t": "08:30",
+   "p": "Sep",
+   "v": "official",
+   "n": "BLS Employment Situation schedule."
+  },
+  {
+   "k": "spg_s",
+   "d": "2026-10-05",
+   "t": "09:45",
+   "p": "Sep",
+   "v": "rule",
+   "n": "Third business day of the month."
+  },
+  {
+   "k": "ism_s",
+   "d": "2026-10-05",
+   "t": "10:00",
+   "p": "Sep",
+   "v": "rule",
+   "n": "Third business day of the month."
+  },
+  {
+   "k": "eia",
+   "d": "2026-10-07",
+   "t": "10:30",
+   "v": "rule",
+   "n": "Wednesday release."
+  },
+  {
+   "k": "minutes",
+   "d": "2026-10-07",
+   "t": "14:00",
+   "p": "Sep 15-16 meeting",
+   "v": "rule",
+   "n": "Three weeks after the 16 Sep decision."
+  },
+  {
+   "k": "claims",
+   "d": "2026-10-08",
+   "t": "08:30",
+   "v": "rule",
+   "n": "Thursday release."
+  },
+  {
+   "k": "hol",
+   "d": "2026-10-12",
+   "t": "00:00",
+   "v": "rule",
+   "ti": "United States - Columbus Day",
+   "ad": 1
+  },
+  {
+   "k": "cpi",
+   "d": "2026-10-14",
+   "t": "08:30",
+   "p": "Sep",
+   "v": "official",
+   "n": "BLS CPI schedule."
+  },
+  {
+   "k": "claims",
+   "d": "2026-10-15",
+   "t": "08:30",
+   "v": "rule",
+   "n": "Thursday release."
+  },
+  {
+   "k": "philly",
+   "d": "2026-10-15",
+   "t": "08:30",
+   "p": "Oct",
+   "v": "rule",
+   "n": "Third Thursday of the month."
+  },
+  {
+   "k": "ppi",
+   "d": "2026-10-15",
+   "t": "08:30",
+   "p": "Sep",
+   "v": "official",
+   "n": "BLS PPI schedule."
+  },
+  {
+   "k": "retail",
+   "d": "2026-10-15",
+   "t": "08:30",
+   "p": "Sep",
+   "v": "official",
+   "n": "Census release schedule (advance report)."
+  },
+  {
+   "k": "eia",
+   "d": "2026-10-15",
+   "t": "12:00",
+   "v": "official",
+   "n": "Columbus Day Monday: EIA released a day late and at 12:00 ET."
+  },
+  {
+   "k": "eia",
+   "d": "2026-10-21",
+   "t": "10:30",
+   "v": "rule",
+   "n": "Wednesday release."
+  },
+  {
+   "k": "claims",
+   "d": "2026-10-22",
+   "t": "08:30",
+   "v": "rule",
+   "n": "Thursday release."
+  },
+  {
+   "k": "spg_f",
+   "d": "2026-10-23",
+   "t": "09:45",
+   "p": "Oct",
+   "v": "ref"
+  },
+  {
+   "k": "dgo",
+   "d": "2026-10-27",
+   "t": "08:30",
+   "p": "Sep",
+   "v": "ref"
+  },
+  {
+   "k": "cb",
+   "d": "2026-10-27",
+   "t": "10:00",
+   "p": "Oct",
+   "v": "ref"
+  },
+  {
+   "k": "nhs",
+   "d": "2026-10-27",
+   "t": "10:00",
+   "p": "Sep",
+   "v": "ref"
+  },
+  {
+   "k": "eia",
+   "d": "2026-10-28",
+   "t": "10:30",
+   "v": "rule",
+   "n": "Wednesday release."
+  },
+  {
+   "k": "fomc",
+   "d": "2026-10-28",
+   "t": "14:00",
+   "v": "official",
+   "n": "Meeting of 27-28 Oct; not a Summary of Economic Projections meeting."
+  },
+  {
+   "k": "claims",
+   "d": "2026-10-29",
+   "t": "08:30",
+   "v": "rule",
+   "n": "Thursday release."
+  },
+  {
+   "k": "gdp",
+   "d": "2026-10-29",
+   "t": "08:30",
+   "p": "Q3",
+   "v": "official",
+   "n": "Advance estimate. BEA schedule."
+  },
+  {
+   "k": "pce",
+   "d": "2026-10-29",
+   "t": "08:30",
+   "p": "Sep",
+   "v": "official",
+   "n": "BEA schedule: Personal Income and Outlays, September 2026."
+  },
+  {
+   "k": "chi",
+   "d": "2026-10-30",
+   "t": "09:45",
+   "p": "Oct",
+   "v": "rule",
+   "n": "Last business day of the month."
+  }
+ ]
+}

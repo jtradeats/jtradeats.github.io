@@ -1,6 +1,203 @@
 {
- "_note": "EMPTY ON PURPOSE. The calendar is fed only by automatic sources (calendar feed, FinancialJuice wire, FRED/EIA, the ledger). Do not type numbers here: a typed number hides a source that is not working instead of showing the fault. /calendar?debug=1 lists rows that still have no forecast (ledger.gaps).",
- "asof": null,
- "src": "none",
- "rows": {}
+ "_note": "PLACEHOLDERS, not a data feed. Numbers typed in by hand: the reference calendar screenshots (14 Nov 2026) and, on 24 Nov, the flash PMI actuals and the claims and Philly forecasts read from FinancialJuice posts. Key = kind|date (New York)|row id. Fields: ac actual, fc forecast, pv previous (all as displayed text), pvc g or r when the previous was revised (shown underlined in that colour). A typed number shows only while no real source has supplied that field: the calendar feeds (Forex Factory, FMP), the FinancialJuice wire and the official FRED series all replace it as soon as they have a number. /calendar?debug=1 lists the typed numbers that were replaced (replaced), and those lines can be deleted. Edit this file on GitHub and the Worker redeploys.",
+ "asof": "2026-11-24",
+ "src": "reference calendar screenshots (14 Nov), plus FinancialJuice posts read on 24 Nov (flash PMI actuals, claims and Philly forecasts)",
+ "rows": {
+  "spg_m|2026-11-02|main": {
+   "ac": "54.9",
+   "fc": "56.0",
+   "pv": "56.0"
+  },
+  "ism_m|2026-11-02|pmi": {
+   "ac": "55.5",
+   "fc": "54.5",
+   "pv": "54.5"
+  },
+  "ism_m|2026-11-02|prices": {
+   "ac": "75.2",
+   "fc": "77.2",
+   "pv": "77.9"
+  },
+  "jolts|2026-11-03|main": {
+   "ac": "7.523M",
+   "fc": "7.150M",
+   "pv": "7.190M",
+   "pvc": "g"
+  },
+  "adp|2026-11-04|main": {
+   "ac": "86K",
+   "fc": "67K",
+   "pv": "86K",
+   "pvc": "r"
+  },
+  "spg_s|2026-11-04|main": {
+   "ac": "56.1",
+   "fc": "57.9",
+   "pv": "58.8"
+  },
+  "ism_s|2026-11-04|pmi": {
+   "ac": "54.5",
+   "fc": "54.8",
+   "pv": "54.9"
+  },
+  "ism_s|2026-11-04|prices": {
+   "ac": "73.0",
+   "fc": "74.6",
+   "pv": "74.0"
+  },
+  "eia|2026-11-04|main": {
+   "ac": "-0.865M",
+   "fc": "-1.700M",
+   "pv": "-1.892M"
+  },
+  "claims|2026-11-05|main": {
+   "ac": "189K",
+   "fc": "197K",
+   "pv": "195K",
+   "pvc": "r"
+  },
+  "nfp|2026-11-06|nfp": {
+   "ac": "165K",
+   "fc": "65K",
+   "pv": "60K",
+   "pvc": "g"
+  },
+  "nfp|2026-11-06|unemp": {
+   "ac": "4.1%",
+   "fc": "4.2%",
+   "pv": "4.2%"
+  },
+  "nfp|2026-11-06|ahe": {
+   "ac": "0.4%",
+   "fc": "0.3%",
+   "pv": "0.3%",
+   "pvc": "g"
+  },
+  "cpi|2026-11-10|mom": {
+   "ac": "0.4%",
+   "fc": "0.3%",
+   "pv": "0.6%"
+  },
+  "cpi|2026-11-10|core": {
+   "ac": "0.3%",
+   "fc": "0.2%",
+   "pv": "0.3%"
+  },
+  "auc10|2026-11-10|main": {
+   "ac": "5.020%",
+   "pv": "5.300%"
+  },
+  "claims|2026-11-12|main": {
+   "ac": "200K",
+   "fc": "194K",
+   "pv": "191K",
+   "pvc": "r"
+  },
+  "ehs|2026-11-12|main": {
+   "ac": "3.75M",
+   "fc": "3.89M",
+   "pv": "3.97M",
+   "pvc": "r"
+  },
+  "eia|2026-11-12|main": {
+   "ac": "4.657M",
+   "fc": "-0.600M",
+   "pv": "-0.865M"
+  },
+  "auc30|2026-11-12|main": {
+   "ac": "5.441%",
+   "pv": "5.618%"
+  },
+  "ppi|2026-11-13|mom": {
+   "ac": "0.3%",
+   "fc": "0.4%",
+   "pv": "1.4%",
+   "pvc": "g"
+  },
+  "retail|2026-11-17|main": {
+   "pv": "0.8%"
+  },
+  "retail|2026-11-17|core": {
+   "pv": "0.9%"
+  },
+  "eia|2026-11-18|main": {
+   "pv": "4.657M"
+  },
+  "claims|2026-11-19|main": {
+   "fc": "197.5K",
+   "pv": "200K",
+   "pvc": "r"
+  },
+  "philly|2026-11-19|main": {
+   "fc": "20.1",
+   "pv": "20.9"
+  },
+  "spg_f|2026-11-23|svc": {
+   "ac": "54.7",
+   "fc": "55.6",
+   "pv": "56.1"
+  },
+  "spg_f|2026-11-23|mfg": {
+   "ac": "54.5",
+   "fc": "54.5",
+   "pv": "54.9"
+  },
+  "cb|2026-11-24|main": {
+   "pv": "91.7"
+  },
+  "pce|2026-11-25|mom": {
+   "pv": "0.3%"
+  },
+  "pce|2026-11-25|yoy": {
+   "pv": "3.1%"
+  },
+  "gdp|2026-11-25|main": {
+   "pv": "3.4%"
+  },
+  "dgo|2026-11-25|main": {
+   "pv": "1.9%"
+  },
+  "nhs|2026-11-25|main": {
+   "pv": "676K"
+  },
+  "chi|2026-11-30|main": {
+   "pv": "55.3"
+  },
+  "spg_m|2026-12-01|main": {
+   "pv": "54.9"
+  },
+  "ism_m|2026-12-01|pmi": {
+   "pv": "55.5"
+  },
+  "ism_m|2026-12-01|prices": {
+   "pv": "75.2"
+  },
+  "jolts|2026-12-01|main": {
+   "pv": "7.523M"
+  },
+  "adp|2026-12-02|main": {
+   "pv": "86K"
+  },
+  "spg_s|2026-12-03|main": {
+   "pv": "56.1"
+  },
+  "ism_s|2026-12-03|pmi": {
+   "pv": "54.5"
+  },
+  "ism_s|2026-12-03|prices": {
+   "pv": "73.0"
+  },
+  "nfp|2026-12-04|nfp": {
+   "pv": "165K"
+  },
+  "nfp|2026-12-04|unemp": {
+   "pv": "4.1%"
+  },
+  "nfp|2026-12-04|ahe": {
+   "pv": "0.4%"
+  },
+  "fomc|2026-12-09|dec": {
+   "pv": "4.00%"
+  }
+ }
 }
