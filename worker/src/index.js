@@ -26,7 +26,6 @@ import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 import { finvizProbe, getFinviz } from './finviz.js';   // GET /finviz (Finviz news for the card) and GET /finviz-test (diagnostic probe)
-import { fvCalProbe } from './fvcal_probe.js';   // GET /fvcal-test: one read-only look at Finviz's economic calendar page (remove with the route)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 import { rulesFrom, rangeFail, checkJump } from './validate.js';   // price validation: V1 range, V2 jump (plan P8.16)
 
@@ -1151,7 +1150,7 @@ export default {
       }
       if (pathname === '/push/subscribe') {
         if (!validEndpoint(body.endpoint)) return reply({ error: 'not a push service address' }, 400);
-        const ok = await saveSub(env, body.endpoint, req.headers.get('User-Agent'));
+        const ok = await saveSub(env, body.endpoint, req.headers.get('User-Agent'), body.keys);
         return ok ? reply({ ok: true, subs: (await loadSubs(env)).length }) : reply({ error: 'could not save the subscription (D1 binding?)' }, 500);
       }
       if (pathname === '/push/unsubscribe') { await dropSub(env, String(body.endpoint || '')); return reply({ ok: true, subs: (await loadSubs(env)).length }); }
@@ -1159,7 +1158,7 @@ export default {
         const t = Date.now();
         await recordTest(env, t);
         alertMemo = null;
-        const r = await sendAll(env, t);
+        const r = await sendAll(env, t, body && body.text ? { alerts: [testAlert(t)] } : {});   // { text: true }: the test carries its own text, to try the encrypted push before switching it on
         return reply({ ok: r.sent > 0, ...r });
       }
       if (pathname === '/push/devices' || pathname === '/push/remove') {   // the devices registered for push, and removal of one (control center). body.endpoint = this device's own address, so the list can mark it
@@ -1201,11 +1200,11 @@ export default {
         try { body = await req.json(); } catch (e) { return reply({ error: 'the body must be JSON, for example { "master": false }' }, 400); }
         const now = Date.now(), r = await saveSettings(env, body, now);
         const kinds = body && body.kinds ? await savePrefs(env, body.kinds, now) : null;
-        if (!r.valid && !kinds) return reply({ error: 'nothing saved: send master, remind (' + REMIND_MINS.join(', ') + ') or kinds as true or false' }, 400);
+        if (!r.valid && !kinds) return reply({ error: 'nothing saved: send master, payload, remind (' + REMIND_MINS.join(', ') + ') or kinds as true or false' }, 400);
         if (r.valid && r.saved === false) return reply({ error: 'could not save (the Worker needs its KV binding)' }, 500);
       }
       const st = await loadSettings(env), p = await loadPrefs(env);
-      return reply({ ok: true, master: st.master, remind: st.remind, remindMins: REMIND_MINS, kinds: p.kinds, available: PREF_KINDS, at: Math.max(st.at || 0, p.at || 0) });
+      return reply({ ok: true, master: st.master, payload: st.payload === true, remind: st.remind, remindMins: REMIND_MINS, kinds: p.kinds, available: PREF_KINDS, at: Math.max(st.at || 0, p.at || 0) });
     }
     if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once. The phone's switches (stage 4) apply, so the phone shows exactly what a push was sent for; ?all=1 lists everything (diagnosis)
       try {
@@ -1257,10 +1256,6 @@ export default {
     }
     if (pathname === '/finviz-test') {   // TEST ONLY, read only: one request to Finviz at most every 60 s; remove once the real route replaces it
       try { return new Response(await finvizProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
-      catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
-    }
-    if (pathname === '/fvcal-test') {   // TEST ONLY, read only: one request to Finviz's economic calendar at most every 60 s; remove once the real route replaces it
-      try { return new Response(await fvCalProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
       catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
     }
     return new Response('{"error":"not found"}', { status: 404, headers: json });

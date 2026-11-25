@@ -3,6 +3,7 @@
    It has no fetch handler, caches no pages and is registered only for /news.html, so it cannot touch the dashboard's loading or the journal pages.
    The state it keeps (which alert ids it has already shown) lives in the Cache API under /__state, which only this worker reads. */
 'use strict';
+const VER = '2026-11-26 payload';   // shown in the dashboard's Phone alerts panel, so a stale worker is easy to spot
 const API = 'https://market-dashboard.jtradeats.workers.dev';
 const PAGE = '/news.html', ICON = '/icons/icon-192.png';
 const CACHE = 'phone-alerts-v1', STATE = '/__state', MAX_IDS = 300, MAX_SHOWN = 4, FETCH_MS = 8000, BASELINE_MS = 3 * 60e3;
@@ -59,9 +60,25 @@ async function run() {
   for (const a of shown) await show(a.pt || a.src || 'Market Dashboard', a.pb || a.h || '', a.id);
 }
 
-self.addEventListener('push', e => e.waitUntil(run()));
+// A push that carries its alerts (push.js, switched on in the control center) shows exactly those: each one under its own tag, so a repeat replaces it instead of adding to it, and a push is never
+// left with nothing to show. An empty push (a phone that has not given its keys, or the switch off) takes the old way: ask /alerts what is new.
+async function showPayload(items) {
+  const st = await loadState();
+  st.init = true;
+  st.ids = [...new Set([...st.ids, ...items.map(x => x.id)])].slice(-MAX_IDS);   // the old way will not show these again
+  await saveState(st);
+  for (const x of items) await show(x.t || 'Market Dashboard', x.b || '', x.id);
+}
+async function onPush(e) {
+  let d = null;
+  try { d = e.data ? e.data.json() : null; } catch (x) { d = null; }
+  if (d && d.v === 1 && Array.isArray(d.a) && d.a.length) return showPayload(d.a.filter(x => x && x.id));
+  return run();
+}
+self.addEventListener('push', e => e.waitUntil(onPush(e)));
 // the page tells the worker right after subscribing: everything that exists now counts as already seen
 self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'ver') { try { e.source.postMessage({ type: 'ver', v: VER }); } catch (x) { /* no page to answer */ } return; }
   if (!e.data || e.data.type !== 'baseline') return;
   e.waitUntil((async () => { const all = await fetchAlerts(); await saveState({ init: true, ids: (all || []).map(a => a.id).slice(-MAX_IDS) }); })());
 });

@@ -8,6 +8,7 @@
 // kept in KV ("push:vapid"). Neither is in the repository. Every function is safe without D1 or KV and never throws.
 import { ensurePosts } from './posts.js';
 import { PREF_KINDS, defaultPrefs, normPrefs, filterPrefs, anyKindOn } from './alerts.js';
+import { loadSettings } from './pushctl.js';
 
 export const VAPID_KV = 'push:vapid';
 export const PREFS_KV = 'push:prefs';               // which alert kinds reach the phone (stage 4): one small JSON value, written only when a switch is changed
@@ -15,7 +16,9 @@ export const PREFS_REUSE_MS = 15000;                // a Worker instance re-read
 export const JWT_TTL_S = 12 * 3600;                 // a VAPID token may live up to 24 h; 12 h is cached and reused
 export const PUSH_TTL_S = 600;                      // the push service drops an undelivered push after 10 minutes (alerts go stale)
 export const SENT_KEEP_MS = 2 * 86400000;           // alert ids are remembered for two days
-export const PUSH_TOPIC = 'dashboard-alerts';           // RFC 8030 Topic: a push still waiting at the push service is replaced by the next one with the same topic. The phone reads the whole list when it wakes, so two waiting pushes become one and nothing is lost
+export const PAYLOAD_MAX = 3000;                    // bytes of JSON in an alert-carrying push before encryption (a push service takes 4096 after the 86-byte header and the 16-byte tag)
+export const PAYLOAD_SHOWN = 4;                     // alerts shown one by one; any more become one digest, as sw.js did
+export const PUSH_TOPIC = 'dashboard-alerts';           // RFC 8030 Topic: a push still waiting at the push service is replaced by the next one with the same topic. Only EMPTY pushes carry it: the phone reads the whole list when it wakes, so two waiting empty pushes become one and nothing is lost. A push that carries alerts never has a Topic, or the alerts of the replaced one would be lost
 // only real push services are ever called: the address comes from the phone, so it is checked (the page's pairing key already limits who can save one)
 export const PUSH_HOSTS = /(^|\.)push\.apple\.com$|(^|\.)googleapis\.com$|(^|\.)push\.services\.mozilla\.com$|(^|\.)notify\.windows\.com$/;
 
@@ -23,9 +26,9 @@ const enc = new TextEncoder();
 export const b64u = buf => { const b = new Uint8Array(buf); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 export const unb64u = s => { const t = String(s).replace(/-/g, '+').replace(/_/g, '/'), p = t + '='.repeat((4 - t.length % 4) % 4), r = atob(p), o = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; };
 const db = env => (env && env.DB && typeof env.DB.prepare === 'function' ? env.DB : null);
-const state = { err: null, jwt: new Map(), vapid: null, prefs: null };
+const state = { err: null, jwt: new Map(), vapid: null, prefs: null, cols: null };
 export const pushError = () => state.err;
-export const _resetPush = () => { state.err = null; state.jwt.clear(); state.vapid = null; state.prefs = null; };
+export const _resetPush = () => { state.err = null; state.jwt.clear(); state.vapid = null; state.prefs = null; state.cols = null; };
 const fail = e => { state.err = String(e && e.message).slice(0, 120); return null; };
 
 // ---- the pairing key ----
@@ -99,11 +102,23 @@ export async function savePrefs(env, kinds, now = Date.now()) {
 export function validEndpoint(u) {
   try { const x = new URL(u); return x.protocol === 'https:' && PUSH_HOSTS.test(x.hostname) && u.length <= 600; } catch (e) { return false; }
 }
-export async function saveSub(env, endpoint, ua, now = Date.now()) {
+// the phone's encryption keys (RFC 8291) are what lets a push carry the alert itself. They are two columns on push_subs, added the first time they are needed.
+export function validKeys(k) {
+  try { const p = unb64u(k.p256dh), a = unb64u(k.auth); return p.length === 65 && p[0] === 4 && a.length === 16; } catch (e) { return false; }
+}
+async function keyCols(d) {
+  if (state.cols != null) return state.cols;
+  try { await d.prepare('SELECT p256dh, auth FROM push_subs LIMIT 1').first(); return (state.cols = true); } catch (e) { /* not there yet */ }
+  try { await d.prepare('ALTER TABLE push_subs ADD COLUMN p256dh TEXT').run(); await d.prepare('ALTER TABLE push_subs ADD COLUMN auth TEXT').run(); return (state.cols = true); } catch (e) { fail(e); return (state.cols = false); }
+}
+export async function saveSub(env, endpoint, ua, keys, now = Date.now()) {
+  if (typeof keys === 'number') { now = keys; keys = null; }   // the older call saveSub(env, endpoint, ua, now)
   const d = db(env);
   if (!d || !(await ensurePosts(env))) return false;
   try {
-    await d.prepare('INSERT INTO push_subs (endpoint, created, ua, fails) VALUES (?1, ?2, ?3, 0) ON CONFLICT(endpoint) DO UPDATE SET fails = 0, last_err = NULL, ua = excluded.ua').bind(endpoint, now, String(ua || '').slice(0, 80)).run();
+    const withKeys = keys && validKeys(keys) && (await keyCols(d));
+    if (withKeys) await d.prepare('INSERT INTO push_subs (endpoint, created, ua, fails, p256dh, auth) VALUES (?1, ?2, ?3, 0, ?4, ?5) ON CONFLICT(endpoint) DO UPDATE SET fails = 0, last_err = NULL, ua = excluded.ua, p256dh = excluded.p256dh, auth = excluded.auth').bind(endpoint, now, String(ua || '').slice(0, 80), keys.p256dh, keys.auth).run();
+    else await d.prepare('INSERT INTO push_subs (endpoint, created, ua, fails) VALUES (?1, ?2, ?3, 0) ON CONFLICT(endpoint) DO UPDATE SET fails = 0, last_err = NULL, ua = excluded.ua').bind(endpoint, now, String(ua || '').slice(0, 80)).run();
     return true;
   } catch (e) { fail(e); return false; }
 }
@@ -115,7 +130,9 @@ export async function dropSub(env, endpoint) {
 export async function loadSubs(env) {
   const d = db(env);
   if (!d || !(await ensurePosts(env))) return [];
-  try { return ((await d.prepare('SELECT endpoint, created, last_ok, last_err, last_err_at, fails FROM push_subs ORDER BY created').all()).results || []).map(x => ({ ...x })); } catch (e) { fail(e); return []; }
+  const q = cols => d.prepare('SELECT ' + cols + ' FROM push_subs ORDER BY created').all();
+  try { if (await keyCols(d)) return ((await q('endpoint, created, last_ok, last_err, last_err_at, fails, p256dh, auth')).results || []).map(x => ({ ...x })); } catch (e) { fail(e); }   // without the key columns the list still loads: every push then stays empty
+  try { return ((await q('endpoint, created, last_ok, last_err, last_err_at, fails')).results || []).map(x => ({ ...x })); } catch (e) { fail(e); return []; }
 }
 const MAXQ = 80;
 async function sentSet(d, ids) {
@@ -160,28 +177,65 @@ export async function recordTest(env, t) {
   try { await d.prepare('INSERT OR IGNORE INTO alert_sent (id, t, at) VALUES (?1, ?2, ?2)').bind('test|' + t, t).run(); return true; } catch (e) { fail(e); return false; }
 }
 
+// ---- the alert inside the push (RFC 8291, aes128gcm) ----
+// Why: an empty push makes the phone ask GET /alerts what is new. When two pushes come close together the first shows everything and the second finds nothing, and iOS must be shown
+// something for every push, so a blank notification was left behind. A push that carries its own alerts shows exactly those: a repeat has the same tag and replaces the first, and
+// nothing depends on what GET /alerts happens to hold at that second. Switched on by the "payload" setting (pushctl.js), because a push the phone cannot decrypt is dropped silently.
+const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+const hkdf = async (ikm, salt, info, len) => new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']), len * 8));
+// keys = { p256dh, auth } as the phone's PushSubscription.toJSON() gives them (base64url). opts.salt and opts.asKeyPair exist for the tests only.
+export async function encryptPayload(keys, plain, opts = {}) {
+  const ua = unb64u(keys.p256dh), auth = unb64u(keys.auth);
+  const salt = opts.salt || crypto.getRandomValues(new Uint8Array(16));
+  const kp = opts.asKeyPair || await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+  const uaKey = await crypto.subtle.importKey('raw', ua, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const secret = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, kp.privateKey, 256));
+  const ikm = await hkdf(secret, auth, cat(enc.encode('WebPush: info\0'), ua, asPub), 32);
+  const cek = await hkdf(ikm, salt, enc.encode('Content-Encoding: aes128gcm\0'), 16), nonce = await hkdf(ikm, salt, enc.encode('Content-Encoding: nonce\0'), 12);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']), cat(plain, new Uint8Array([2]))));   // 0x02 closes the only record
+  return cat(salt, new Uint8Array([0, 0, 16, 0, 65]), asPub, ct);   // salt, record size 4096, key id length 65, the key id (our public key), the record
+}
+const clip = (t, n) => { t = String(t || ''); return t.length > n ? t.slice(0, n - 1) + '\u2026' : t; };
+// alerts (any order) -> the JSON bytes sw.js shows: the newest PAYLOAD_SHOWN one by one, older ones as one digest, text cut until it fits PAYLOAD_MAX
+export function buildPayload(alerts, max = PAYLOAD_MAX) {
+  const list = [...(alerts || [])].sort((a, b) => a.t - b.t), shown = list.slice(-PAYLOAD_SHOWN), more = list.slice(0, list.length - shown.length), items = [];
+  if (more.length) items.push({ id: 'digest|' + more[more.length - 1].id, t: more.length + ' earlier alerts', b: more.map(a => (a.hot ? '\u2757 ' : '') + a.h).join('\n') });
+  for (const a of shown) items.push({ id: a.id, t: a.pt || a.src || 'Market Dashboard', b: a.pb || a.h || '' });
+  for (let n = 400; ; n = Math.floor(n * 0.7)) {
+    const bytes = enc.encode(JSON.stringify({ v: 1, a: items.map(x => ({ id: x.id, t: clip(x.t, 80), b: clip(x.b, n) })) }));
+    if (bytes.length <= max || n <= 40) return bytes;
+  }
+}
+
 // ---- sending ----
 // one empty push to one subscription. 201 = accepted. 404 and 410 = the phone has unsubscribed or the subscription expired: forget it.
-export async function sendOne(env, v, endpoint, now = Date.now()) {
+export async function sendOne(env, v, endpoint, now = Date.now(), body = null) {   // body: an encrypted payload (encryptPayload), or null for an empty push
   try {
     const sub = (env && env.PUSH_SUB) || 'https://jtradeats.github.io';
-    const r = await fetch(endpoint, { method: 'POST', headers: { Authorization: await vapidHeader(v, endpoint, sub, now), TTL: String(PUSH_TTL_S), Urgency: 'high', Topic: PUSH_TOPIC } });
+    const headers = { Authorization: await vapidHeader(v, endpoint, sub, now), TTL: String(PUSH_TTL_S), Urgency: 'high' };
+    if (body) { headers['Content-Encoding'] = 'aes128gcm'; headers['Content-Type'] = 'application/octet-stream'; } else headers.Topic = PUSH_TOPIC;
+    const r = await fetch(endpoint, { method: 'POST', headers, ...(body ? { body } : {}) });
     const text = r.ok ? '' : String(await r.text().catch(() => '')).slice(0, 80);
     return { ok: r.status === 201 || r.status === 200 || r.status === 202, status: r.status, gone: r.status === 404 || r.status === 410, err: r.ok ? null : 'HTTP ' + r.status + (text ? ' ' + text : '') };
   } catch (e) { return { ok: false, status: 0, gone: false, err: String(e && e.message).slice(0, 80) }; }
 }
-export async function sendAll(env, now = Date.now()) {
-  const out = { subs: 0, sent: 0, failed: 0, removed: 0, results: [], error: null };
+// opts.alerts: send them inside the push to every phone that has given its keys (the others get an empty push, which still works)
+export async function sendAll(env, now = Date.now(), opts = {}) {
+  const out = { subs: 0, sent: 0, failed: 0, removed: 0, withText: 0, results: [], error: null };
   const v = await getVapid(env, false);
   if (!v) { out.error = 'no VAPID key yet (run the page\'s phone setup)'; return out; }
   const subs = await loadSubs(env), d = db(env);
   out.subs = subs.length;
+  const plain = opts.alerts && opts.alerts.length ? buildPayload(opts.alerts) : null;
   for (const s of subs) {
     if (!validEndpoint(s.endpoint)) { await dropSub(env, s.endpoint); out.removed++; continue; }
-    const r = await sendOne(env, v, s.endpoint, now);
-    out.results.push({ host: new URL(s.endpoint).hostname, status: r.status, ok: r.ok, err: r.err });
+    let body = null;
+    if (plain && s.p256dh && s.auth && validKeys(s)) { try { body = await encryptPayload({ p256dh: s.p256dh, auth: s.auth }, plain); } catch (e) { fail(e); } }
+    const r = await sendOne(env, v, s.endpoint, now, body);
+    out.results.push({ host: new URL(s.endpoint).hostname, status: r.status, ok: r.ok, err: r.err, text: !!body });
     try {
-      if (r.ok) { out.sent++; await d.prepare('UPDATE push_subs SET last_ok = ?2, fails = 0, last_err = NULL WHERE endpoint = ?1').bind(s.endpoint, now).run(); }
+      if (r.ok) { out.sent++; if (body) out.withText++; await d.prepare('UPDATE push_subs SET last_ok = ?2, fails = 0, last_err = NULL WHERE endpoint = ?1').bind(s.endpoint, now).run(); }
       else if (r.gone) { out.removed++; await dropSub(env, s.endpoint); }
       else { out.failed++; await d.prepare('UPDATE push_subs SET last_err = ?2, last_err_at = ?3, fails = fails + 1 WHERE endpoint = ?1').bind(s.endpoint, r.err, now).run(); }
     } catch (e) { fail(e); }
@@ -190,7 +244,7 @@ export async function sendAll(env, now = Date.now()) {
 }
 // called by the pollers with a function that builds the alerts they know about (built only when someone is subscribed)
 export async function pushNew(env, makeAlerts, now = Date.now()) {
-  const out = { subs: 0, fresh: 0, sent: 0, failed: 0, removed: 0, skipped: null };
+  const out = { subs: 0, fresh: 0, sent: 0, failed: 0, removed: 0, withText: 0, skipped: null };
   try {
     const subs = await loadSubs(env);
     out.subs = subs.length;
@@ -203,15 +257,16 @@ export async function pushNew(env, makeAlerts, now = Date.now()) {
     const fresh = await claim(env, cand, now);
     out.fresh = fresh.length;
     if (!fresh.length) { out.skipped = 'nothing new'; return out; }
-    const r = await sendAll(env, now);
-    out.sent = r.sent; out.failed = r.failed; out.removed = r.removed; out.skipped = r.error;
+    const withText = (await loadSettings(env, now)).payload === true;   // off until it has been tried on the phone (pushctl.js)
+    const r = await sendAll(env, now, withText ? { alerts: fresh } : {});
+    out.sent = r.sent; out.failed = r.failed; out.removed = r.removed; out.withText = r.withText; out.skipped = r.error;
   } catch (e) { fail(e); out.skipped = 'error: ' + state.err; }
   return out;
 }
 export async function pushHealth(env, now = Date.now()) {
   const subs = await loadSubs(env), v = await getVapid(env, false), age = t => (t ? Math.round((now - t) / 1000) : null);
   return {
-    key_set: !!(env && env.PUSH_KEY), vapid: !!v, subs: subs.length, kinds: (await loadPrefs(env, now)).kinds,
+    key_set: !!(env && env.PUSH_KEY), vapid: !!v, subs: subs.length, with_keys: subs.filter(x => x.p256dh && x.auth).length, text_in_push: (await loadSettings(env, now)).payload === true, kinds: (await loadPrefs(env, now)).kinds,
     list: subs.map(s => { let host = '?'; try { host = new URL(s.endpoint).hostname; } catch (e) { /* kept */ } return { host, created_age_s: age(s.created), last_ok_age_s: age(s.last_ok), fails: s.fails || 0, last_err: s.last_err || null }; }),
     error: state.err,
   };

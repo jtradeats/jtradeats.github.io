@@ -11,11 +11,12 @@ export const SET_KV = 'push:settings';
 export const REMIND_MINS = REM_MENU;     // the reminder times the control center offers (alerts.js): 60, 30, 15, 10, 5 and 2 minutes before, and at the release
 export const REMIND_DEFAULT = REM;       // the ones that are on until someone ticks more: 15 minutes before, 5 minutes before, and at the release
 
-const fresh = () => ({ v: 1, master: true, remind: Object.fromEntries(REMIND_MINS.map(m => [m, REMIND_DEFAULT.includes(m)])), from: {}, at: 0 });
+const fresh = () => ({ v: 1, master: true, payload: false, remind: Object.fromEntries(REMIND_MINS.map(m => [m, REMIND_DEFAULT.includes(m)])), from: {}, at: 0 });
 function norm(j) {
   const st = fresh();
   if (!j || j.v !== 1) return st;
   st.master = j.master !== false;
+  st.payload = j.payload === true;   // the alert text travels inside the push: off until it has been tried on the phone
   for (const m of REMIND_MINS) st.remind[m] = j.remind && typeof j.remind[m] === 'boolean' ? j.remind[m] : REMIND_DEFAULT.includes(m);   // a time never chosen is on only if it is one of the defaults
   st.from = j.from && typeof j.from === 'object' ? { ...j.from } : {};
   st.at = Number(j.at) || 0;
@@ -31,13 +32,17 @@ export async function loadSettings(env, now = Date.now()) {
   memo = { at: now, st };
   return st;
 }
-// patch: { master?: boolean, remind?: { 60?: boolean, 30?: boolean, 15?: boolean, 10?: boolean, 5?: boolean, 2?: boolean, 0?: boolean } }. valid = the patch held something this module owns; changed = it altered a value.
+// patch: { master?: boolean, payload?: boolean, remind?: { 60?: boolean, 30?: boolean, 15?: boolean, 10?: boolean, 5?: boolean, 2?: boolean, 0?: boolean } }. valid = the patch held something this module owns; changed = it altered a value.
 export async function saveSettings(env, patch, now = Date.now()) {
   const st = JSON.parse(JSON.stringify(await loadSettings(env, now)));
   let valid = false, changed = false;
   if (patch && typeof patch.master === 'boolean') {
     valid = true;
     if (patch.master !== st.master) { st.master = patch.master; if (patch.master) st.from.master = now; changed = true; }
+  }
+  if (patch && typeof patch.payload === 'boolean') {
+    valid = true;
+    if (patch.payload !== st.payload) { st.payload = patch.payload; changed = true; }
   }
   if (patch && patch.remind && typeof patch.remind === 'object') {
     for (const m of REMIND_MINS) {
