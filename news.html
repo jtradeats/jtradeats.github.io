@@ -2328,7 +2328,7 @@ async function alertsCatchUp(explicit){
   try{
     if(!explicit&&!last){LS.s(ALVIS,String(stamp));alPending=false;return} /* first run on this device: nothing to compare with */
     const since=explicit?stamp-AL_BACK:Math.max(last,stamp-AL_BACK);
-    const r=await fetch(PUSH_API+'/alerts?since='+Math.floor(since),{cache:'no-store'});
+    const r=await fetch(PUSH_API+'/alerts?back='+AL_BACK+'&since='+Math.floor(since),{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
     let list=(Array.isArray(j.alerts)?j.alerts:[]).map(alNorm).filter(a=>a.h||a.s).sort((a,b)=>b.t-a.t);
