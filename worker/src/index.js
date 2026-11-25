@@ -26,6 +26,7 @@ import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 import { finvizProbe, getFinviz } from './finviz.js';   // GET /finviz (Finviz news for the card) and GET /finviz-test (diagnostic probe)
+import { fvCalProbe } from './fvcal_probe.js';   // GET /fvcal-test: one read-only look at Finviz's economic calendar page (remove with the route)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 import { rulesFrom, rangeFail, checkJump } from './validate.js';   // price validation: V1 range, V2 jump (plan P8.16)
 
@@ -1256,6 +1257,10 @@ export default {
     }
     if (pathname === '/finviz-test') {   // TEST ONLY, read only: one request to Finviz at most every 60 s; remove once the real route replaces it
       try { return new Response(await finvizProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
+    }
+    if (pathname === '/fvcal-test') {   // TEST ONLY, read only: one request to Finviz's economic calendar at most every 60 s; remove once the real route replaces it
+      try { return new Response(await fvCalProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
       catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
     }
     return new Response('{"error":"not found"}', { status: 404, headers: json });
