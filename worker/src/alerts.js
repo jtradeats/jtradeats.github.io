@@ -94,12 +94,12 @@ function wireAlerts(dm, now) {   // the dm wire (Walter Bloomberg): retired 24 N
   }
   return out;
 }
-function fjAlerts(fj, now) {   // FinancialJuice: every post, one alert per story (until 24 Nov only posts with the red mark alerted; those are still hot:true on the card)
-  const posts = (fj || []).filter(p => p && p.t != null && now - p.t <= TTL.wire + GROUP_MS * 3 && p.t <= now + 60000).sort((a, b) => b.id - a.id);
+function fjAlerts(fj, now, ttl = TTL) {   // FinancialJuice: every post, one alert per story (until 24 Nov only posts with the red mark alerted; those are still hot:true on the card)
+  const posts = (fj || []).filter(p => p && p.t != null && now - p.t <= ttl.wire + GROUP_MS * 3 && p.t <= now + 60000).sort((a, b) => b.id - a.id);
   const out = [];
   for (const g of wireGroup(posts, [], now)) {
     const first = g.ps[0];   // the story is as old as its first post: that is when the page would have alerted
-    if (now - first.t > TTL.wire) continue;
+    if (now - first.t > ttl.wire) continue;
     const sp = wireSplit(g.p), hot = g.ps.some(p => p.hot === true);   // hot: the channel's red mark (single or double) on any post of the story; the card tints those red, a phone notification gets a leading red exclamation mark
     out.push({ id: 'fj:' + first.id, kind: 'fj', t: first.t, n: g.n, ...(hot ? { hot: true } : {}), src: 'FinancialJuice', tag: g.n > 1 ? 'ALERT · ' + g.n + ' POSTS' : 'ALERT', h: sp.head, s: (sp.rest || '').slice(0, CUT_REST), nt: 'FinancialJuice', nb: sp.head, pb: pbWire(sp, g.p.text) });
   }
@@ -119,10 +119,10 @@ function reminderAlerts(events, now) {   // high-impact USD releases: 15 min and
   }
   return out;
 }
-function releaseAlerts(events, fams, seen, now) {   // actual vs forecast vs previous, one alert per report
+function releaseAlerts(events, fams, seen, now, ttl = TTL) {   // actual vs forecast vs previous, one alert per report
   const by = new Map(), out = [];
   for (const e of events || []) {
-    if (e.src === 'feed' || e.hol || e.imp !== 3 || e.ac == null || e.t > now + 60000 || e.t < now - TTL.rel) continue;
+    if (e.src === 'feed' || e.hol || e.imp !== 3 || e.ac == null || e.t > now + 60000 || e.t < now - ttl.rel) continue;
     const g = e.k + '|' + e.d; if (!by.has(g)) by.set(g, []); by.get(g).push(e);
   }
   for (const [g, list] of by) {
@@ -145,8 +145,9 @@ function releaseAlerts(events, fams, seen, now) {   // actual vs forecast vs pre
 const fjTitle = a => (a.hot ? '\u2757 ' : '') + 'News' + (a.n > 1 ? ' \u00b7 ' + a.n + ' posts' : '');
 const withPush = a => ({ ...a, pt: a.kind === 'remind' ? tc(a.tag) : a.kind === 'fix' ? a.src.replace(/^Release/, 'Corrected') : a.kind === 'fj' ? fjTitle(a) : a.src, pb: a.pb || a.h + (a.s ? '\n' + a.s : '') });
 // which parts to build: the wires (D1 posts) and the calendar (events) are fed by different pollers, each of which builds only its own part
-export function buildAlerts({ now, dm = [], fj = [], events = [], fams = {}, seen = {}, wire = true, cal = true }) {
-  return [...(wire ? [...wireAlerts(dm, now), ...fjAlerts(fj, now)] : []), ...(cal ? [...reminderAlerts(events, now), ...releaseAlerts(events, fams, seen, now)] : [])]
+export function buildAlerts({ now, dm = [], fj = [], events = [], fams = {}, seen = {}, wire = true, cal = true, back = 0 }) {
+  const ttl = back > 0 ? { ...TTL, wire: Math.max(TTL.wire, back), rel: Math.max(TTL.rel, back) } : TTL;   // back: the page panel's history view (GET /alerts?back=); the pollers never pass it, so pushes are unchanged
+  return [...(wire ? [...wireAlerts(dm, now), ...fjAlerts(fj, now, ttl)] : []), ...(cal ? [...reminderAlerts(events, now), ...releaseAlerts(events, fams, seen, now, ttl)] : [])]
     .map(withPush).sort((a, b) => b.t - a.t || (a.id < b.id ? -1 : 1));
 }
 // the reminder ids whose moment fell in the last TTL.rem: lets a quiet poller tick ask "is there anything to send?" without building the calendar

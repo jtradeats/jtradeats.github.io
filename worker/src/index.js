@@ -931,21 +931,22 @@ let alertMemo = null;
 // opts.wire / opts.cal: which parts to build. The pollers build only their own part (the 1-minute poller the wires, the 2-minute poller the calendar), /alerts builds both.
 async function getAlerts(env, ctx, opts = {}) {
   const wire = opts.wire !== false, cal = opts.cal !== false, full = wire && cal, now = Date.now();
-  if (full && alertMemo && Math.abs(now - alertMemo.at) < 5000) return alertMemo;
+  const back = Math.min(Math.max(Number(opts.back) || 0, 0), 6 * 36e5);   // the page panel's history view: wire posts and releases up to this old (GET /alerts?back=)
+  if (full && !back && alertMemo && Math.abs(now - alertMemo.at) < 5000) return alertMemo;
   const errors = [];
   let fj = [];   // Walter Bloomberg was retired on 24 Nov (its Telegram preview went dark; the Finviz card replaced it): no dm posts are read, so buildAlerts gets its default dm = []
   if (wire) {
-    const r = await loadPosts(env, 'FinancialJuice', 60);
+    const r = await loadPosts(env, 'FinancialJuice', back ? 200 : 60);
     if (!r) errors.push('FinancialJuice posts could not be read from D1');
     fj = r || [];
   }
   let c = null;
   if (cal) { try { c = await getCalendarObj(env, ctx); } catch (e) { errors.push('calendar: ' + String(e && e.message).slice(0, 100)); } }
   const seen = c && c.events.some(e => e.ac != null) ? await loadLagSeen(env, now - 6 * 36e5) : {};
-  const list = buildAlerts({ now, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal });
+  const list = buildAlerts({ now, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal, back });
   if (full) for (const t of await loadTests(env, now - 10 * 60e3)) list.unshift(testAlert(t));   // the test alerts of the last 10 minutes
   const out = { at: now, now, list, errors };
-  if (full) alertMemo = out;
+  if (full && !back) alertMemo = out;
   return out;
 }
 
@@ -1207,7 +1208,7 @@ export default {
     }
     if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once. The phone's switches (stage 4) apply, so the phone shows exactly what a push was sent for; ?all=1 lists everything (diagnosis)
       try {
-        const q = new URL(req.url).searchParams, a = await getAlerts(env, ctx), since = Number(q.get('since')) || 0;
+        const q = new URL(req.url).searchParams, a = await getAlerts(env, ctx, { back: Number(q.get('back')) || 0 }), since = Number(q.get('since')) || 0;
         const list = q.has('all') ? a.list : applySettings(filterPrefs(a.list, await loadPrefs(env)), await loadSettings(env));
         return new Response(JSON.stringify({ now: a.now, since, alerts: filterAlerts(list, since), errors: a.errors }), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
