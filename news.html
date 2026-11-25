@@ -2168,7 +2168,9 @@ async function phoneDisable(){
   LS.s(PON,'0');paintPhone();
 }
 const PHONE_KINDS=[['fj','FinancialJuice posts'],['remind','Reminders before a high-impact release'],['release','Releases: actual vs forecast'],['fix','Corrections to a released figure']]; /* the kinds the Worker can switch (plan P8.34 stage 4); the same four as PREF_KINDS in alerts.js. A test alert always arrives. */
-const REM_OPTS=[[15,'15 minutes before'],[5,'5 minutes before'],[0,'at the release']]; /* the reminders the Worker makes; REMIND_MINS in pushctl.js */
+const REM_DEF=[15,5,0]; /* on until ticked more; the times on offer come from the Worker (remindMins, REMIND_MINS in pushctl.js), these three are what an older Worker offers */
+const remLabel=m=>m===0?'at the release':m%60===0?(m===60?'1 hour':m/60+' hours')+' before':m+' minutes before';
+const remOnAt=(j,m)=>{const v=(j.remind||{})[m];return typeof v==='boolean'?v:REM_DEF.includes(m)};
 const pMk=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!=null)n.textContent=x;return n};
 async function pushCenter(){ /* the master switch, the alert kinds and the release reminders. They live in the Worker (GET and PUT /alerts/settings), so a change applies to every device */
   const box=$('#pcc',relBox);if(!box)return;
@@ -2195,7 +2197,7 @@ async function pushCenter(){ /* the master switch, the alert kinds and the relea
     for(const [k,l] of PHONE_KINDS){
       const on=(j.kinds||{})[k]!==false;
       box.appendChild(row(l,on,off,c=>send({kinds:{[k]:c.checked}}),22));
-      if(k==='remind')for(const [m,ml] of REM_OPTS)box.appendChild(row(ml,(j.remind||{})[m]!==false,off||!on,c=>send({remind:{[m]:c.checked}}),44));
+      if(k==='remind')for(const m of (Array.isArray(j.remindMins)&&j.remindMins.length?j.remindMins:REM_DEF).slice().sort((a,b)=>b-a))box.appendChild(row(remLabel(m),remOnAt(j,m),off||!on,c=>send({remind:{[m]:c.checked}}),44));
     }
     box.appendChild(pMk('div','phm'+(bad?' bad':''),msg||'These switches apply to every phone at once. Switching something on sends only what happens from now on.'));
   };
