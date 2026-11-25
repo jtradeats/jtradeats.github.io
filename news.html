@@ -438,6 +438,15 @@ html.mobile .tu b{font-size:22px}
 .toast.apan .wbody{max-height:min(52vh,460px)}
 .toast .wi .at{font-size:10px;color:#8a6a55;letter-spacing:.04em}
 .toast .wi .none{color:#6b4f3d}
+.toast.ac{padding:10px 12px}
+.toast.ac .src{font-size:var(--fbase);padding-right:22px}
+.toast.ac .wbody{max-height:min(52vh,460px);overflow:auto;overscroll-behavior:contain;margin-top:4px}
+.toast.ac .acg{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#b24a1c;font-weight:700;margin:8px 0 0}
+.toast.ac .acg:first-child{margin-top:2px}
+.toast.ac .acg+.wi{border-top:0;padding-top:3px}
+.toast.ac .acm{display:block;margin:6px 0 0}
+.toast.ac .bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:#b24a1c;border-radius:0 0 10px 10px;transform-origin:left;opacity:0}
+.toast.ac.arm .bar{opacity:.55;transform:scaleX(0);transition:transform 15s linear}
 #rel{position:fixed;inset:0;z-index:2147483100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
 .relc{background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--radl);max-width:620px;width:100%;max-height:90vh;overflow:auto;padding:14px 18px 16px;line-height:1.5}
 .relh{display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid var(--bd);padding-bottom:8px;margin-bottom:10px}
@@ -1000,9 +1009,9 @@ function wireIngest(w,d){
   w.d=d;w.err=null;
   if(!first&&w.al){const nw=d.posts.filter(p=>p.id>prevMax&&w.pick(p));if(nw.length)wireAlert(w,nw)} /* never on the first load, so opening the page does not alert for old posts */
 }
-/* Alert panels: one per wire (FinancialJuice), each a stack of every alerted post, newest first, with its own close button.
+/* Alerted wire posts go into the alert center (acAdd, further down), newest first, grouped with every other alert of the page.
    The headline is the first line (cut at WH_CUT); "read more" opens the whole post. Third-party text goes in with textContent only (R32). */
-const WH_CUT=160,WPAN_ITEMS=30,WPAN_MS=20000,WPAN={};
+const WH_CUT=160;
 const wireSplit=p=>{
   const full=(p.text||'').trim();
   if(!full)return{head:p.media?'[media post]':'[empty post]',rest:'',cut:false};
@@ -1010,55 +1019,13 @@ const wireSplit=p=>{
   if(first.length>WH_CUT)return{head:first.slice(0,WH_CUT).replace(/\s+$/,'')+'\u2026',rest:full,cut:true};
   return{head:first,rest:nl<0?'':full.slice(nl+1).trim(),cut:false};
 };
-function wirePanel(w,groups){ /* groups newest first: [{p, n, ps}] */
+function wirePanel(w,groups){ /* groups newest first: [{p, n, ps}]: one entry per story, repeats of it listed under \"+N similar\" */
   if(!masterOn||!groups.length)return;
-  let P=WPAN[w.key];
-  if(!P||!P.el.isConnected){
-    const el=document.createElement('div');el.className='toast wpan';
-    el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><div class="wph"><b class="src"></b><div class="tag"></div></div><div class="wbody"></div>';
-    P={w,el,items:[],open:new Set(),hover:false,t:0,n:0,tag:$('.tag',el),body:$('.wbody',el)};
-    $('.src',el).textContent=w.name;
-    P.kill=()=>{clearTimeout(P.t);el.remove();if(WPAN[w.key]===P)delete WPAN[w.key]};
-    $('.x',el).onclick=P.kill;
-    el.onmouseenter=()=>{P.hover=true;clearTimeout(P.t)};
-    el.onmouseleave=()=>{P.hover=false;wirePanArm(P)};
-    WPAN[w.key]=P;
-    /* each wire's panel sits next to the other wire's: FinancialJuice first, then Walter, then any ordinary toast */
-    const rank=k=>k==='fj'?0:1,after=[...toastBox.children].find(c=>!c.classList.contains('wpan')||rank(c.dataset.wk)>rank(w.key));
-    toastBox.insertBefore(el,after||null);el.dataset.wk=w.key;
-  }
-  P.items=groups.concat(P.items).slice(0,WPAN_ITEMS);P.n+=groups.length;
-  wirePanDraw(P,true);wirePanArm(P);
-}
-function wirePanArm(P){ /* auto-dismiss only while nobody is reading it */
-  clearTimeout(P.t);
-  if(P.hover||P.open.size)return;
-  P.t=setTimeout(P.kill,WPAN_MS);
-}
-function wirePanDraw(P,top){
-  const w=P.w,mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
-  P.tag.textContent=w.hot?(P.n>1?P.n+' ALERTS':'ALERT'):(P.n>1?P.n+' NEW POSTS':'NEW POST'); /* every post of this wire reaches the panel; repeats of one story are grouped */
-  const keep=P.body.scrollTop;P.body.textContent='';
-  for(const g of P.items){
-    const p=g.p,sp=wireSplit(p),it=mk('div','wi'),open=P.open.has(p.id),hd=mk('div','hd');
-    if(!(open&&sp.cut))hd.appendChild(document.createTextNode(sp.head)); /* a cut headline is replaced by the whole post when opened */
-    it.appendChild(hd);
-    if(open&&sp.rest)it.appendChild(mk('div','full',sp.rest));
-    if(sp.rest){
-      const b=mk('button','rd',open?'show less':'\u2026 read more');
-      b.onclick=()=>{open?P.open.delete(p.id):P.open.add(p.id);wirePanDraw(P);wirePanArm(P)};
-      it.appendChild(b);
-    }
-    const others=(g.ps||[]).filter(x=>x!==p).reverse();
-    if(others.length){
-      const sk='s'+p.id,so=P.open.has(sk),b=mk('button','rd',so?'hide similar':'+'+others.length+' similar');
-      b.onclick=()=>{so?P.open.delete(sk):P.open.add(sk);wirePanDraw(P);wirePanArm(P)};
-      it.appendChild(b);
-      if(so){const l=mk('div','sim');for(const x of others)l.appendChild(mk('div','',(x.text||(x.media?'[media post]':'[empty post]')).trim()));it.appendChild(l)}
-    }
-    P.body.appendChild(it);
-  }
-  P.body.scrollTop=top?0:keep;
+  acAdd(groups.map(g=>{
+    const p=g.p,sp=wireSplit(p),ps=g.ps||[p];
+    return{cat:'news',keys:[w.key+':'+Math.min(...ps.map(x=>x.id))],t:p.t||0,src:w.name,tag:'',h:sp.head,s:sp.rest,
+      sim:ps.filter(x=>x!==p).reverse().map(x=>(x.text||(x.media?'[media post]':'[empty post]')).trim())};
+  }));
 }
 function wireAlert(w,nw){ /* nw is newest first; a burst is one panel per wire holding every alerted post (plan 4.4: a digest, not one toast per post) */
   const line=p=>wireSplit(p).head;
@@ -1456,14 +1423,14 @@ function relCheck(){
   calData.events.forEach(e=>{   /* the official number differed from the wire's first figure: say so once */
     if(!e.wfix||e.ac==null||e.t<now-6*36e5||relFired.includes(e.id+'|fix'))return;
     relFired.push(e.id+'|fix');
-    toast({src:'Release \u00b7 '+(e.agency||'USD'),tag:'CORRECTED \u00b7 OFFICIAL FIGURE',h:e.title,s:'The wire showed '+e.wfix+'. The official figure is '+e.ac+(e.fc?' (forecast '+e.fc+')':'')+'.',rel:true,ev:e,ms:90000});
+    toast({key:'fix|'+e.id,src:'Release \u00b7 '+(e.agency||'USD'),tag:'CORRECTED \u00b7 OFFICIAL FIGURE',h:e.title,s:'The wire showed '+e.wfix+'. The official figure is '+e.ac+(e.fc?' (forecast '+e.fc+')':'')+'.',rel:true,ev:e,ms:90000});
     notify('Corrected: '+e.title,'Wire '+e.wfix+' \u2192 official '+e.ac);
   });
   if(!by.size){LS.s(KEY+'rel_fired',JSON.stringify(relFired));return}
   for(const list of by.values()){
     list.forEach(e=>relFired.push(e.id));
     const f=list[0],lines=list.slice(0,4).map(x=>x.title+': '+x.ac+(x.sr&&x.sr.ac==='FJ'?' (FinancialJuice, unconfirmed)':'')+(x.fc?' vs '+x.fc+' forecast':'')+(x.pv?' \u00b7 previous '+x.pv:'')),tk=takeaway(f),hd=relHead(f);
-    toast({src:'Release \u00b7 '+(f.agency||'USD'),tag:'RELEASED \u00b7 ACTUAL VS FORECAST',h:hd.h,s:lines.join('\n')+(tk?'\n'+tk.slice(0,280):''),rel:true,ev:f,ms:90000});
+    toast({key:'rel|'+f.k+'|'+f.d,src:'Release \u00b7 '+(f.agency||'USD'),tag:'RELEASED \u00b7 ACTUAL VS FORECAST',h:hd.h,s:lines.join('\n')+(tk?'\n'+tk.slice(0,280):''),rel:true,ev:f,ms:90000});
     notify(hd.h,lines.join('\n'));
   }
   const keep=etP(now-3*864e5).iso;
@@ -1479,7 +1446,7 @@ function remCheck(){
     if(r===0&&list.some(x=>x.ac!=null))continue; /* the actual is already in: the release alert carries it */
     fired.push(k);dirty=true;
     const one=list.length===1?list[0]:null,mins=Math.max(1,Math.ceil((t-now)/60000));
-    toast({src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 '+(r?'RELEASE IN '+mins+' MIN':'RELEASE NOW'),h:list.map(x=>x.title).join(' \u00b7 '),rel:true,ev:list[0],
+    toast({key:'rem|'+t+'|'+r,src:'Calendar \u00b7 USD',tag:'HIGH IMPACT \u00b7 '+(r?'RELEASE IN '+mins+' MIN':'RELEASE NOW'),h:list.map(x=>x.title).join(' \u00b7 '),rel:true,ev:list[0],
       s:list.slice(0,4).map(x=>(one?'':x.title+': ')+(x.fc?'Forecast '+x.fc:'No forecast yet')+(x.pv?' \u00b7 previous '+x.pv:'')).join('\n'),ms:60000});
   }
   if(dirty){fired=fired.filter(k=>+k.split('|')[0]>now-2*864e5);LS.s(KEY+'rem_fired',JSON.stringify(fired))}
@@ -2075,18 +2042,102 @@ $('.tb').addEventListener('submit',e=>{
 });
 
 /* ---- alert toasts + release card ---- */
-const TOAST_MS=15000,TOAST_MAX=3;
 const toastBox=document.createElement('div');toastBox.id='toasts';document.body.appendChild(toastBox);
-function toast(a){
+/* ---- alert center (25 Nov) ----
+   ONE panel for every alert the page shows: FinancialJuice posts as they arrive, release, reminder and correction alerts, and the alerts you may have missed.
+   Alerts are grouped by kind (AC_CAT: add a line when a new kind of alert is built), and one that is already in the panel, or was shown and closed, is not added twice
+   (they are matched by the Worker's alert id, then by their text). The panel shows AC_SHOW at a time. It stays until it is closed: the x, the Esc key, or AC_CLOSE_MS after
+   a click or tap anywhere on the page outside it (the thin bar counts the time down; touching the panel stops it). Third-party text goes in with textContent only (R32). */
+const AC_CAT={news:'News',cal:'Calendar',other:'Other'},AC_SHOW=5,AC_KEEP=30,AC_CLOSE_MS=15000;
+const AC={el:null,items:[],open:new Set(),more:false,msg:'',timer:0,tick:0,seen:new Set()};
+const acN=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const acKeys=a=>{const k=(a.keys||[]).map(String);k.push(a.cat+'|'+(a.cat==='news'?'':acN(a.tag)+'|')+acN(a.h||a.s));return k};
+function acDisarm(){clearTimeout(AC.timer);AC.timer=0;if(AC.el)AC.el.classList.remove('arm')}
+function acArm(){
+  if(!AC.el)return;
+  acDisarm();void AC.el.offsetWidth; /* restart the bar */
+  AC.el.classList.add('arm');AC.timer=setTimeout(acClose,AC_CLOSE_MS);
+}
+function acClose(){
+  acDisarm();clearInterval(AC.tick);AC.tick=0;
+  if(AC.el)AC.el.remove();
+  AC.el=null;AC.items=[];AC.open.clear();AC.more=false;AC.msg='';
+}
+function acRemove(a){AC.items=AC.items.filter(x=>x!==a);if(AC.items.length)acDraw(true);else acClose()}
+function acItem(a,showSrc){
+  const mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+  const it=mk('div','wi'),id=a.k[0],open=AC.open.has(id),top=mk('div',''),h=a.h||a.s;
+  if(a.tag)top.appendChild(mk('span','bk',a.tag));
+  else if(showSrc&&a.src)top.appendChild(mk('span','at',a.src+' \u00b7 '));
+  if(a.t)top.appendChild(mk('span','at',fmtAge(NOW()-a.t)+' ago'));
+  if(top.firstChild)it.appendChild(top);
+  const flip=()=>{open?AC.open.delete(id):AC.open.add(id);acDraw(true)};
+  const hn=acN(h.replace(/\u2026$/,'')),sn=acN(a.s);
+  if(!a.s||sn===hn)it.appendChild(mk('div','hd',h)); /* a body that only repeats the headline is not shown */
+  else if(sn.startsWith(hn)){ /* the headline is the start of the text: opening it shows the whole text instead */
+    it.appendChild(mk(open?'div':'div',open?'full':'hd',open?a.s:h));
+    const b=mk('button','rd',open?'show less':'\u2026 read more');b.onclick=flip;it.appendChild(b);
+  }else{
+    it.appendChild(mk('div','hd',h));
+    const long=a.s.length>WH_CUT;
+    it.appendChild(mk('div','full',long&&!open?a.s.slice(0,WH_CUT).replace(/\s+$/,'')+'\u2026':a.s));
+    if(long){const b=mk('button','rd',open?'show less':'\u2026 read more');b.onclick=flip;it.appendChild(b)}
+  }
+  if(a.ev){const b=mk('button','rd','Read');b.onclick=()=>{acRemove(a);showRelease(a.ev)};it.appendChild(b)}
+  if(a.sim&&a.sim.length){
+    const sk='s'+id,so=AC.open.has(sk),b=mk('button','rd',so?'hide similar':'+'+a.sim.length+' similar');
+    b.onclick=()=>{so?AC.open.delete(sk):AC.open.add(sk);acDraw(true)};it.appendChild(b);
+    if(so){const l=mk('div','sim');for(const x of a.sim)l.appendChild(mk('div','',x));it.appendChild(l)}
+  }
+  return it;
+}
+function acDraw(keep){
+  const mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+  if(!AC.el||!AC.el.isConnected){
+    const el=document.createElement('div');el.className='toast ac';
+    el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><b class="src"></b><div class="wbody"></div><div class="bar"></div>';
+    $('.x',el).onclick=acClose;el.onmouseenter=acDisarm;
+    toastBox.insertBefore(el,toastBox.firstChild);AC.el=el;
+    AC.tick=setInterval(()=>{if(AC.el)acDraw(true)},30000); /* the ages */
+  }
+  const body=$('.wbody',AC.el),top=body.scrollTop;
+  $('.src',AC.el).textContent='Dashboard alerts'+(AC.items.length?' ('+AC.items.length+')':'');
+  body.textContent='';
+  if(!AC.items.length)body.appendChild(mk('div','wi none',AC.msg||'Nothing was sent in the last 3 hours.'));
+  const groups=new Map();
+  for(const a of (AC.more?AC.items:AC.items.slice(0,AC_SHOW))){if(!groups.has(a.cat))groups.set(a.cat,[]);groups.get(a.cat).push(a)}
+  for(const [cat,list] of groups){
+    if(groups.size>1)body.appendChild(mk('div','acg',AC_CAT[cat]||cat)); /* kinds are named only when there is more than one */
+    const many=new Set(list.map(a=>a.src)).size>1;
+    for(const a of list)body.appendChild(acItem(a,many));
+  }
+  if(AC.items.length>AC_SHOW){const b=mk('button','rd acm',AC.more?'Show fewer':'Show '+(AC.items.length-AC_SHOW)+' more');b.onclick=()=>{AC.more=!AC.more;acDraw(true)};body.appendChild(b)}
+  body.scrollTop=keep?top:0;
+}
+/* list: [{cat, keys, t, src, tag, h, s, ev, sim}] newest first. show: open the panel even when nothing is new (a tapped notification). A closed alert is not brought back unless show is set. */
+function acAdd(list,o){
+  o=o||{};
+  const have=new Set();AC.items.forEach(a=>a.k.forEach(x=>have.add(x)));
+  const fresh=[];
+  for(const a of list){
+    if(!a||!(a.h||a.s))continue;
+    const k=acKeys(a);
+    if(k.some(x=>have.has(x)))continue;
+    if(!o.show&&k.some(x=>AC.seen.has(x)))continue;
+    k.forEach(x=>{have.add(x);AC.seen.add(x)});
+    fresh.push({...a,k,t:a.t||NOW()});
+  }
+  if(!fresh.length&&!o.show)return;
+  if(AC.seen.size>600)AC.seen.clear();
+  AC.items=fresh.concat(AC.items).sort((a,b)=>b.t-a.t).slice(0,AC_KEEP);
+  AC.msg=o.msg||'';
+  acDraw(!fresh.length);
+  if(fresh.length)acDisarm(); /* something new: it has not been seen yet, so the countdown restarts with the next click */
+}
+document.addEventListener('pointerdown',e=>{if(!AC.el)return;AC.el.contains(e.target)?acDisarm():acArm()},true);
+function toast(a){ /* release, reminder and correction alerts: the calendar's alerts. a.key is the Worker's alert id for the same alert (rem|, rel|, fix|), so the phone's catch-up does not repeat it */
   if(!masterOn)return;
-  const el=document.createElement('div');el.className='toast';
-  el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><b class="src">'+esc(a.src)+'</b><div class="tag">'+esc(a.tag)+'</div><b>'+esc(a.h)+'</b><p>'+esc(a.s)+'</p>'+(a.rel?'<button class="rd">Read</button>':'');
-  let t;const kill=()=>{clearTimeout(t);el.remove()};
-  t=setTimeout(kill,a.ms||TOAST_MS);
-  $('.x',el).onclick=kill;
-  const rd=$('.rd',el);if(rd)rd.onclick=()=>{kill();showRelease(a.ev)};
-  toastBox.appendChild(el);
-  for(let o;(o=[...toastBox.children].filter(c=>!c.classList.contains('wpan'))).length>TOAST_MAX;)o[0].remove(); /* alert panels are never evicted by ordinary toasts */
+  acAdd([{cat:'cal',keys:a.key?[a.key]:[],t:NOW(),src:a.src,tag:a.tag,h:a.h,s:a.s,ev:a.rel?a.ev:null}]);
 }
 const anyAlertOn=()=>{try{return Object.values(ALERT).some(a=>a.get())}catch(e){return false}};
 function paintMaster(){ /* the one alerts button: bell = this page, small green dot = this phone */
@@ -2130,7 +2181,7 @@ function relShell(label,inner){
   relBox.hidden=false;$('.relh .topicon',relBox).onclick=closeRel;$('.relh .topicon',relBox).focus();
 }
 /* ---- phone alerts (P8.34 stage 3): the Worker sends each alert to this phone through sw.js (Web Push). Needs the app opened from its Home Screen icon. ---- */
-const PUSH_API='https://market-dashboard.jtradeats.workers.dev',PK=KEY+'pushkey',PON=KEY+'pushon',PSYNC=KEY+'pushsync';
+const PUSH_API='https://market-dashboard.jtradeats.workers.dev',PK=KEY+'pushkey',PON=KEY+'pushon',PSYNC=KEY+'pushsync2';
 const pushOK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
 const pushU8=s=>{const t=String(s).replace(/-/g,'+').replace(/_/g,'/'),r=atob(t+'='.repeat((4-t.length%4)%4)),o=new Uint8Array(r.length);for(let i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o};
 const pushB64=b=>{let s='';for(const x of new Uint8Array(b))s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
@@ -2142,6 +2193,9 @@ async function pushReg(){
   if(!reg.active)throw new Error('The service worker did not start. Close the app, open it again and retry.');
   return reg;
 }
+const pushKeys=sub=>{try{return sub.toJSON().keys||null}catch(e){return null}}; /* the phone's encryption keys: they let a push carry the alert itself */
+function swVer(){try{navigator.serviceWorker.getRegistration('/news.html').then(r=>{if(r&&r.active)r.active.postMessage({type:'ver'})}).catch(()=>{})}catch(e){}}
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data;if(d&&d.type==='ver'){const n=document.getElementById('swv');if(n)n.textContent='Service worker: '+d.v}});
 async function pushCall(path,key,body,method){ /* method: POST (default), or GET and PUT for /alerts/prefs */
   const m=method||'POST',r=await fetch(PUSH_API+path,{method:m,headers:{'X-Push-Key':key,'Content-Type':'application/json'},body:m==='GET'?undefined:JSON.stringify(body||{})});
   let j={};try{j=await r.json()}catch(e){}
@@ -2158,7 +2212,7 @@ async function phoneEnable(key){
   let sub=await reg.pushManager.getSubscription();
   if(sub&&sub.options&&sub.options.applicationServerKey&&pushB64(sub.options.applicationServerKey)!==k){await sub.unsubscribe();sub=null}
   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:pushU8(k)});
-  await pushCall('/push/subscribe',key,{endpoint:sub.endpoint});
+  await pushCall('/push/subscribe',key,{endpoint:sub.endpoint,keys:pushKeys(sub)});
   try{reg.active.postMessage({type:'baseline'})}catch(e){}
   LS.s(PK,key);LS.s(PON,'1');LS.s(PSYNC,String(Date.now()));paintPhone();
 }
@@ -2199,6 +2253,9 @@ async function pushCenter(){ /* the master switch, the alert kinds and the relea
       box.appendChild(row(l,on,off,c=>send({kinds:{[k]:c.checked}}),22));
       if(k==='remind')for(const m of (Array.isArray(j.remindMins)&&j.remindMins.length?j.remindMins:REM_DEF).slice().sort((a,b)=>b-a))box.appendChild(row(remLabel(m),remOnAt(j,m),off||!on,c=>send({remind:{[m]:c.checked}}),44));
     }
+    box.appendChild(row('Send the alert text inside the push (stops blank notifications)',j.payload===true,off,c=>send({payload:c.checked})));
+    box.appendChild(pMk('div','phm','Tap "Test with text" above first, and switch this on only if that test arrives. A phone that has not given its keys yet still gets the old kind of push.'));
+    const sv=pMk('div','phm','Service worker: checking…');sv.id='swv';box.appendChild(sv);swVer();
     box.appendChild(pMk('div','phm'+(bad?' bad':''),msg||'These switches apply to every phone at once. Switching something on sends only what happens from now on.'));
   };
   try{draw(await pushCall('/alerts/settings',key,null,'GET'))}catch(e){fail(e)}
@@ -2247,14 +2304,14 @@ function alertsPanel(msg,bad){ /* one panel: this page (mute), this phone (turn 
     '<div><button class="phb'+(masterOn?'':' go')+'" id="amute">'+(masterOn?'Mute all':'Unmute')+'</button><button class="phb" id="arecent">Show recent alerts</button></div></div>'+
     '<h4>This phone</h4><div class="phs">'+(on?'<b>On.</b> This phone gets the alerts chosen in the control center below. Delivery while the app is closed depends on the phone. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive dashboard alerts on this phone.')+
     (on?'':'<input id="pkey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Pairing key (PUSH_KEY)" value="'+esc(saved)+'">')+
-    '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>'+(saved?'':'<button class="phb" id="pkeep">Save key only</button>'))+'</div>'+
+    '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="ptest2">Test with text</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>'+(saved?'':'<button class="phb" id="pkeep">Save key only</button>'))+'</div>'+
     '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div></div>'+
     '<h4>Push control center (all devices)</h4><div class="phs" id="pcc"><div class="phm">'+(saved?'Loading…':'Enter the pairing key above, then tap Turn on or Save key only, to manage push alerts for every device.')+'</div></div>'+
     '<h4>Devices</h4><div class="phs" id="pdv"><div class="phm">'+(saved?'Loading…':'Needs the pairing key.')+'</div></div>'+
     '<div class="phm">Muting this page does not mute the phone. Needs the dashboard opened from its Home Screen icon.</div>');
   const say=(t,b)=>{const m=$('#pmsg',relBox);if(m){m.textContent=t;m.classList.toggle('bad',!!b)}};
   const run=async(f,ok)=>{try{await f();alertsPanel(ok)}catch(e){say(String(e&&e.message||e),1)}};
-  const bM=$('#amute',relBox),bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox),bK=$('#pkeep',relBox);
+  const bM=$('#amute',relBox),bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox),bT2=$('#ptest2',relBox),bK=$('#pkeep',relBox);
   if(bM)bM.onclick=()=>{masterOn=!masterOn;LS.s(KEY+'master',masterOn?'1':'0');paintMaster();
     if(masterOn&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}}
     alertsPanel()};
@@ -2263,6 +2320,7 @@ function alertsPanel(msg,bad){ /* one panel: this page (mute), this phone (turn 
   if(bK)bK.onclick=async()=>{const key=($('#pkey',relBox).value||'').trim();if(!key){say('Enter the pairing key first.',1);return}say('Checking the key…');try{await pushCall('/alerts/settings',key,null,'GET');LS.s(PK,key);alertsPanel('Key saved.')}catch(e){say(String(e&&e.message||e),1)}};
   if(bOff)bOff.onclick=()=>run(phoneDisable,'Turned off.');
   if(bT)bT.onclick=async()=>{say('Sending…');try{const j=await pushCall('/push/test',LS.g(PK,''));say(j.sent?'Sent to '+j.sent+' phone'+(j.sent>1?'s':'')+'. It should appear within a few seconds.':'The push service did not accept it: '+((j.results&&j.results[0]&&j.results[0].err)||j.error||'no subscription found')+'. Try Turn off, then Turn on.',!j.sent)}catch(e){say(String(e&&e.message||e),1)}};
+  if(bT2)bT2.onclick=async()=>{say('Sending…');try{const j=await pushCall('/push/test',LS.g(PK,''),{text:true});say(j.withText?'Sent with its text to '+j.withText+' phone'+(j.withText>1?'s':'')+'. If it shows "Test alert", the text can travel inside the push.':(j.sent?'Sent, but this phone has not given its keys yet: open the dashboard from the Home Screen icon once, then try again.':'The push service did not accept it: '+((j.results&&j.results[0]&&j.results[0].err)||j.error||'no subscription found')),!j.withText)}catch(e){say(String(e&&e.message||e),1)}};
   if(saved){pushCenter();pushDevices()}
 }
 paintPhone();
@@ -2271,56 +2329,22 @@ paintPhone();
   if(!phoneOn()||Date.now()-(+LS.g(PSYNC,'0'))<12*36e5)return;
   const reg=await navigator.serviceWorker.getRegistration('/news.html'),sub=reg&&await reg.pushManager.getSubscription();
   if(!sub){LS.s(PON,'0');paintPhone();return}
-  await pushCall('/push/subscribe',LS.g(PK,''),{endpoint:sub.endpoint});LS.s(PSYNC,String(Date.now()));
+  await pushCall('/push/subscribe',LS.g(PK,''),{endpoint:sub.endpoint,keys:pushKeys(sub)});LS.s(PSYNC,String(Date.now()));
 }catch(e){}})();
 /* ---- alerts you may have missed (24 Nov): opening the dashboard, coming back to it, or tapping a phone notification shows the last few alerts as a panel
    that looks and works like the FinancialJuice one (headline, "… read more"). The Worker's GET /alerts?since= is the source, so the panel shows exactly what the phone was sent.
    The page remembers when it was last in front of you (ALVIS, refreshed every 15 s while visible and when it is hidden); everything the Worker decided after that,
    up to AL_MAX alerts from the last 3 hours, is shown once. Opened from a notification (#alerts in the address, or a message from sw.js) it always shows the last few,
    whatever the page remembers. The panel stays until it is closed. Third-party text goes in with textContent only (R32). ---- */
-const ALVIS=KEY+'alvis',AL_BACK=3*36e5,AL_MAX=8,AL_KEEP=20,ALP={el:null,items:[],open:new Set(),msg:''};
-const alShown=new Set(),AL_KIND={fj:'FINANCIALJUICE',remind:'REMINDER',release:'RELEASE',fix:'CORRECTION'};
+const ALVIS=KEY+'alvis',AL_BACK=3*36e5,AL_MAX=8;
+const alShown=new Set(),AL_KIND={fj:'FINANCIALJUICE',remind:'REMINDER',release:'RELEASE',fix:'CORRECTION'},AL_CAT={fj:'news',remind:'cal',release:'cal',fix:'cal'};
 let alBusy=false,alPending=true;
-const alNorm=a=>({id:String(a.id!=null?a.id:(a.t+'|'+(a.h||a.title||a.nt||''))),t:+a.t||0,
-  tag:String(a.tag||AL_KIND[a.kind]||a.kind||''),src:String(a.src||''),
-  h:String(a.h||a.title||a.nt||'').trim(),s:String(a.s||a.body||a.nb||'').trim()});
-function alertPanDraw(){
-  const P=ALP,mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
-  if(!P.el)return;
-  P.tag.textContent=P.items.length>1?P.items.length+' ALERTS':P.items.length?'ALERT':'NO RECENT ALERTS';
-  P.body.textContent='';
-  if(P.msg)P.body.appendChild(mk('div','wi none',P.msg));
-  if(!P.items.length&&!P.msg)P.body.appendChild(mk('div','wi none','Nothing was sent in the last 3 hours.'));
-  for(const a of P.items){
-    const it=mk('div','wi'),open=P.open.has(a.id),top=mk('div','');
-    if(a.tag)top.appendChild(mk('span','bk',a.tag.toUpperCase()));
-    if(a.t)top.appendChild(mk('span','at',fmtAge(NOW()-a.t)+' ago'));
-    it.appendChild(top);
-    it.appendChild(mk('div','hd',a.h||a.src||'Alert'));
-    const long=a.s.length>WH_CUT;
-    if(a.s)it.appendChild(mk('div','full',long&&!open?a.s.slice(0,WH_CUT).replace(/\s+$/,'')+'\u2026':a.s));
-    if(long){
-      const b=mk('button','rd',open?'show less':'\u2026 read more');
-      b.onclick=()=>{open?P.open.delete(a.id):P.open.add(a.id);alertPanDraw()};
-      it.appendChild(b);
-    }
-    P.body.appendChild(it);
-  }
-}
-function alertPop(list,msg){ /* list newest first; alerts already in the panel are not added twice */
-  const P=ALP;
-  if(!P.el||!P.el.isConnected){
-    const el=document.createElement('div');el.className='toast wpan apan';
-    el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><div class="wph"><b class="src"></b><div class="tag"></div></div><div class="wbody"></div>';
-    $('.src',el).textContent='Dashboard alerts';
-    P.el=el;P.tag=$('.tag',el);P.body=$('.wbody',el);P.items=[];P.open=new Set();
-    $('.x',el).onclick=()=>{el.remove();P.el=null};
-    toastBox.insertBefore(el,toastBox.firstChild);
-  }
-  const have=new Set(P.items.map(a=>a.id));
-  P.msg=msg||'';
-  P.items=list.filter(a=>!have.has(a.id)).concat(P.items).slice(0,AL_KEEP);
-  alertPanDraw();P.body.scrollTop=0;
+const alNorm=a=>{const h=String(a.h||a.title||a.nt||'').trim(),cat=AL_CAT[a.kind]||'other';
+  return{id:String(a.id!=null?a.id:(a.t+'|'+h)),t:+a.t||0,cat,src:String(a.src||''),
+    tag:cat==='news'?'':String(a.tag||AL_KIND[a.kind]||''),h,s:String(a.s||a.body||'').trim()}; /* the notification body (nb) is the headline again, so it is not used */
+};
+function alertPop(list,msg,show){ /* list newest first */
+  acAdd(list.map(a=>({...a,keys:[a.id]})),{show:!!show,msg});
 }
 async function alertsCatchUp(explicit){
   if(alBusy){if(explicit)setTimeout(()=>alertsCatchUp(true),700);return}
@@ -2336,10 +2360,10 @@ async function alertsCatchUp(explicit){
     let list=(Array.isArray(j.alerts)?j.alerts:[]).map(alNorm).filter(a=>a.h||a.s).sort((a,b)=>b.t-a.t);
     if(!explicit)list=list.filter(a=>!alShown.has(a.id));
     list=list.slice(0,AL_MAX);list.forEach(a=>alShown.add(a.id));
-    if(list.length||explicit)alertPop(list);
+    if(list.length||explicit)alertPop(list,'',explicit);
     LS.s(ALVIS,String(stamp));alPending=false;
   }catch(e){
-    if(explicit)alertPop([],'The alerts could not be loaded. Check the connection and try again.'); /* the marker stays where it was, so the next tick tries again */
+    if(explicit)alertPop([],'The alerts could not be loaded. Check the connection and try again.',true); /* the marker stays where it was, so the next tick tries again */
   }finally{alBusy=false}
 }
 const alUrl=()=>/(^|[#&?])alerts(\b|=)/.test(location.hash+location.search);
@@ -2408,7 +2432,7 @@ function showAudit(d){
     +'<p class="relf">The check proves the file is consistent, not that the agencies have not changed a date since it was last compared with their pages.</p>');
 }
 relBox.addEventListener('click',e=>{if(e.target===relBox)closeRel()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRel()});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!relBox.hidden)closeRel();else acClose()}); /* Esc closes the release card first, then the alert panel */
 
 paintTheme();applyLayout();paintCached();showPage(tab);for(const k in C)paintCard(k);loadMarket();nxtLoad();nxtPaint();clkPaint();lclkPaint();paintRem();paintMaster();paintFreeze();
 </script>
