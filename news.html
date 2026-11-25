@@ -231,7 +231,7 @@ html.mobile .sct.w6{grid-template-columns:repeat(2,minmax(0,1fr))}
 .fprev{font-size:var(--fxs);color:var(--t3);text-align:center}
 .spin svg{animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.spin svg{animation:none}}
+@media (prefers-reduced-motion:reduce){.spin svg{animation:none;opacity:.4}} /* no rotation for people who asked for less motion: the icon dims while it works */
 .wp{padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .wp.new{background:var(--pbselbg)}
 .wp.hot{background:var(--hot)}
@@ -288,6 +288,9 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .phb.go{background:var(--g);color:#fff;border-color:var(--g)}
 .phm{font-size:13px;color:var(--t2);min-height:1.4em;margin-top:6px}.phm.bad{color:var(--r)}
 .pk{display:flex;gap:10px;align-items:center;padding:5px 0;font-size:14px;cursor:pointer}.pk input{width:auto;margin:0;accent-color:var(--g)}.pk input:disabled+span{opacity:.5} /* phone alert kinds (stage 4) */
+.dv{padding:8px 0;border-top:.5px solid var(--bd)}.dv:first-child{border-top:0}.dvt{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14px}
+.dvb{font-size:11px;padding:1px 8px;border:.5px solid var(--bdm);border-radius:999px;color:var(--t2)}.dvb.me{color:var(--g);border-color:var(--g)}.dvb.warn{color:var(--r);border-color:var(--r)}
+.dv .phm{margin-top:2px}.dv .phb{margin:6px 0 0;padding:5px 14px;font-size:13px} /* push control center: device rows */
 .calbar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:.5px solid var(--bd)}
 .audit{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fxs);color:var(--t2);background:none;border:.5px solid var(--bd);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
 .audit:hover{border-color:var(--bdm);color:var(--t)}
@@ -432,6 +435,9 @@ html.mobile .tu b{font-size:22px}
 .toast .wi .sim div{margin:2px 0;overflow-wrap:anywhere}
 .toast .wi .rd{display:inline-block;margin:2px 10px 0 0}
 .toast a,.toast .rd{color:#b24a1c;font-weight:600;font-size:var(--fsm);text-decoration:none;background:none;border:0;cursor:pointer;padding:0;font-family:var(--sans)}
+.toast.apan .wbody{max-height:min(52vh,460px)}
+.toast .wi .at{font-size:10px;color:#8a6a55;letter-spacing:.04em}
+.toast .wi .none{color:#6b4f3d}
 #rel{position:fixed;inset:0;z-index:2147483100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
 .relc{background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--radl);max-width:620px;width:100%;max-height:90vh;overflow:auto;padding:14px 18px 16px;line-height:1.5}
 .relh{display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid var(--bd);padding-bottom:8px;margin-bottom:10px}
@@ -1994,7 +2000,7 @@ document.addEventListener('click',e=>{
   if(sb){c.cur=sb.dataset.s;LS.s(KEY+'src_'+k,c.cur);draw(k)}
   if(!ab)return;
   const a=ab.dataset.a;
-  if(a==='r'){if(LIVE[k])LIVE[k].load(true);if(k==='fvnews')fvLoad(true);draw(k)}
+  if(a==='r')cardRefresh(k,ab);
   if(a==='al')setAlert(c.alert,!(ALERT[c.alert]&&ALERT[c.alert].get&&ALERT[c.alert].get()));
   if(a==='f')setTall(k,!card.classList.contains('tall'));
   if(a==='c')setClosed(k,!card.classList.contains('closed'));
@@ -2004,6 +2010,28 @@ document.addEventListener('dblclick',e=>{
   const b=e.target.closest('button,input,a');if(b&&!b.matches('[data-a="f"]'))return;
   setClosed(card.id,!card.classList.contains('closed'));
 });
+/* Card refresh (the arrow in each card's header): asks the Worker for a new answer where the card has one (?fresh=1), redraws the card, and spins the arrow
+   until that is done, at least 0.8 s so it is always seen and at most 15 s. Embedded widgets (iframes) have no answer to wait for: the arrow spins until the new frame has loaded. */
+const cardBusy=new Set();
+async function cardRefresh(k,btn){
+  if(cardBusy.has(k))return;cardBusy.add(k);
+  const t0=Date.now(),c=C[k];btn.classList.add('spin');btn.setAttribute('aria-busy','true');
+  try{
+    const jobs=[];
+    if(LIVE[k])jobs.push(LIVE[k].load(true));
+    if(k==='fvnews')jobs.push(fvLoad(true));
+    if(k==='econ'){calFailAt=0;jobs.push(nxtLoad(true))} /* a failed calendar request is retried at once, as the header refresh does */
+    if(k==='news'&&c.cur==='fj')jobs.push(feedLoad(true));
+    await Promise.race([Promise.allSettled(jobs),sleep(15000)]);
+    draw(k);
+    const fr=$('iframe',c.el);
+    if(fr)await Promise.race([new Promise(r=>fr.addEventListener('load',r,{once:true})),sleep(5000)]);
+  }catch(e){}
+  finally{
+    const rest=800-(Date.now()-t0);if(rest>0)await sleep(rest);
+    btn.classList.remove('spin');btn.removeAttribute('aria-busy');cardBusy.delete(k);
+  }
+}
 let hrBusy=false;
 async function refreshAll(){ /* header refresh = hard refresh: forgets every cached answer and in-flight flag, re-requests every Worker-fed card and rebuilds every widget. The icon spins until it is done.
    It never reloads the page and never touches an alert switch, the seen-post lists or any setting, so refreshing cannot reset or trigger alerts. */
@@ -2140,40 +2168,100 @@ async function phoneDisable(){
   LS.s(PON,'0');paintPhone();
 }
 const PHONE_KINDS=[['fj','FinancialJuice posts'],['remind','Reminders before a high-impact release'],['release','Releases: actual vs forecast'],['fix','Corrections to a released figure']]; /* the kinds the Worker can switch (plan P8.34 stage 4); the same four as PREF_KINDS in alerts.js. A test alert always arrives. */
-async function phoneKinds(say){ /* reads the switches from the Worker, then writes each change at once (PUT /alerts/prefs); a failed change puts the box back */
-  const box=$('#pks',relBox);if(!box)return;
-  const boxes=[...box.querySelectorAll('input[data-k]')],key=LS.g(PK,'');
-  try{
-    const j=await pushCall('/alerts/prefs',key,null,'GET');
-    for(const c of boxes){c.checked=(j.kinds||{})[c.dataset.k]!==false;c.disabled=false}
-  }catch(e){say('Could not read the alert kinds: '+String(e&&e.message||e),1);return}
-  for(const c of boxes)c.onchange=async()=>{
-    const want=c.checked;c.disabled=true;
-    try{const j=await pushCall('/alerts/prefs',key,{kinds:{[c.dataset.k]:want}},'PUT');for(const x of boxes)x.checked=(j.kinds||{})[x.dataset.k]!==false;say(want?'Switched on. Only what happens from now on is sent.':'Switched off.')}
-    catch(e){c.checked=!want;say('Not saved: '+String(e&&e.message||e),1)}
-    c.disabled=false;
+const REM_OPTS=[[15,'15 minutes before'],[5,'5 minutes before'],[0,'at the release']]; /* the reminders the Worker makes; REMIND_MINS in pushctl.js */
+const pMk=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!=null)n.textContent=x;return n};
+async function pushCenter(){ /* the master switch, the alert kinds and the release reminders. They live in the Worker (GET and PUT /alerts/settings), so a change applies to every device */
+  const box=$('#pcc',relBox);if(!box)return;
+  const key=LS.g(PK,'');
+  const fail=e=>{
+    box.textContent='';const m=String(e&&e.message||e);
+    box.appendChild(pMk('div','phm bad','Could not read the settings: '+m));
+    if(/pairing key/.test(m)){const b=pMk('button','phb','Change key');b.onclick=()=>{LS.s(PK,'');alertsPanel()};box.appendChild(b)}
   };
+  const row=(label,checked,disabled,change,pad)=>{
+    const l=pMk('label','pk');if(pad)l.style.paddingLeft=pad+'px';
+    const c=document.createElement('input');c.type='checkbox';c.checked=checked;c.disabled=disabled;c.onchange=()=>change(c);
+    l.appendChild(c);l.appendChild(pMk('span','',label));return l;
+  };
+  const draw=(j,msg,bad)=>{
+    box.textContent='';
+    const send=async patch=>{
+      box.querySelectorAll('input').forEach(x=>x.disabled=true);
+      try{draw(await pushCall('/alerts/settings',key,patch,'PUT'),'Saved. It applies to every device. Switching something on sends only what happens from now on.')}
+      catch(e){draw(j,'Not saved: '+String(e&&e.message||e),1)}
+    };
+    const off=j.master===false;
+    box.appendChild(row('Push notifications (all devices)',!off,false,c=>send({master:c.checked})));
+    for(const [k,l] of PHONE_KINDS){
+      const on=(j.kinds||{})[k]!==false;
+      box.appendChild(row(l,on,off,c=>send({kinds:{[k]:c.checked}}),22));
+      if(k==='remind')for(const [m,ml] of REM_OPTS)box.appendChild(row(ml,(j.remind||{})[m]!==false,off||!on,c=>send({remind:{[m]:c.checked}}),44));
+    }
+    box.appendChild(pMk('div','phm'+(bad?' bad':''),msg||'These switches apply to every phone at once. Switching something on sends only what happens from now on.'));
+  };
+  try{draw(await pushCall('/alerts/settings',key,null,'GET'))}catch(e){fail(e)}
 }
-function alertsPanel(msg,bad){ /* one panel for both: this page (mute) and this phone (push) */
+async function pushDevices(){ /* every device registered for push, so stale and duplicate ones can be removed (POST /push/devices and /push/remove) */
+  const box=$('#pdv',relBox);if(!box)return;
+  const key=LS.g(PK,'');
+  let ep=null;
+  try{if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration('/news.html'),sub=reg&&await reg.pushManager.getSubscription();ep=sub?sub.endpoint:null}}catch(e){}
+  const draw=(j,msg,bad)=>{
+    box.textContent='';
+    const ds=j.devices||[],now=NOW();
+    if(!ds.length)box.appendChild(pMk('div','phm','No device is registered for push.'));
+    for(const d of ds){
+      const r=pMk('div','dv'),t=pMk('div','dvt');
+      t.appendChild(pMk('b','',d.label||'Unknown device'));
+      if(d.current)t.appendChild(pMk('span','dvb me','This device'));
+      if(d.dup>1)t.appendChild(pMk('span','dvb warn','Possible duplicate'));
+      if(d.staleDays!=null&&d.staleDays>=7)t.appendChild(pMk('span','dvb warn','Quiet for '+d.staleDays+' days'));
+      r.appendChild(t);
+      const bits=[d.service];
+      if(d.added)bits.push('added '+ago(now-d.added));
+      if(d.seen)bits.push('last seen '+ago(now-d.seen));
+      if(d.lastOk)bits.push('last push accepted '+ago(now-d.lastOk));
+      if(d.lastErr)bits.push('last error: '+d.lastErr);
+      r.appendChild(pMk('div','phm',bits.filter(Boolean).join(' · ')));
+      const b=pMk('button','phb','Remove');let armed=false,tm=0;
+      b.onclick=async()=>{ /* two taps, so a slip does not remove a phone */
+        if(!armed){armed=true;b.textContent='Tap again to remove';b.classList.add('go');tm=setTimeout(()=>{armed=false;b.textContent='Remove';b.classList.remove('go')},4000);return}
+        clearTimeout(tm);b.disabled=true;
+        try{
+          if(d.current){await phoneDisable();alertsPanel('This phone was removed.');return}
+          draw(await pushCall('/push/remove',key,{id:d.id,endpoint:ep}),'Removed.');
+        }catch(e){draw(j,'Not removed: '+String(e&&e.message||e),1)}
+      };
+      r.appendChild(b);box.appendChild(r);
+    }
+    box.appendChild(pMk('div','phm'+(bad?' bad':''),msg||'A removed device stops getting alerts until it turns push on again. "Possible duplicate" means another entry looks like the same kind of device, usually an old copy left by reinstalling the app.'));
+  };
+  try{draw(await pushCall('/push/devices',key,{endpoint:ep}))}
+  catch(e){box.textContent='';box.appendChild(pMk('div','phm bad','Could not read the devices: '+String(e&&e.message||e)))}
+}
+function alertsPanel(msg,bad){ /* one panel: this page (mute), this phone (turn on or off) and the push control center for every device */
   const on=phoneOn(),saved=LS.g(PK,'');
   relShell('Alerts','<h4>This page</h4><div class="phs">'+(masterOn?'<b>On.</b> Toasts, reminders and release alerts appear while this page is open, and a browser notification shows if the tab is in the background. Each card has its own bell for what it alerts on.':'<b>Muted.</b> Nothing pops up on this page. Muted alerts are dropped, not queued.')+
-    '<div><button class="phb'+(masterOn?'':' go')+'" id="amute">'+(masterOn?'Mute all':'Unmute')+'</button></div></div>'+
-    '<h4>Phone</h4><div class="phs">'+(on?'<b>On.</b> The Worker sends the alerts ticked below to this phone as notifications. Delivery while the app is closed depends on the phone and has not been confirmed in testing yet. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive dashboard alerts as phone notifications. You can then choose which kinds.')+
+    '<div><button class="phb'+(masterOn?'':' go')+'" id="amute">'+(masterOn?'Mute all':'Unmute')+'</button><button class="phb" id="arecent">Show recent alerts</button></div></div>'+
+    '<h4>This phone</h4><div class="phs">'+(on?'<b>On.</b> This phone gets the alerts chosen in the control center below. Delivery while the app is closed depends on the phone. The headline shows on the lock screen; press and hold the notification for the rest.':'<b>Off.</b> Turn on to receive dashboard alerts on this phone.')+
     (on?'':'<input id="pkey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Pairing key (PUSH_KEY)" value="'+esc(saved)+'">')+
-    '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>')+'</div>'+
-    (on?'<div id="pks"><div class="phm">Send to this phone:</div>'+PHONE_KINDS.map(([k,l])=>'<label class="pk"><input type="checkbox" data-k="'+k+'" disabled><span>'+esc(l)+'</span></label>').join('')+'</div>':'')+
-    '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div>'+
-    '<div class="phm">Muting this page does not mute the phone. Turn the phone off here. Needs the dashboard opened from its Home Screen icon.</div></div>');
+    '<div>'+(on?'<button class="phb go" id="ptest">Send a test</button><button class="phb" id="poff">Turn off</button>':'<button class="phb go" id="pon">Turn on</button>'+(saved?'':'<button class="phb" id="pkeep">Save key only</button>'))+'</div>'+
+    '<div class="phm'+(bad?' bad':'')+'" id="pmsg">'+esc(msg||'')+'</div></div>'+
+    '<h4>Push control center (all devices)</h4><div class="phs" id="pcc"><div class="phm">'+(saved?'Loading…':'Enter the pairing key above, then tap Turn on or Save key only, to manage push alerts for every device.')+'</div></div>'+
+    '<h4>Devices</h4><div class="phs" id="pdv"><div class="phm">'+(saved?'Loading…':'Needs the pairing key.')+'</div></div>'+
+    '<div class="phm">Muting this page does not mute the phone. Needs the dashboard opened from its Home Screen icon.</div>');
   const say=(t,b)=>{const m=$('#pmsg',relBox);if(m){m.textContent=t;m.classList.toggle('bad',!!b)}};
   const run=async(f,ok)=>{try{await f();alertsPanel(ok)}catch(e){say(String(e&&e.message||e),1)}};
-  const bM=$('#amute',relBox),bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox);
+  const bM=$('#amute',relBox),bOn=$('#pon',relBox),bOff=$('#poff',relBox),bT=$('#ptest',relBox),bK=$('#pkeep',relBox);
   if(bM)bM.onclick=()=>{masterOn=!masterOn;LS.s(KEY+'master',masterOn?'1':'0');paintMaster();
     if(masterOn&&typeof Notification!=='undefined'&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}}
     alertsPanel()};
+  const bR=$('#arecent',relBox);if(bR)bR.onclick=()=>{closeRel();alertsCatchUp(true)};
   if(bOn)bOn.onclick=()=>{const key=($('#pkey',relBox).value||'').trim();say('Working…');run(()=>phoneEnable(key),'Turned on. Tap "Send a test" to check.')};
+  if(bK)bK.onclick=async()=>{const key=($('#pkey',relBox).value||'').trim();if(!key){say('Enter the pairing key first.',1);return}say('Checking the key…');try{await pushCall('/alerts/settings',key,null,'GET');LS.s(PK,key);alertsPanel('Key saved.')}catch(e){say(String(e&&e.message||e),1)}};
   if(bOff)bOff.onclick=()=>run(phoneDisable,'Turned off.');
-  if(on)phoneKinds(say);
   if(bT)bT.onclick=async()=>{say('Sending…');try{const j=await pushCall('/push/test',LS.g(PK,''));say(j.sent?'Sent to '+j.sent+' phone'+(j.sent>1?'s':'')+'. It should appear within a few seconds.':'The push service did not accept it: '+((j.results&&j.results[0]&&j.results[0].err)||j.error||'no subscription found')+'. Try Turn off, then Turn on.',!j.sent)}catch(e){say(String(e&&e.message||e),1)}};
+  if(saved){pushCenter();pushDevices()}
 }
 paintPhone();
 /* once every 12 h the page re-sends this phone's address to the Worker (iOS can change it); a subscription that has gone is shown as off */
@@ -2183,6 +2271,85 @@ paintPhone();
   if(!sub){LS.s(PON,'0');paintPhone();return}
   await pushCall('/push/subscribe',LS.g(PK,''),{endpoint:sub.endpoint});LS.s(PSYNC,String(Date.now()));
 }catch(e){}})();
+/* ---- alerts you may have missed (24 Nov): opening the dashboard, coming back to it, or tapping a phone notification shows the last few alerts as a panel
+   that looks and works like the FinancialJuice one (headline, "… read more"). The Worker's GET /alerts?since= is the source, so the panel shows exactly what the phone was sent.
+   The page remembers when it was last in front of you (ALVIS, refreshed every 15 s while visible and when it is hidden); everything the Worker decided after that,
+   up to AL_MAX alerts from the last 3 hours, is shown once. Opened from a notification (#alerts in the address, or a message from sw.js) it always shows the last few,
+   whatever the page remembers. The panel stays until it is closed. Third-party text goes in with textContent only (R32). ---- */
+const ALVIS=KEY+'alvis',AL_BACK=3*36e5,AL_MAX=8,AL_KEEP=20,ALP={el:null,items:[],open:new Set(),msg:''};
+const alShown=new Set(),AL_KIND={fj:'FINANCIALJUICE',remind:'REMINDER',release:'RELEASE',fix:'CORRECTION'};
+let alBusy=false,alPending=true;
+const alNorm=a=>({id:String(a.id!=null?a.id:(a.t+'|'+(a.h||a.title||a.nt||''))),t:+a.t||0,
+  tag:String(a.tag||AL_KIND[a.kind]||a.kind||''),src:String(a.src||''),
+  h:String(a.h||a.title||a.nt||'').trim(),s:String(a.s||a.body||a.nb||'').trim()});
+function alertPanDraw(){
+  const P=ALP,mk=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+  if(!P.el)return;
+  P.tag.textContent=P.items.length>1?P.items.length+' ALERTS':P.items.length?'ALERT':'NO RECENT ALERTS';
+  P.body.textContent='';
+  if(P.msg)P.body.appendChild(mk('div','wi none',P.msg));
+  if(!P.items.length&&!P.msg)P.body.appendChild(mk('div','wi none','Nothing was sent in the last 3 hours.'));
+  for(const a of P.items){
+    const it=mk('div','wi'),open=P.open.has(a.id),top=mk('div','');
+    if(a.tag)top.appendChild(mk('span','bk',a.tag.toUpperCase()));
+    if(a.t)top.appendChild(mk('span','at',fmtAge(NOW()-a.t)+' ago'));
+    it.appendChild(top);
+    it.appendChild(mk('div','hd',a.h||a.src||'Alert'));
+    const long=a.s.length>WH_CUT;
+    if(a.s)it.appendChild(mk('div','full',long&&!open?a.s.slice(0,WH_CUT).replace(/\s+$/,'')+'\u2026':a.s));
+    if(long){
+      const b=mk('button','rd',open?'show less':'\u2026 read more');
+      b.onclick=()=>{open?P.open.delete(a.id):P.open.add(a.id);alertPanDraw()};
+      it.appendChild(b);
+    }
+    P.body.appendChild(it);
+  }
+}
+function alertPop(list,msg){ /* list newest first; alerts already in the panel are not added twice */
+  const P=ALP;
+  if(!P.el||!P.el.isConnected){
+    const el=document.createElement('div');el.className='toast wpan apan';
+    el.innerHTML='<button class="x" aria-label="dismiss">\u00d7</button><div class="wph"><b class="src"></b><div class="tag"></div></div><div class="wbody"></div>';
+    $('.src',el).textContent='Dashboard alerts';
+    P.el=el;P.tag=$('.tag',el);P.body=$('.wbody',el);P.items=[];P.open=new Set();
+    $('.x',el).onclick=()=>{el.remove();P.el=null};
+    toastBox.insertBefore(el,toastBox.firstChild);
+  }
+  const have=new Set(P.items.map(a=>a.id));
+  P.msg=msg||'';
+  P.items=list.filter(a=>!have.has(a.id)).concat(P.items).slice(0,AL_KEEP);
+  alertPanDraw();P.body.scrollTop=0;
+}
+async function alertsCatchUp(explicit){
+  if(alBusy){if(explicit)setTimeout(()=>alertsCatchUp(true),700);return}
+  if(!explicit&&!phoneOn()){LS.s(ALVIS,String(NOW()));alPending=false;return} /* no phone alerts to catch up on: just keep the marker current */
+  alBusy=true;
+  const stamp=NOW(),last=+LS.g(ALVIS,'0')||0;
+  try{
+    if(!explicit&&!last){LS.s(ALVIS,String(stamp));alPending=false;return} /* first run on this device: nothing to compare with */
+    const since=explicit?stamp-AL_BACK:Math.max(last,stamp-AL_BACK);
+    const r=await fetch(PUSH_API+'/alerts?since='+Math.floor(since),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    let list=(Array.isArray(j.alerts)?j.alerts:[]).map(alNorm).filter(a=>a.h||a.s).sort((a,b)=>b.t-a.t);
+    if(!explicit)list=list.filter(a=>!alShown.has(a.id));
+    list=list.slice(0,AL_MAX);list.forEach(a=>alShown.add(a.id));
+    if(list.length||explicit)alertPop(list);
+    LS.s(ALVIS,String(stamp));alPending=false;
+  }catch(e){
+    if(explicit)alertPop([],'The alerts could not be loaded. Check the connection and try again.'); /* the marker stays where it was, so the next tick tries again */
+  }finally{alBusy=false}
+}
+const alUrl=()=>/(^|[#&?])alerts(\b|=)/.test(location.hash+location.search);
+function alUrlGo(){if(!alUrl())return;try{history.replaceState(null,'',location.pathname)}catch(e){}alertsCatchUp(true)}
+window.addEventListener('hashchange',alUrlGo);
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data;if(d&&(d.type==='alerts'||d.type==='notificationclick'))alertsCatchUp(true)});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){if(!alPending&&!alBusy)LS.s(ALVIS,String(NOW()))}
+  else{alPending=true;alertsCatchUp(false)}
+});
+setInterval(()=>{if(document.hidden||alBusy)return;if(alPending)alertsCatchUp(false);else LS.s(ALVIS,String(NOW()))},15000);
+setTimeout(()=>{if(alUrl())alUrlGo();else alertsCatchUp(false)},900);
 function showRelease(e){
   if(!e)return;
   const d=calData||{},k=(d.kinds||{})[e.k],fam=(d.fams||{})[e.fam]||null,hd=relHead(e,k);
