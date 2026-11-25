@@ -60,7 +60,13 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil((async () => {
     const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of list) { if (c.url.includes(PAGE) && 'focus' in c) return c.focus(); }
-    return self.clients.openWindow(PAGE);
+    for (const c of list) {
+      if (c.url.includes(PAGE) && 'focus' in c) {
+        await c.focus();
+        try { c.postMessage({ type: 'alerts' }); } catch (x) { /* the page then shows the alerts the next time it is opened */ }   // the page shows its alerts panel (news.html, alertsCatchUp)
+        return;
+      }
+    }
+    return self.clients.openWindow(PAGE + '#alerts');   // a closed app opens with the alerts panel
   })());
 });

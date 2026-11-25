@@ -15,6 +15,7 @@ import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, 
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger, forecastGaps, rankOf } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
 import { buildAlerts, filterAlerts, filterPrefs, PREF_KINDS, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
 import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth, loadPrefs, savePrefs } from './push.js';   // Web Push to the phone (plan P8.34 stages 3 and 4)
+import { loadSettings, saveSettings, applySettings, remindWanted, listDevices, epOf, deviceId, REMIND_MINS } from './pushctl.js';   // push control center: master switch, reminder choices, device list (25 Nov)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
@@ -340,7 +341,7 @@ async function loadFeed(urls = CAL_FEEDS) {
     catch (e) { if (/HTTP 429/.test(e.message)) rate = true; notes.push(`${u.split('/').pop()}: ${e.message}`); }   // next week's file may not exist yet
   }));
   if (!ok) { const err = new Error(notes.join(' | ')); err.rate = rate; throw err; }
-  return { events: normFair(raw), notes };
+  return { events: normFair(raw, INDICATORS), notes };   // INDICATORS: Forex Factory rates Crude Oil Inventories "Low"; normFair keeps a Low row only when it matches a row of a release the dashboard shows, so the crude forecast arrives
 }
 
 // The shared Fair Economy copy in KV, taken over when it is newer than the one in memory (also read by /health, so a cold isolate reports what the poller holds).
@@ -529,18 +530,18 @@ async function pollFeeds(env, ctx, at) {
     if (ok) await beat(env, 'feeds_ok', now);
   }
   if (min % 60 === 0) await Promise.all(Object.keys(CHANNELS).map(n => prunePosts(env, n)));
-  await pushNew(env, async () => (await getAlerts(env, ctx, { cal: false })).list, now);   // phone alerts for the new posts (nothing happens when nobody is subscribed)
+  await pushNew(env, async () => applySettings((await getAlerts(env, ctx, { cal: false })).list, await loadSettings(env)), now);   // phone alerts for the new posts (nothing happens when nobody is subscribed); the control center's master switch applies first
 }
 async function pollCalendar(env, ctx, at) {
   await loadSync(env);
   const sch = schedule(at), min = Math.floor(at / 60000);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
   // a reminder (15 min, 5 min, at the release) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
-  const due = !near && min % 10 !== 0 && (await loadPrefs(env)).kinds.remind ? reminderIdsDue(sch.events, at) : [];   // reminders switched off for the phone (stage 4): nothing to wait for
+  const due = !near && min % 10 !== 0 && (await loadPrefs(env)).kinds.remind && remindWanted(await loadSettings(env)) ? reminderIdsDue(sch.events, at) : [];   // reminders switched off for the phone (stage 4): nothing to wait for
   if (!near && min % 10 !== 0 && !(due.length && await anyUnsent(env, due))) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
   await getCalendar(env, ctx, {});
   await beat(env, near ? 'cal_near' : 'cal', Date.now());
-  await pushNew(env, async () => (await getAlerts(env, ctx, { wire: false })).list, Date.now());   // reminders, release alerts and corrections
+  await pushNew(env, async () => applySettings((await getAlerts(env, ctx, { wire: false })).list, await loadSettings(env)), Date.now());   // reminders, release alerts and corrections; the control center's master switch and reminder choices apply first
 }
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
 const SYNC_TIMEOUT_TREASURY = 25000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s and again at 15 s. runTreasury runs them beside the tentative-file reads, so a run is about 25 s at worst: inside the 30 s a background (waitUntil) run is allowed
@@ -1085,6 +1086,7 @@ export default {
         sync: syncHealth(),
         poller,
         policy: policyHealth(env),   // the policy facts job: when it last confirmed the facts, the range read, whether the vote was found
+        controls: await loadSettings(env),   // the control center: master switch, which reminders are sent, and when each was last switched on
         push: await pushHealth(env),   // phone alerts: is a key set, how many phones, when each last accepted a push, the last error
         official: { lag: await loadLag(env) },   // per release row: seconds from the release time to the first actual from any source, and which source (about 5 to 15 rows a day, newest first)
         wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
@@ -1158,6 +1160,18 @@ export default {
         const r = await sendAll(env, t);
         return reply({ ok: r.sent > 0, ...r });
       }
+      if (pathname === '/push/devices' || pathname === '/push/remove') {   // the devices registered for push, and removal of one (control center). body.endpoint = this device's own address, so the list can mark it
+        const now = Date.now();
+        if (pathname === '/push/remove') {
+          const id = String(body.id || '');
+          let hit = null;
+          for (const r of await loadSubs(env)) { const ep = epOf(r); if (ep && (await deviceId(ep)) === id) { hit = ep; break; } }
+          if (!hit) return reply({ error: 'no such device (it may already be removed)' }, 404);
+          await dropSub(env, hit);
+        }
+        const rows = await loadSubs(env);
+        return reply({ ok: true, now, devices: await listDevices(rows, now, body.endpoint ? String(body.endpoint) : null), shape: rows.length && typeof rows[0] === 'object' ? Object.keys(rows[0]) : null });   // shape: the field names push.js keeps per device, for diagnosis
+      }
       return reply({ error: 'unknown push route' }, 404);
     }
     if (pathname === '/alerts/prefs') {   // which alert kinds reach the phone (plan P8.34 stage 4). GET = the switches, PUT { kinds: { fj: false, ... } } = change some of them. Needs the pairing key
@@ -1175,10 +1189,26 @@ export default {
       const p = await loadPrefs(env);
       return reply({ kinds: p.kinds, at: p.at, available: PREF_KINDS });
     }
+    if (pathname === '/alerts/settings') {   // the push control center: GET = everything, PUT { master?, remind?: { 15|5|0: bool }, kinds?: { fj|remind|release|fix: bool } }. Applies to every device. Needs the pairing key
+      if (req.method !== 'GET' && req.method !== 'PUT') return new Response(JSON.stringify({ error: 'GET or PUT only' }), { status: 405, headers: json });
+      const denied = keyGate();
+      if (denied) return denied;
+      const reply = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...json, 'Cache-Control': 'no-store' } });
+      if (req.method === 'PUT') {
+        let body = null;
+        try { body = await req.json(); } catch (e) { return reply({ error: 'the body must be JSON, for example { "master": false }' }, 400); }
+        const now = Date.now(), r = await saveSettings(env, body, now);
+        const kinds = body && body.kinds ? await savePrefs(env, body.kinds, now) : null;
+        if (!r.valid && !kinds) return reply({ error: 'nothing saved: send master, remind (15, 5, 0) or kinds as true or false' }, 400);
+        if (r.valid && r.saved === false) return reply({ error: 'could not save (the Worker needs its KV binding)' }, 500);
+      }
+      const st = await loadSettings(env), p = await loadPrefs(env);
+      return reply({ ok: true, master: st.master, remind: st.remind, remindMins: REMIND_MINS, kinds: p.kinds, available: PREF_KINDS, at: Math.max(st.at || 0, p.at || 0) });
+    }
     if (pathname === '/alerts') {   // what is an alert right now. ?since=<ms> lists only what happened after that moment; a client shows each id once. The phone's switches (stage 4) apply, so the phone shows exactly what a push was sent for; ?all=1 lists everything (diagnosis)
       try {
         const q = new URL(req.url).searchParams, a = await getAlerts(env, ctx), since = Number(q.get('since')) || 0;
-        const list = q.has('all') ? a.list : filterPrefs(a.list, await loadPrefs(env));
+        const list = q.has('all') ? a.list : applySettings(filterPrefs(a.list, await loadPrefs(env)), await loadSettings(env));
         return new Response(JSON.stringify({ now: a.now, since, alerts: filterAlerts(list, since), errors: a.errors }), { headers: { ...json, 'Cache-Control': 'no-store' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json });
