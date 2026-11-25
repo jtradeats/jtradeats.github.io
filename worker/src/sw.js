@@ -29,7 +29,16 @@ const data = { url: PAGE };
 const show = (title, body, tag) => self.registration.showNotification(title, { body, tag, icon: ICON, data });
 
 // iOS withdraws permission from a site whose pushes show nothing, so every push shows something. When there is nothing new the notification is shown and removed at once.
+// A second push right behind one that already showed everything (two pollers in the same minute, or two pushes delivered together after the phone slept) used to leave a blank
+// "Market Dashboard" on the lock screen. Now the newest notification that is still on the screen is shown again in place (same tag, silent), so nothing is added and the push still shows
+// something. Only when nothing of ours is on the screen any more does the old blank-and-close fallback run.
 async function flash() {
+  try {
+    const on = (await self.registration.getNotifications()).filter(n => n.tag !== 'noop');
+    on.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    const last = on[0];
+    if (last) return await self.registration.showNotification(last.title, { body: last.body, tag: last.tag, icon: ICON, data: last.data, silent: true, ...(last.timestamp ? { timestamp: last.timestamp } : {}) });
+  } catch (e) { /* fall through to the blank notification */ }
   await self.registration.showNotification('Market Dashboard', { body: ' ', tag: 'noop', silent: true, icon: ICON });
   for (const n of await self.registration.getNotifications({ tag: 'noop' })) n.close();
 }

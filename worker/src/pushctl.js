@@ -5,15 +5,18 @@
 // Settings are one small KV key (push:settings), written only when something changes. The kind switches (fj, remind, release, fix) stay in push.js (loadPrefs, savePrefs).
 // Switching something on records the moment (`from`), so only what happens afterwards is sent: a master switch turned back on does not release a backlog.
 
-export const SET_KV = 'push:settings';
-export const REMIND_MINS = [15, 5, 0];   // the reminders alerts.js makes: 15 minutes before, 5 minutes before, and at the release
+import { REM, REM_MENU } from './alerts.js';
 
-const fresh = () => ({ v: 1, master: true, remind: { 15: true, 5: true, 0: true }, from: {}, at: 0 });
+export const SET_KV = 'push:settings';
+export const REMIND_MINS = REM_MENU;     // the reminder times the control center offers (alerts.js): 60, 30, 15, 10, 5 and 2 minutes before, and at the release
+export const REMIND_DEFAULT = REM;       // the ones that are on until someone ticks more: 15 minutes before, 5 minutes before, and at the release
+
+const fresh = () => ({ v: 1, master: true, remind: Object.fromEntries(REMIND_MINS.map(m => [m, REMIND_DEFAULT.includes(m)])), from: {}, at: 0 });
 function norm(j) {
   const st = fresh();
   if (!j || j.v !== 1) return st;
   st.master = j.master !== false;
-  for (const m of REMIND_MINS) st.remind[m] = !(j.remind && j.remind[m] === false);
+  for (const m of REMIND_MINS) st.remind[m] = j.remind && typeof j.remind[m] === 'boolean' ? j.remind[m] : REMIND_DEFAULT.includes(m);   // a time never chosen is on only if it is one of the defaults
   st.from = j.from && typeof j.from === 'object' ? { ...j.from } : {};
   st.at = Number(j.at) || 0;
   return st;
@@ -28,7 +31,7 @@ export async function loadSettings(env, now = Date.now()) {
   memo = { at: now, st };
   return st;
 }
-// patch: { master?: boolean, remind?: { 15?: boolean, 5?: boolean, 0?: boolean } }. valid = the patch held something this module owns; changed = it altered a value.
+// patch: { master?: boolean, remind?: { 60?: boolean, 30?: boolean, 15?: boolean, 10?: boolean, 5?: boolean, 2?: boolean, 0?: boolean } }. valid = the patch held something this module owns; changed = it altered a value.
 export async function saveSettings(env, patch, now = Date.now()) {
   const st = JSON.parse(JSON.stringify(await loadSettings(env, now)));
   let valid = false, changed = false;
@@ -54,6 +57,8 @@ export async function saveSettings(env, patch, now = Date.now()) {
 
 // Which reminder an alert is, from the words alerts.js and the page use: "release in 15 min", "release in 5 min", "release now". null = not a reminder we can place.
 export function remindMinutes(a) {
+  const id = /^rem\|\d+\|(\d+)$/.exec(String((a && a.id) || ''));   // the id carries the time the reminder was made for. The words carry the minutes left when it was built, which is 14 for a 15-minute reminder built 90 s late, so the words alone let an unticked reminder through
+  if (id) return +id[1];
   const t = [a && a.pt, a && a.tag, a && a.h, a && a.title, a && a.nt].filter(Boolean).join(' ');
   const m = /release in (\d+)\s*min/i.exec(t);
   if (m) return +m[1];
@@ -61,6 +66,7 @@ export function remindMinutes(a) {
   return null;
 }
 export const remindWanted = st => !!st.master && REMIND_MINS.some(m => st.remind[m]);
+export const wantedMins = st => (st && st.master ? REMIND_MINS.filter(m => st.remind[m]) : []);   // the ticked reminder times
 export function applySettings(list, st) {
   if (!Array.isArray(list)) return list;
   return list.filter(a => {

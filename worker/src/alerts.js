@@ -17,7 +17,8 @@
 //   - the page alerts "since I loaded"; here each kind has a freshness limit (TTL) and the client keeps the ids it has shown.
 
 export const GROUP_MS = 120000, GROUP_SIM = 0.6, WH_CUT = 160;   // same values as the page
-export const REM = [15, 5, 0];                                   // minutes before a high-impact release
+export const REM = [15, 5, 0];                                   // minutes before a high-impact release: the defaults, and what the page's own toasts use
+export const REM_MENU = [60, 30, 15, 10, 5, 2, 0];               // every reminder time the phone can choose from (pushctl.js REMIND_MINS is this list); only REM is on until the user ticks more
 export const TTL = {
   wire: 15 * 60e3,     // a post older than this is not an alert any more
   rem: 5 * 60e3,       // the page fires within 150 s of the moment; here the poller may be a minute or two late
@@ -105,11 +106,11 @@ function fjAlerts(fj, now, ttl = TTL) {   // FinancialJuice: every post, one ale
   }
   return out;
 }
-function reminderAlerts(events, now) {   // high-impact USD releases: 15 min and 5 min before, and at the release
+function reminderAlerts(events, now, mins = REM) {   // high-impact USD releases: 15 min and 5 min before, and at the release
   const by = new Map();
   for (const e of events || []) if (e.imp === 3 && e.src !== 'feed') { if (!by.has(e.t)) by.set(e.t, []); by.get(e.t).push(e); }
   const out = [];
-  for (const [t, list] of by) for (const r of REM) {
+  for (const [t, list] of by) for (const r of mins) {
     const at = t - r * 60000;
     if (now < at || now > at + TTL.rem) continue;
     const one = list.length === 1 ? list[0] : null, mins = Math.max(1, Math.ceil((t - now) / 60000));
@@ -145,16 +146,16 @@ function releaseAlerts(events, fams, seen, now, ttl = TTL) {   // actual vs fore
 const fjTitle = a => (a.hot ? '\u2757 ' : '') + 'News' + (a.n > 1 ? ' \u00b7 ' + a.n + ' posts' : '');
 const withPush = a => ({ ...a, pt: a.kind === 'remind' ? tc(a.tag) : a.kind === 'fix' ? a.src.replace(/^Release/, 'Corrected') : a.kind === 'fj' ? fjTitle(a) : a.src, pb: a.pb || a.h + (a.s ? '\n' + a.s : '') });
 // which parts to build: the wires (D1 posts) and the calendar (events) are fed by different pollers, each of which builds only its own part
-export function buildAlerts({ now, dm = [], fj = [], events = [], fams = {}, seen = {}, wire = true, cal = true, back = 0 }) {
+export function buildAlerts({ now, dm = [], fj = [], events = [], fams = {}, seen = {}, wire = true, cal = true, back = 0, remMins = REM }) {
   const ttl = back > 0 ? { ...TTL, wire: Math.max(TTL.wire, back), rel: Math.max(TTL.rel, back) } : TTL;   // back: the page panel's history view (GET /alerts?back=); the pollers never pass it, so pushes are unchanged
-  return [...(wire ? [...wireAlerts(dm, now), ...fjAlerts(fj, now, ttl)] : []), ...(cal ? [...reminderAlerts(events, now), ...releaseAlerts(events, fams, seen, now, ttl)] : [])]
+  return [...(wire ? [...wireAlerts(dm, now), ...fjAlerts(fj, now, ttl)] : []), ...(cal ? [...reminderAlerts(events, now, remMins), ...releaseAlerts(events, fams, seen, now, ttl)] : [])]
     .map(withPush).sort((a, b) => b.t - a.t || (a.id < b.id ? -1 : 1));
 }
 // the reminder ids whose moment fell in the last TTL.rem: lets a quiet poller tick ask "is there anything to send?" without building the calendar
-export function reminderIdsDue(events, now) {
+export function reminderIdsDue(events, now, mins = REM) {   // mins: the reminder times worth waiting for (the ticked ones); an unticked time never gets pushed, so it must not keep the poller building the calendar
   const ts = new Set(), out = [];
   for (const e of events || []) if (e && e.imp === 3 && e.src !== 'feed' && Number.isFinite(e.t)) ts.add(e.t);
-  for (const t of ts) for (const r of REM) { const at = t - r * 60000; if (now >= at && now <= at + TTL.rem) out.push('rem|' + t + '|' + r); }
+  for (const t of ts) for (const r of mins) { const at = t - r * 60000; if (now >= at && now <= at + TTL.rem) out.push('rem|' + t + '|' + r); }
   return out;
 }
 // the test alert behind the page's "send a test" button

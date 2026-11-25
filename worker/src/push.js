@@ -15,6 +15,7 @@ export const PREFS_REUSE_MS = 15000;                // a Worker instance re-read
 export const JWT_TTL_S = 12 * 3600;                 // a VAPID token may live up to 24 h; 12 h is cached and reused
 export const PUSH_TTL_S = 600;                      // the push service drops an undelivered push after 10 minutes (alerts go stale)
 export const SENT_KEEP_MS = 2 * 86400000;           // alert ids are remembered for two days
+export const PUSH_TOPIC = 'dashboard-alerts';           // RFC 8030 Topic: a push still waiting at the push service is replaced by the next one with the same topic. The phone reads the whole list when it wakes, so two waiting pushes become one and nothing is lost
 // only real push services are ever called: the address comes from the phone, so it is checked (the page's pairing key already limits who can save one)
 export const PUSH_HOSTS = /(^|\.)push\.apple\.com$|(^|\.)googleapis\.com$|(^|\.)push\.services\.mozilla\.com$|(^|\.)notify\.windows\.com$/;
 
@@ -164,7 +165,7 @@ export async function recordTest(env, t) {
 export async function sendOne(env, v, endpoint, now = Date.now()) {
   try {
     const sub = (env && env.PUSH_SUB) || 'https://jtradeats.github.io';
-    const r = await fetch(endpoint, { method: 'POST', headers: { Authorization: await vapidHeader(v, endpoint, sub, now), TTL: String(PUSH_TTL_S), Urgency: 'high' } });
+    const r = await fetch(endpoint, { method: 'POST', headers: { Authorization: await vapidHeader(v, endpoint, sub, now), TTL: String(PUSH_TTL_S), Urgency: 'high', Topic: PUSH_TOPIC } });
     const text = r.ok ? '' : String(await r.text().catch(() => '')).slice(0, 80);
     return { ok: r.status === 201 || r.status === 200 || r.status === 202, status: r.status, gone: r.status === 404 || r.status === 410, err: r.ok ? null : 'HTTP ' + r.status + (text ? ' ' + text : '') };
   } catch (e) { return { ok: false, status: 0, gone: false, err: String(e && e.message).slice(0, 80) }; }

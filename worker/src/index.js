@@ -13,9 +13,9 @@ import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // 
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
 import { LG_KV, newLedger, fromKv as ledgerFromKv, recordLedger, applyLedger, pruneLedger, forecastGaps, rankOf } from './ledger.js';   // the best actual each release has shown, kept in KV (plan P8.30)
-import { buildAlerts, filterAlerts, filterPrefs, PREF_KINDS, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
+import { buildAlerts, filterAlerts, filterPrefs, PREF_KINDS, REM_MENU, reminderIdsDue, testAlert } from './alerts.js';   // the alerts, decided here instead of in each open page (plan P8.34)
 import { checkKey, getVapid, validEndpoint, saveSub, dropSub, loadSubs, loadTests, recordTest, sendAll, pushNew, anyUnsent, pushHealth, loadPrefs, savePrefs } from './push.js';   // Web Push to the phone (plan P8.34 stages 3 and 4)
-import { loadSettings, saveSettings, applySettings, remindWanted, listDevices, epOf, deviceId, REMIND_MINS } from './pushctl.js';   // push control center: master switch, reminder choices, device list (25 Nov)
+import { loadSettings, saveSettings, applySettings, remindWanted, wantedMins, listDevices, epOf, deviceId, REMIND_MINS } from './pushctl.js';   // push control center: master switch, reminder choices, device list (25 Nov)
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
@@ -536,8 +536,8 @@ async function pollCalendar(env, ctx, at) {
   await loadSync(env);
   const sch = schedule(at), min = Math.floor(at / 60000);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
-  // a reminder (15 min, 5 min, at the release) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
-  const due = !near && min % 10 !== 0 && (await loadPrefs(env)).kinds.remind && remindWanted(await loadSettings(env)) ? reminderIdsDue(sch.events, at) : [];   // reminders switched off for the phone (stage 4): nothing to wait for
+  // a ticked reminder (any of the times in alerts.js REM_MENU) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
+  const due = !near && min % 10 !== 0 && (await loadPrefs(env)).kinds.remind && remindWanted(await loadSettings(env)) ? reminderIdsDue(sch.events, at, wantedMins(await loadSettings(env))) : [];   // reminders switched off for the phone (stage 4): nothing to wait for
   if (!near && min % 10 !== 0 && !(due.length && await anyUnsent(env, due))) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
   await getCalendar(env, ctx, {});
   await beat(env, near ? 'cal_near' : 'cal', Date.now());
@@ -943,7 +943,7 @@ async function getAlerts(env, ctx, opts = {}) {
   let c = null;
   if (cal) { try { c = await getCalendarObj(env, ctx); } catch (e) { errors.push('calendar: ' + String(e && e.message).slice(0, 100)); } }
   const seen = c && c.events.some(e => e.ac != null) ? await loadLagSeen(env, now - 6 * 36e5) : {};
-  const list = buildAlerts({ now, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal, back });
+  const list = buildAlerts({ now, fj, events: c ? c.events : [], fams: c ? c.fams : {}, seen, wire, cal, back, remMins: REM_MENU });   // every reminder time is built; applySettings keeps the ticked ones
   if (full) for (const t of await loadTests(env, now - 10 * 60e3)) list.unshift(testAlert(t));   // the test alerts of the last 10 minutes
   const out = { at: now, now, list, errors };
   if (full && !back) alertMemo = out;
@@ -1200,7 +1200,7 @@ export default {
         try { body = await req.json(); } catch (e) { return reply({ error: 'the body must be JSON, for example { "master": false }' }, 400); }
         const now = Date.now(), r = await saveSettings(env, body, now);
         const kinds = body && body.kinds ? await savePrefs(env, body.kinds, now) : null;
-        if (!r.valid && !kinds) return reply({ error: 'nothing saved: send master, remind (15, 5, 0) or kinds as true or false' }, 400);
+        if (!r.valid && !kinds) return reply({ error: 'nothing saved: send master, remind (' + REMIND_MINS.join(', ') + ') or kinds as true or false' }, 400);
         if (r.valid && r.saved === false) return reply({ error: 'could not save (the Worker needs its KV binding)' }, 500);
       }
       const st = await loadSettings(env), p = await loadPrefs(env);
