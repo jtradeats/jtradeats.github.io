@@ -347,7 +347,7 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .flames svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .flames.h i.f{color:var(--r)}.flames.m i.f{color:#E0A24A}
 .flames i.f svg{fill:currentColor;fill-opacity:.8}
-.aw{display:inline-block;max-width:9em;font-size:10px;font-weight:500;line-height:1.25;color:var(--t3);text-align:right}
+.aw{display:inline-block;max-width:9em;font-size:10px;font-weight:500;line-height:1.25;color:var(--t3);text-align:right;white-space:normal}
 .vq{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;border:.5px solid var(--bdm);font-size:10px;font-weight:600;color:var(--t3);vertical-align:1px}
 .vq.w{color:#C98A2E;border-color:#C98A2E}
 .mk3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
@@ -1247,12 +1247,12 @@ function acCls(e){
   const inv=e.dir==='inv'||e.dir==='oil';
   return (a>f)!==inv?'g':'r';
 }
-const SRN={FRED:'FRED, official BLS and DOL series (computed by the Worker)',EIA:'EIA, official US crude stocks (the Worker computes the weekly change from EIA\u2019s stock series)','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised',FJ:'FinancialJuice wire (unofficial, fast); replaced by the official figure when it arrives'};
+const SRN={FRED:'FRED, official BLS and DOL series (computed by the Worker)',EIA:'EIA, official US crude stocks (the Worker computes the weekly change from EIA\u2019s stock series)','Fair Economy':'Fair Economy (unofficial feed)',ref:'typed in from the reference calendar','last release':'carried over from the last release, not revised',FJ:'FinancialJuice wire (unofficial, fast); replaced by the official figure when it arrives',Finviz:'Finviz economic calendar (unofficial; Trading Economics consensus and revised previous). An official figure replaces an actual from it'};
 const srTip=(e,f)=>e.sr&&e.sr[f]?' title="'+esc((f==='ac'?'actual':f==='fc'?'forecast':'previous')+': '+(SRN[e.sr[f]]||e.sr[f]))+'"':'';
-const fjMark=e=>e.ac!=null&&e.sr&&e.sr.ac==='FJ'?'<span class="vq" title="first figure from the FinancialJuice wire (unofficial). It is replaced if an official source covers this release and has its own figure.">fj</span>':'';
+const fjMark=e=>e.ac!=null&&e.sr&&e.sr.ac==='FJ'?(e.cf?'<span class="vq" title="first figure from the FinancialJuice wire (unofficial); the Finviz calendar shows the same number. It is still replaced if an official source covers this release and has its own figure.">fj \u2713</span>':'<span class="vq" title="first figure from the FinancialJuice wire (unofficial). It is replaced if an official source covers this release and has its own figure.">fj</span>'):e.ac!=null&&e.sr&&e.sr.ac==='Finviz'?'<span class="vq" title="figure from the Finviz calendar (unofficial; no wire figure yet). It is replaced if an official source covers this release and has its own figure.">fv</span>':'';
 const pvCell=e=>e.pv?(e.pvc?'<span class="rv '+e.pvc+'" title="previous figure was revised">'+esc(e.pv)+'</span>':esc(e.pv)):'';
 const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='tent'?'<span class="vq" title="tentative date published by the agency; it can move until the agency announces it, about a week ahead">~</span>':e.v==='prov'?'<span class="vq" title="date from a data provider’s calendar, not from the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
-  +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">!</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
+  +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">'+(e.wfix?'was '+esc(e.wfix):'!')+'</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
 const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
 const AGO=ms=>{const m=Math.max(1,Math.round(ms/60000));return m<90?m+' min':m<2880?Math.round(m/60)+' h':Math.round(m/1440)+' days'};
 /* What the page can truthfully say about where the numbers come from. Each line describes what happened in THIS reply, not a standing fact. */
@@ -1269,6 +1269,7 @@ const provTxt=d=>{
   if(o.status==='ok'&&o.error)p.push('official source problem: '+String(o.error).slice(0,120));
   const w=(d.wire||{}).status;if(w==='ok'||w==='stale')p.push('first figure: FinancialJuice wire (marked fj; replaced if an official source covers the release)');
   if(f.status==='ok')p.push('forecast: unofficial feed');
+  const fz=d.finviz||{};if(fz.status==='ok')p.push('forecast, previous and a second opinion on actuals: Finviz calendar (marked fv; fj \u2713 = Finviz shows the wire\u2019s number)');else if(fz.status&&fz.status!=='none')p.push('Finviz calendar: '+(fz.status==='stale'?'last answer '+AGO((fz.age_s||0)*1000)+' ago':'not answering')+'; the Worker shows what it saved');
   else p.push('forecast: the unofficial feed is not answering'+(f.at?' (last answer '+AGO(NOW()-f.at)+' ago)':'')+'; the Worker shows the forecasts it saved');
   if(d.results&&d.results.n)p.push('rows no source covers use numbers typed in on '+fmtIso(d.results.asof));
   return p.join(' · ');
@@ -1429,7 +1430,7 @@ function relCheck(){
   if(!by.size){LS.s(KEY+'rel_fired',JSON.stringify(relFired));return}
   for(const list of by.values()){
     list.forEach(e=>relFired.push(e.id));
-    const f=list[0],lines=list.slice(0,4).map(x=>x.title+': '+x.ac+(x.sr&&x.sr.ac==='FJ'?' (FinancialJuice, unconfirmed)':'')+(x.fc?' vs '+x.fc+' forecast':'')+(x.pv?' \u00b7 previous '+x.pv:'')),tk=takeaway(f),hd=relHead(f);
+    const f=list[0],lines=list.slice(0,4).map(x=>x.title+': '+x.ac+(x.sr&&x.sr.ac==='FJ'?(x.cf?' (FinancialJuice, confirmed by Finviz)':' (FinancialJuice, unconfirmed)'):x.sr&&x.sr.ac==='Finviz'?' (Finviz, unconfirmed)':'')+(x.fc?' vs '+x.fc+' forecast':'')+(x.pv?' \u00b7 previous '+x.pv:'')),tk=takeaway(f),hd=relHead(f);
     toast({key:'rel|'+f.k+'|'+f.d,src:'Release \u00b7 '+(f.agency||'USD'),tag:'RELEASED \u00b7 ACTUAL VS FORECAST',h:hd.h,s:lines.join('\n')+(tk?'\n'+tk.slice(0,280):''),rel:true,ev:f,ms:90000});
     notify(hd.h,lines.join('\n'));
   }
