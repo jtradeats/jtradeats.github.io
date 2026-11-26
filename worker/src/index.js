@@ -9,6 +9,7 @@ import RESULTS from '../config/results.json';
 import HISTORY from '../config/schedule_history.json';   // last month's releases, which schedule.json (it starts on 2 Nov) does not hold (P8.40)
 import POLICY_CFG from '../config/policy.json';   // FOMC decision dates already held (plan P8.9)
 import { etToMs, etParts, expand, audit, overlay, normFair, applyResults, typedReplaced, chainPrevious } from './schedule.js';
+import { fvRefresh, fvSeed, fvState, fvHealth, fvOverlayRows, applyFvActuals, FV_USE_MAX } from './fvcal.js';   // Finviz economic calendar: forecasts, revised previous, second opinion on actuals (P8.44)
 import { ffHot, ffTtl, ffRetry, ffStale, mergeFeed } from './feedpoll.js';   // Forex Factory refresh plan: this week's file every 5 min around a release (P8.24)
 import { FP_KV, newFirst, fromKv, recordPrev, recordActual, prune as pruneFirst, lookups as firstLookups } from './firstprint.js';   // first prints: what a release showed before any revision (P8.23)
 import { beat, beats, prunePosts, postsSummary, postsError, recordLag, loadLag, loadPosts, loadLagSeen } from './posts.js';   // Telegram posts and the poller's heartbeats in D1 (plan P8.31)
@@ -20,12 +21,13 @@ import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, 
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
 import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
-import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
+import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary, unmatchedUsNames } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
 import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 import { finvizProbe, getFinviz } from './finviz.js';   // GET /finviz (Finviz news for the card) and GET /finviz-test (diagnostic probe)
+import { fvCalProbe } from './fvcal_probe.js';   // GET /fvcal-test: one read-only look at Finviz's economic calendar page (remove with the route)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
 import { rulesFrom, rangeFail, checkJump } from './validate.js';   // price validation: V1 range, V2 jump (plan P8.16)
 
@@ -546,6 +548,7 @@ async function pollCalendar(env, ctx, at) {
 const SYNC_RELOAD = 5 * 60000, LAZY_GAP = 10 * 60000, LAZY_GAP_NEVER = 60000, SYNC_TIMEOUT = 8000;
 const SYNC_TIMEOUT_TREASURY = 25000;   // TreasuryDirect's "announced" lookups (the only treasurydirect.gov calls) timed out at 8 s and again at 15 s. runTreasury runs them beside the tentative-file reads, so a run is about 25 s at worst: inside the 30 s a background (waitUntil) run is allowed
 const syncState = { rec: null, at: 0, running: false, tried: {}, last: null };
+const etD = ms => { const q = etParts(ms); return q.iso + ' ' + q.hm; };   // 'YYYY-MM-DD HH:MM' in New York, for the debug lists
 const nyDate = ms => etParts(ms).iso;   // YYYY-MM-DD in New York (date arithmetic, P8.15: toLocaleDateString built a new Intl formatter on every call)
 
 async function loadSync(env, force) {
@@ -664,7 +667,7 @@ async function wireSave(env, now) {
 // scrolled out (or whose rule name was fixed after the release) kept an empty forecast or actual, and typed numbers had to cover it. The posts stay in D1 for longer:
 // read them back, in the background, at most every BF_GAP, and only while a released row the wire covers is still missing a number. It fills the wire memo (KV), so the
 // number outlives this isolate; it never touches the schedule's own event objects (clones are used).
-const bfSt = { at: 0, running: false, n: 0, filled: 0, err: null };
+const bfSt = { at: 0, running: false, n: 0, filled: 0, err: null, unmatchedUs: [] };
 const BF_GAP = 20 * 60000, BF_LIMIT = 500;
 const wireCovered = e => !e.hol && e.src !== 'feed' && WIRE_KEYS.has(e.k + '|' + e.r) && !/^auc/.test(e.k);
 function wireBackfill(env, ctx, events, now) {
@@ -678,6 +681,7 @@ function wireBackfill(env, ctx, events, now) {
       const before = Object.keys(wireSt.memo.rows).length;
       const r = applyWire(events.map(e => ({ ...e, sr: e.sr ? { ...e.sr } : undefined })), posts, Date.now(), wireSt.memo);
       bfSt.n = posts.length; bfSt.err = null; bfSt.filled = Object.keys(wireSt.memo.rows).length - before;
+      bfSt.unmatchedUs = unmatchedUsNames(posts);   // 25 Nov: durable goods printed and no rule matched; this shows FinancialJuice's wording for it
       if (r.changed) wireSt.dirty = true;
     } catch (e) { bfSt.err = String(e && e.message).slice(0, 100); }
     finally { bfSt.running = false; }
@@ -855,12 +859,15 @@ async function getCalendar(env, ctx, opts = {}) {
   const pw = wireSeed(env).then(() => feedWindow(env, ctx, 'FinancialJuice', wireHot(sch.events, now)))
     .catch(e => { wireSt.err = String(e.message).slice(0, 120); return { posts: [], status: 'broken' }; });   // polls Telegram only around a covered release
   const ffFast = ffHot(sch.events, now);   // a scheduled release is about to happen or just happened
-  const p = Promise.all([feedRefresh(env, ctx, ffFast), offRefresh(env, ctx, sch)]);
+  if (!feedState.kvSeeded) { feedState.kvSeeded = true; await feedFromKv(env); }   // a warm isolate that had no Forex Factory copy yet laid nothing over the schedule on its first build (25 Nov debug: matched 0 with a 9 h old copy held)
+  await fvSeed(env);
+  const p = Promise.all([feedRefresh(env, ctx, ffFast), offRefresh(env, ctx, sch), fvRefresh(env, ctx, INDICATORS, sch.events, now)]);
   if (!feedState.events && !offState.M) await Promise.race([p, new Promise(r => setTimeout(r, CAL_WAIT))]);   // cold start: give the providers a moment, never longer
 
   const [lo, hi] = calWindow(now);
   const base = sch.events.filter(e => e.t >= lo && e.t <= hi);
   const feeds = [];
+  if (fvState.events && now - fvState.at < FV_USE_MAX) feeds.push({ name: 'Finviz', rows: fvOverlayRows(fvState.events), noTime: true });   // forecast and previous only; its actuals are applied after the wire
   if (feedState.events && now - feedState.at < CAL_USE_MAX) feeds.push({ name: 'Fair Economy', rows: feedState.events });
   const o = overlay(base, feeds, INDICATORS, now);
   const nRes = applyResults(o.events, RESULTS);
@@ -869,6 +876,8 @@ async function getCalendar(env, ctx, opts = {}) {
   wireBackfill(env, ctx, base, now);   // released rows the wire covers that still miss a number: read the older posts from D1 in the background
   wireSt.feed = fw.status; if (fw.status !== 'broken') wireSt.err = null;
   o.issues.push(...wr.issues);
+  const fa = fvState.events && now - fvState.at < FV_USE_MAX ? applyFvActuals(o.events, fvState.events, INDICATORS, now) : { n: 0, confirmed: 0, issues: [] };   // fills a blank or typed actual; confirms or flags the wire's
+  o.issues.push(...fa.issues);
   if (recordPrev(firstSt.mem, o.events, now)) firstSt.dirty = true;   // the previous as the feeds and the wire show it: still before any revision
   const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now, { ...firstLookups(firstSt.mem), vint: (ser, ob) => offState.V && offState.V[ser] && offState.V[ser].get(ob) }) : { n: 0, issues: [], skipped: [] };   // fills blanks, replaces typed placeholders, flags disagreements
   if (recordActual(firstSt.mem, o.events, now)) firstSt.dirty = true;
@@ -879,7 +888,7 @@ async function getCalendar(env, ctx, opts = {}) {
   if (ledgerSt.dirty) pruneLedger(ledgerSt.mem, now);
   histFill(env, ctx, base, now);   // older rows with no official actual in the ledger: read once from FRED's archive, in the background
   const gaps = forecastGaps(o.events, now, wireCovered);   // released rows the wire covers that still lack a forecast, previous or actual
-  const pend = markPending(o.events, now);   // covered rows still without any actual: the page says "awaiting official figure"
+  const pend = markPending(o.events, now, wireCovered);   // covered rows still without any actual: the page says "awaiting official figure"
   const lagNew = lagDetect(o.events, liveAc, now);
   if (lagNew.length) { const lw = recordLag(env, lagNew); if (ctx) ctx.waitUntil(lw); }
   o.issues.push(...off.issues);
@@ -909,6 +918,7 @@ async function getCalendar(env, ctx, opts = {}) {
     sources: SCHEDULE.sources, checked: sch.checked, kinds: KINDS_PUBLIC, fams: INDICATORS.fams, backdrop,   // what the page needs to explain each release
     feed: { status: fstat, mode: ffFast ? 'release window (5 min, this week only)' : 'normal (30 min)', at: feedState.at || null, matched: o.matched, extras: o.extras, error: fstat === 'ok' ? null : feedState.err },
     official: { status: ostat, via: offState.via, at: offState.at || null, n: off.n, error: offState.err, awaiting: pend.length, held: off.skipped.length },   // held: rows FRED has a value for that was not shown, with the reason in ?debug=1
+    finviz: { ...fvHealth(now), filled: fa.n, confirmed: fa.confirmed },
     ledger: { rows: Object.keys(ledgerSt.mem.rows).length, restored: ledgerSt.restored, gaps: gaps.length },   // restored: fields put back this time because a live source had none or a lesser one
     results: { asof: RESULTS.asof || null, n: nRes, replaced: repl.length, first: Object.keys(firstSt.mem.rows).length },
     wire: { status: fw.status, n: wr.n, error: wireSt.err, ...wireSummary(wireSt.memo) },   // FinancialJuice actuals filled this time, and how often the wire matched the official number so far
@@ -917,7 +927,8 @@ async function getCalendar(env, ctx, opts = {}) {
       checked: a.checked, issues: all.slice(0, 25) },
     events: o.events,
   };
-  if (debug) out.debug = { gaps: gaps.slice(0, 60), backfill: bfSt, history: { ...histSt, tried: Object.keys(histSt.tried).length }, officialKv: { seeded: offKv.seeded, savedAt: offKv.savedAt || null }, policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3) },
+  if (debug) out.debug = { gaps: gaps.slice(0, 60), backfill: bfSt, history: { ...histSt, tried: Object.keys(histSt.tried).length }, officialKv: { seeded: offKv.seeded, savedAt: offKv.savedAt || null }, policy: { ...policyHealth(env), facts: policySt.facts, vote: policySt.vote, using: pb ? (backdrop === pb ? 'built' : 'file (newer than the facts)') : 'file (no facts)' }, replaced: repl.slice(0, 40), first: Object.fromEntries(Object.entries(firstSt.mem.rows).slice(-40)), fair: { n: (feedState.events || []).length, sample: (feedState.events || []).slice(0, 3), titles: (feedState.events || []).map(r => r.title + ' ' + etD(r.t)).slice(0, 80) },
+    fv: { n: (fvState.events || []).length, week: (fvState.events || []).filter(r => r.t > now - 864e5 && r.t < now + 4 * 864e5).map(r => `${etD(r.t)} ${r.title} | fc ${r.fc} pv ${r.pv} ac ${r.ac}`).slice(0, 60) },
     official: { via: offState.via, error: offState.err, errors: offState.errList || [], lastRun: offState.lastRun || null, skipped: off.skipped, awaiting: pend, vintages: Object.fromEntries(Object.entries(offState.V || {}).map(([k, m]) => [k, Object.fromEntries([...m].slice(-4))])), series: Object.fromEntries(Object.entries(offState.M || {}).map(([k, m]) => { const d = [...m.keys()].sort().pop(); return [k, { rows: m.size, lastObs: d, last: m.get(d) }]; })) }, unmatched: o.unmatched,
     wire: { feed: fw.status, window: fw.posts.length, newest: fw.posts[0] ? fw.posts[0].t : null, unmatchedMacro: wr.unmatched, rows: wireSt.memo.rows } };
   const body = JSON.stringify(out);
@@ -1078,7 +1089,7 @@ export default {
         memo_age_s: memo ? Math.round((now - memo.at) / 1000) : null,
         cached_items: itemCache.size,
         calendar: { audit: schedule(now).aud.status, feed: feedState.status === 'none' && feedState.events ? 'ok' : feedState.status, feed_age_s: ageOf(feedState.at),
-          official: offState.status === 'none' && offAge != null ? 'ok' : offState.status, official_age_s: offAge,
+          official: offState.status === 'none' && offAge != null ? 'ok' : offState.status, official_age_s: offAge, finviz: fvHealth(now),
           wire: { feed: wireSt.feed === 'none' ? 'idle' : wireSt.feed, ...wireSummary(wireSt.memo || newMemo()) } },   // idle = no release the wire covers has needed a poll in this isolate yet
         tv: tvHealth(await loadTv(env), env),
         sectors: sectors.health(), weekly: weekly.health(),
@@ -1256,6 +1267,10 @@ export default {
     }
     if (pathname === '/finviz-test') {   // TEST ONLY, read only: one request to Finviz at most every 60 s; remove once the real route replaces it
       try { return new Response(await finvizProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
+    }
+    if (pathname === '/fvcal-test') {   // TEST ONLY, read only: one request to Finviz's economic calendar at most every 60 s; remove once the real route replaces it
+      try { return new Response(await fvCalProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
       catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
     }
     return new Response('{"error":"not found"}', { status: 404, headers: json });
