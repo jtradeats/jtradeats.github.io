@@ -131,8 +131,8 @@ export async function loadSubs(env) {
   const d = db(env);
   if (!d || !(await ensurePosts(env))) return [];
   const q = cols => d.prepare('SELECT ' + cols + ' FROM push_subs ORDER BY created').all();
-  try { if (await keyCols(d)) return ((await q('endpoint, created, last_ok, last_err, last_err_at, fails, p256dh, auth')).results || []).map(x => ({ ...x })); } catch (e) { fail(e); }   // without the key columns the list still loads: every push then stays empty
-  try { return ((await q('endpoint, created, last_ok, last_err, last_err_at, fails')).results || []).map(x => ({ ...x })); } catch (e) { fail(e); return []; }
+  try { if (await keyCols(d)) return ((await q('endpoint, ua, created, last_ok, last_err, last_err_at, fails, p256dh, auth')).results || []).map(x => ({ ...x })); } catch (e) { fail(e); }   // without the key columns the list still loads: every push then stays empty
+  try { return ((await q('endpoint, ua, created, last_ok, last_err, last_err_at, fails')).results || []).map(x => ({ ...x })); } catch (e) { fail(e); return []; }
 }
 const MAXQ = 80;
 async function sentSet(d, ids) {
@@ -235,7 +235,7 @@ export async function sendAll(env, now = Date.now(), opts = {}) {
     const r = await sendOne(env, v, s.endpoint, now, body);
     out.results.push({ host: new URL(s.endpoint).hostname, status: r.status, ok: r.ok, err: r.err, text: !!body });
     try {
-      if (r.ok) { out.sent++; if (body) out.withText++; await d.prepare('UPDATE push_subs SET last_ok = ?2, fails = 0, last_err = NULL WHERE endpoint = ?1').bind(s.endpoint, now).run(); }
+      if (r.ok) { out.sent++; if (body) out.withText++; await d.prepare('UPDATE push_subs SET last_ok = ?2, fails = 0, last_err = NULL, last_err_at = NULL WHERE endpoint = ?1').bind(s.endpoint, now).run(); }
       else if (r.gone) { out.removed++; await dropSub(env, s.endpoint); }
       else { out.failed++; await d.prepare('UPDATE push_subs SET last_err = ?2, last_err_at = ?3, fails = fails + 1 WHERE endpoint = ?1').bind(s.endpoint, r.err, now).run(); }
     } catch (e) { fail(e); }

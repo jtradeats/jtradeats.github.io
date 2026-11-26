@@ -130,7 +130,7 @@ export async function listDevices(rows, now, thisEp) {
     const o = typeof r === 'object' && r ? r : {};
     const ua = pick(o, /^(ua|user.?agent|agent)$/i), added = asMs(pick(o, /^(created|created.?at|added|first|first.?seen|since|ts|t|at)$/i)),
       lastOk = asMs(pick(o, /(last.?ok|ok.?at|last.?sent|sent.?at|last.?push|last.?success|success)/i)),
-      seen = asMs(pick(o, /(last.?seen|seen|updated|renewed)/i)), err = pick(o, /(last.?err|error)/i);
+      seen = asMs(pick(o, /(last.?seen|seen|updated|renewed)/i)), err = pick(o, /^(last_?err|last_?error)$/i);
     const id = await deviceId(ep), latest = Math.max(added || 0, lastOk || 0, seen || 0);
     out.push({ id, label: uaLabel(ua) || 'Unknown device', service: serviceOf(ep), added, seen, lastOk, lastErr: err ? String(err).slice(0, 80) : null,
       current: id === thisId, staleDays: latest ? Math.floor((now - latest) / 864e5) : null, dup: 1, _k: (uaLabel(ua) || '?') + '|' + serviceOf(ep), _latest: latest });

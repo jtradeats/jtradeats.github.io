@@ -3,7 +3,7 @@
    It has no fetch handler, caches no pages and is registered only for /news.html, so it cannot touch the dashboard's loading or the journal pages.
    The state it keeps (which alert ids it has already shown) lives in the Cache API under /__state, which only this worker reads. */
 'use strict';
-const VER = '2026-11-26 payload';   // shown in the dashboard's Phone alerts panel, so a stale worker is easy to spot
+const VER = '2026-11-26 payload 2';   // shown in the dashboard's Phone alerts panel, so a stale worker is easy to spot
 const API = 'https://market-dashboard.jtradeats.workers.dev';
 const PAGE = '/news.html', ICON = '/icons/icon-192.png';
 const CACHE = 'phone-alerts-v1', STATE = '/__state', MAX_IDS = 300, MAX_SHOWN = 4, FETCH_MS = 8000, BASELINE_MS = 3 * 60e3;
@@ -78,7 +78,7 @@ async function onPush(e) {
 self.addEventListener('push', e => e.waitUntil(onPush(e)));
 // the page tells the worker right after subscribing: everything that exists now counts as already seen
 self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'ver') { try { e.source.postMessage({ type: 'ver', v: VER }); } catch (x) { /* no page to answer */ } return; }
+  if (e.data && e.data.type === 'ver') { const m = { type: 'ver', v: VER }; try { if (e.ports && e.ports[0]) e.ports[0].postMessage(m); else e.source.postMessage(m); } catch (x) { /* no page to answer */ } return; }   // the page's reply port first: it works whatever the page's message queue is doing
   if (!e.data || e.data.type !== 'baseline') return;
   e.waitUntil((async () => { const all = await fetchAlerts(); await saveState({ init: true, ids: (all || []).map(a => a.id).slice(-MAX_IDS) }); })());
 });
