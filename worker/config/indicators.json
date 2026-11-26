@@ -345,7 +345,7 @@
      "dir": "grow",
      "match": [
       "Non-?Farm Employment Change",
-      "^Non-?farm Payrolls"
+      "^Non[- ]?farm Payrolls$"
      ],
      "fam": "jobs"
     },
@@ -398,9 +398,9 @@
      "u": "K",
      "dir": "inv",
      "match": [
-      "Unemployment Claims",
+      "^Unemployment Claims$",
       "Initial Jobless Claims",
-      "^Jobless Claims"
+      "^Jobless Claims$"
      ]
     }
    ],
@@ -543,7 +543,8 @@
      "u": "%",
      "dir": "grow",
      "match": [
-      "^Core Retail Sales"
+      "^Core Retail Sales",
+      "^Retail Sales Ex Autos (m/m|MoM)"
      ]
     }
    ],
@@ -578,8 +579,8 @@
      "match": [
       "GDP q/q",
       "^GDP \\(?QoQ",
-      "^Prelim GDP",
-      "^Final GDP",
+      "^Prelim GDP q/q",
+      "^Final GDP q/q",
       "^GDP Growth Rate QoQ"
      ]
     }
@@ -891,7 +892,7 @@
      "dir": "oil",
      "match": [
       "Crude Oil Inventories",
-      "Crude Oil Stocks Change",
+      "^(EIA )?Crude Oil Stocks Change",
       "EIA Crude Oil Stocks"
      ]
     }
@@ -1024,7 +1025,7 @@
      "u": "K",
      "dir": "grow",
      "match": [
-      "^New Home Sales"
+      "^New Home Sales$"
      ]
     }
    ],
@@ -1053,7 +1054,7 @@
      "u": "M",
      "dir": "grow",
      "match": [
-      "^Existing Home Sales"
+      "^Existing Home Sales$"
      ]
     }
    ],
