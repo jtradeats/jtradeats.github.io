@@ -855,8 +855,7 @@
      "u": "M",
      "dir": "grow",
      "match": [
-      "^JOLTS Job Openings",
-      "JOLTS"
+      "^JOLTS Job Openings"
      ]
     }
    ],
