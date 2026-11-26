@@ -834,6 +834,27 @@ async function policyDaily(env, sch, at) {
   policySt.running = true;
   try { if (await runPolicy(env)) await beat(env, 'policy_ok', Date.now()); } finally { policySt.running = false; }
 }
+// The "previous" of a rate-decision row, read from the policy facts (FRED's target-range series), so nothing is typed for it (26 Nov): the range's upper bound as it stood before that decision.
+// A decision the series does not show yet, and a hold, leave the range as it is; a decision that changed it was from the range in the facts' `change.from`. Fills a blank only.
+// Facts older than 3 days are not used; a decision older than the facts' last one is left alone.
+function fomcPrevious(events, f, now) {
+  if (!f || !Number.isFinite(f.upper) || !(now - f.at < 3 * 864e5)) return 0;
+  const fmt = x => x.toFixed(2) + '%';
+  let n = 0;
+  for (const e of events) {
+    if (e.k !== 'fomc' || e.r !== 'dec' || e.hol || e.src === 'feed' || !e.d || e.pv != null) continue;
+    const ld = f.decision && f.decision.d;
+    if (ld && ld > e.d) continue;
+    let up = f.upper;
+    if (ld && ld === e.d && f.decision.reflected && f.change && f.change.decision === e.d) {
+      const from = parseFloat(String(f.change.from || '').split('-').pop());
+      if (!Number.isFinite(from)) continue;
+      up = from;
+    }
+    e.pv = fmt(up); (e.sr = e.sr || {}).pv = 'FRED'; n++;
+  }
+  return n;
+}
 function policyHealth(env) {
   const f = policySt.facts, now = Date.now();
   return { key: !!(env && env.FRED_KEY), loaded: !!f, checked: f ? f.checked : null, age_s: f ? Math.round((now - f.at) / 1000) : null, range: f ? `${f.lower.toFixed(2)}-${f.upper.toFixed(2)}%` : null,
@@ -886,6 +907,7 @@ async function getCalendar(env, ctx, opts = {}) {
   o.issues.push(...fa.issues);
   if (recordPrev(firstSt.mem, o.events, now)) firstSt.dirty = true;   // the previous as the feeds and the wire show it: still before any revision
   const off = offState.M && now - offState.at < CAL_USE_MAX ? applyOfficial(o.events, offState.M, now, { ...firstLookups(firstSt.mem), vint: (ser, ob) => offState.V && offState.V[ser] && offState.V[ser].get(ob) }) : { n: 0, issues: [], skipped: [] };   // fills blanks, replaces typed placeholders, flags disagreements
+  fomcPrevious(o.events, policySt.facts, now);   // the rate decision's previous from the policy facts (FRED), nothing typed
   if (recordActual(firstSt.mem, o.events, now)) firstSt.dirty = true;
   if (firstSt.dirty && pruneFirst(firstSt.mem, now)) firstSt.dirty = true;
   const liveAc = new Set(o.events.filter(e => e.ac != null).map(e => e.id));   // actuals a live source gave this time (not the ledger's): the lag log counts only those

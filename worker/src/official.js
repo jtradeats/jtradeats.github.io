@@ -176,6 +176,17 @@ export function markPending(events, now, covered) {
   return out;
 }
 
+// The previous of a later GDP estimate (second, third) is the PRIOR QUARTER's growth, as for every other row (26 Nov, J: Bloomberg, Investing and Finviz all show Q2's 2.2% against the Q3 second estimate),
+// not the earlier estimate of the same quarter. FRED holds the prior quarter, so no number has to be typed. Used for upcoming later estimates and for released ones FRED has not taken up yet.
+function priorQuarter(e, spec, S, tag) {
+  const obs = S && obsFor(e, spec), p = obs && calc(S, spec, prevObs(obs, spec));
+  if (p == null) return false;
+  const ps = fv(p, spec), sr = e.sr = e.sr || {};
+  if (e.pv == null || num(e.pv) !== num(ps)) e.pv = ps;   // the same number spelled another way keeps its text
+  sr.pv = tag; delete e.pvc;   // a revision mark compares with the earlier release's actual, which is another measure of the quarter: none for a later estimate
+  return true;
+}
+
 // events: the calendar events (sorted by time), M: { SERIES: Map }, now: ms. Returns { n, issues, wire, skipped }.
 // opts.vint(series, obs): when FRED last changed a value (parseFredVintage), for the later GDP estimates. opts.pv0(id) / opts.ac0(id): the remembered "previous" a release showed before any revision, and the first actual of a release (src/firstprint.js). Without them the earlier release in the list is used.
 export function applyOfficial(events, M, now, opts = {}) {
@@ -184,6 +195,7 @@ export function applyOfficial(events, M, now, opts = {}) {
   for (const e of events) {
     const key = e.k + '|' + e.r, spec = SPEC[key], before = last.get(key);
     last.set(key, e);
+    if (spec && !e.hol && e.src !== 'feed' && e.t > now && REVISION.test(String(e.n || ''))) { priorQuarter(e, spec, M && M[spec.s], spec.tag || 'FRED'); continue; }   // an upcoming second or third estimate: its previous is the prior quarter
     if (!spec || e.hol || e.src === 'feed' || e.t > now || e.t < now - 45 * 864e5) continue;   // not released yet, or too old to trust a later vintage
     const S = M && M[spec.s], obs = S && obsFor(e, spec), a = obs && calc(S, spec, obs);
     if (a == null) {
@@ -191,9 +203,13 @@ export function applyOfficial(events, M, now, opts = {}) {
       continue;
     }
     const act = fv(a, spec), tag = spec.tag || 'FRED', who0 = tag === 'FRED' ? 'FRED (official series)' : tag, rev = REVISION.test(String(e.n || ''));   // tag: the source the row shows
+    // A revised series holds only the NEWEST estimate of a quarter. If its value began after this release day it belongs to a later estimate: the advance row of 29 Oct showed the second
+    // estimate's 4.3% in place of 3.4% (26 Nov), and the second row would show the third estimate's figure after 23 Dec. Such a row keeps what the wire, Finviz or the ledger gave it.
+    const vi0 = VINTAGE_SERIES.has(spec.s) && opts.vint && opts.vint(spec.s, obs);
+    if (vi0 && vi0.rs > e.d) { skipped.push({ id: e.id, why: `FRED's value for ${obs} began on ${vi0.rs}, after this ${e.d} release: it is a later estimate, not this release's figure` }); continue; }
     if (rev) {   // second or third estimate: FRED's value may still be the earlier one
       const g = revisionTaken(e, spec, S, obs, act, before, opts);
-      if (!g.ok) { skipped.push({ id: e.id, why: g.why }); continue; }
+      if (!g.ok) { skipped.push({ id: e.id, why: g.why }); priorQuarter(e, spec, S, tag); continue; }
     }
     // blank, or only a hand-typed placeholder. A typed actual is replaced only in the first 3 days: the series later carries revised vintages, and a past release's actual is its first print.
     if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = e.ac != null && num(e.ac) === num(act) ? e.ac : act; (e.sr = e.sr || {}).ac = tag; n++; }   // the same number typed another way ("7.190M" and "7.19M") keeps its text
@@ -216,7 +232,7 @@ export function applyOfficial(events, M, now, opts = {}) {
       e.flag = `${who0} says ${act}, ${who} says ${e.ac}`;
       issues.push({ lvl: 'warn', code: 'official_diff', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}. Check the agency release.` });
     }
-    if (rev) continue;   // a later estimate's "previous" is the earlier estimate of the same quarter, which the series no longer holds: the feed's or typed one stays
+    if (rev) { priorQuarter(e, spec, S, tag); continue; }   // a later estimate's previous is the prior quarter (see priorQuarter), taken from the series like every other row's
     const pv = calc(S, spec, prevObs(obs, spec));
     if (pv == null) continue;
     const ps = fv(pv, spec), sr = e.sr = e.sr || {};
