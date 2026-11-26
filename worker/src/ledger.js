@@ -50,6 +50,20 @@ export function recordLedger(mem, events, now) {
   return changed;
 }
 
+// The wire's or Finviz's figure is about to give way to the official one: the row must not keep a note that says the unofficial figure is showing.
+const num = v => { const m = String(v).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : NaN; };
+function settle(e, r) {
+  delete e.cf;
+  const from = e.sr && e.sr.ac;
+  if (!has(e.ac) || (from !== 'FJ' && from !== 'Finviz')) return;
+  if (/^FinancialJuice said .*, Finviz says /.test(String(e.flag || ''))) delete e.flag;
+  if (num(e.ac) === num(r.ac)) return;
+  const first = from === 'FJ' ? 'FinancialJuice' : 'Finviz';
+  e.wfix = e.ac;
+  if (from !== 'FJ') e.wsrc = first;
+  e.flag = `${first} said ${e.ac}, ${r.sa} (official series) says ${r.ac}; showing ${r.ac}`;
+}
+
 // Call after recordLedger's inputs are final but before the response is built. Puts back what the live sources lost. Returns how many fields it restored.
 export function applyLedger(events, mem, now) {
   let n = 0;
@@ -59,6 +73,7 @@ export function applyLedger(events, mem, now) {
     if (!r) continue;
     const sr = e.sr || {}, out = e.t <= now;
     if (out && has(r.ac) && (!has(e.ac) || rankOf(r.sa) > rankOf(sr.ac))) {
+      if (rankOf(r.sa) === 4) settle(e, r);   // an official figure from the ledger settles an unofficial one, as a live official figure does
       e.ac = r.ac; (e.sr = e.sr || {}).ac = r.sa; n++;
     }
     if (has(r.fc) && (!has(e.fc) || rankOf(r.sf) > rankOf(sr.fc))) {

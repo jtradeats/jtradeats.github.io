@@ -96,7 +96,7 @@ export function parseFvCal(html, dateFrom) {
 }
 
 // a Finviz token -> the text the calendar shows, in the row's own unit (a K row gets "650K" from "0.65M"); null when the unit does not fit the row
-function inUnit(tok, u, dp) {
+function inUnit(tok, u, dp, raw) {
   if (!tok) return null;
   const { n, s } = tok;
   let v = null;
@@ -105,7 +105,11 @@ function inUnit(tok, u, dp) {
   else if (u === 'M') v = s === 'M' ? n : s === 'K' ? n / 1000 : null;
   else v = s === '' ? n : null;
   if (v == null) return null;
-  return u === 'M' && dp != null ? v.toFixed(dp) + 'M' : fmtVal(v, u);
+  if (u === 'M' && dp != null) return v.toFixed(dp) + 'M';
+  // already in the row's own unit: keep the decimals as published ("2.0%" must not become "2%")
+  const asIs = u === '%' ? /^-?\d+(\.\d+)?%$/ : u === 'M' ? /^-?\d+(\.\d+)?M$/ : u === '' ? /^-?\d+(\.\d+)?$/ : null;
+  const t = String(raw == null ? '' : raw).trim();
+  return asIs && asIs.test(t) ? t : fmtVal(v, u);
 }
 
 // rows -> the shape the overlay reads ({ t, title, imp, fc, pv, ac }), only for titles that belong to a row the dashboard shows. imp is always 1 (Low):
@@ -116,7 +120,11 @@ export function normFv(rows, IND) {
     const cands = candidates(IND, r.title).filter(x => !SKIP_KINDS.has(x.k));
     if (!cands.length) continue;
     const row = (IND.kinds[cands[0].k].rows || []).find(x => x.id === cands[0].r) || {}, u = row.u || '', dp = row.dp;
-    out.push({ t: r.t, title: r.title, imp: 1, per: r.per, fc: inUnit(fvToken(r.fc), u, dp), pv: inUnit(fvToken(r.pv), u, dp), ac: inUnit(fvToken(r.ac), u, dp) });
+    // ac is never padded to the row's fixed decimals: Finviz shows crude as 1.11M where the release says 1.109M, and "1.110M" would be a digit nobody published.
+    // acDp: how many decimals Finviz really gave on a millions row, so the second-opinion check compares at that precision.
+    const acRaw = /\.(\d+)\s*M$/i.exec(String(r.ac || '').trim());
+    out.push({ t: r.t, title: r.title, imp: 1, per: r.per, fc: inUnit(fvToken(r.fc), u, dp, r.fc), pv: inUnit(fvToken(r.pv), u, dp, r.pv), ac: inUnit(fvToken(r.ac), u, null, r.ac),
+      acDp: u === 'M' && acRaw && acRaw[1].length >= 2 ? acRaw[1].length : null });
   }
   return out.sort((a, b) => a.t - b.t);
 }
@@ -149,7 +157,8 @@ export function applyFvActuals(events, rows, IND, now) {
     if (e.ac == null || (sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = r.ac; sr.ac = 'Finviz'; n++; continue; }
     if (sr.ac === 'FJ') {                                // the wire's first figure: Finviz agrees (confirmed) or does not (flagged, the wire's figure stays until an official source settles it)
       const a = num(e.ac), b = num(r.ac);
-      if (Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a))) { if (e.cf !== 'Finviz') { e.cf = 'Finviz'; confirmed++; } }
+      const tol = r.acDp != null ? 0.5 * 10 ** -r.acDp : 0;
+      if (Math.abs(a - b) <= tol + 1e-9 * Math.max(1, Math.abs(a))) { if (e.cf !== 'Finviz') { e.cf = 'Finviz'; confirmed++; } }
       else if (Number.isFinite(a) && Number.isFinite(b)) {
         e.flag = `FinancialJuice said ${e.ac}, Finviz says ${r.ac}; showing ${e.ac}`;
         issues.push({ lvl: 'warn', code: 'wire_finviz_diff', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}. The official figure will settle it where one exists.` });

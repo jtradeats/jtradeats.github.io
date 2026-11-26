@@ -128,13 +128,13 @@ function releaseAlerts(events, fams, seen, now, ttl = TTL) {   // actual vs fore
   }
   for (const [g, list] of by) {
     const f = list[0], t = Math.min(...list.map(x => (seen && seen[x.id]) || x.t));
-    const lines = list.slice(0, 4).map(x => x.title + ': ' + x.ac + (x.sr && x.sr.ac === 'FJ' ? ' (FinancialJuice, unconfirmed)' : '') + (x.fc ? ' vs ' + x.fc + ' forecast' : '') + (x.pv ? ' · previous ' + x.pv : '')), tk = takeaway(f, fams), hd = relHead(f, now);
+    const lines = list.slice(0, 4).map(x => x.title + ': ' + x.ac + (x.sr && x.sr.ac === 'FJ' ? (x.cf ? ' (FinancialJuice, confirmed by Finviz)' : ' (FinancialJuice, unconfirmed)') : x.sr && x.sr.ac === 'Finviz' ? ' (Finviz, unconfirmed)' : '') + (x.fc ? ' vs ' + x.fc + ' forecast' : '') + (x.pv ? ' · previous ' + x.pv : '')), tk = takeaway(f, fams), hd = relHead(f, now);
     out.push({ id: 'rel|' + g, kind: 'release', t, src: 'Release · ' + (f.agency || 'USD'), tag: 'RELEASED · ACTUAL VS FORECAST', h: hd.h, s: lines.join('\n') + (tk ? '\n' + tk.slice(0, 280) : ''), nt: hd.h, nb: lines.join('\n') });
   }
   for (const e of events || []) {   // the official number differed from the wire's first figure
     if (!e.wfix || e.ac == null || e.t < now - TTL.fix) continue;
     out.push({ id: 'fix|' + e.id, kind: 'fix', t: Math.max(e.t, (seen && seen[e.id]) || 0), sticky: true, src: 'Release · ' + (e.agency || 'USD'), tag: 'CORRECTED · OFFICIAL FIGURE', h: e.title,
-      s: 'The wire showed ' + e.wfix + '. The official figure is ' + e.ac + (e.fc ? ' (forecast ' + e.fc + ')' : '') + '.', nt: 'Corrected: ' + e.title, nb: 'Wire ' + e.wfix + ' → official ' + e.ac });
+      s: (e.wsrc || 'The wire') + ' showed ' + e.wfix + '. The official figure is ' + e.ac + (e.fc ? ' (forecast ' + e.fc + ')' : '') + '.', nt: 'Corrected: ' + e.title, nb: (e.wsrc || 'Wire') + ' ' + e.wfix + ' → official ' + e.ac });
   }
   return out;
 }

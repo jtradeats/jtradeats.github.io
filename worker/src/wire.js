@@ -45,9 +45,9 @@ export const RULES = [
   R('CORE PCE PRICE INDEX MOM', 'pce|mom', -2, 3),
   R('CORE PCE PRICE INDEX YOY', 'pce|yoy', -1, 15),
   R('GDP QOQ', 'gdp|main', -15, 15),
-  // 25 Nov: durable goods printed (+0.2% against 0.6%) and the wire filled nothing, so FJ's wording is not this one. Likely variants are listed; send the post (plan §1.4 #21) to make one of them seen:1.
+  // 25 Nov: durable goods printed (+0.2% against 0.6%) and the old single name filled nothing. Confirmed from J's screenshot: "US DURABLE GOODS ACTUAL 0.2% (FORECAST 0.7%, PREVIOUS 1.9%)". The other variants are unseen.
   // "... EX TRANSPORTATION" and "CORE ..." are other names and stay unmatched.
-  R(['DURABLE GOODS ORDERS MOM', 'DURABLE GOODS ORDERS', 'DURABLE GOODS MOM', 'DURABLE GOODS', 'DURABLE GOODS ORDERS (MOM)', 'DURABLE GOODS NEW ORDERS MOM'], 'dgo|main', -25, 25),
+  R(['DURABLE GOODS ORDERS MOM', 'DURABLE GOODS ORDERS', 'DURABLE GOODS MOM', 'DURABLE GOODS', 'DURABLE GOODS ORDERS (MOM)', 'DURABLE GOODS NEW ORDERS MOM'], 'dgo|main', -25, 25, { seen: 1 }),
   R(['NEW HOME SALES', 'NEW HOME SALES - UNITS'], 'nhs|main', 200, 1500, { seen: 1 }),   // seen 25 Nov: "US NEW HOME SALES - UNITS ACTUAL 0.701M (FORECAST 0.65M, PREVIOUS 0.676M)"; the M figure converts to the row's K. "NEW HOME SALES CHANGE MOM" is another row and stays unmatched
   R('EXISTING HOME SALES', 'ehs|main', 1.5, 8),
   R('ISM MANUFACTURING PMI', 'ism_m|pmi', 20, 80),

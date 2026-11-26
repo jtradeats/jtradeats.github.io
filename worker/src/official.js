@@ -198,12 +198,15 @@ export function applyOfficial(events, M, now, opts = {}) {
     // blank, or only a hand-typed placeholder. A typed actual is replaced only in the first 3 days: the series later carries revised vintages, and a past release's actual is its first print.
     if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = e.ac != null && num(e.ac) === num(act) ? e.ac : act; (e.sr = e.sr || {}).ac = tag; n++; }   // the same number typed another way ("7.190M" and "7.19M") keeps its text
     else if (e.sr && (e.sr.ac === 'FJ' || e.sr.ac === 'Finviz')) {   // first figure came from the wire or from Finviz: the official series settles it
-      const agree = num(e.ac) === num(act);
-      if (e.sr.ac === 'FJ') wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });   // the wire's own agreement log counts wire figures only
+      const fromWire = e.sr.ac === 'FJ', first = fromWire ? 'FinancialJuice' : 'Finviz', agree = num(e.ac) === num(act);
+      if (fromWire) wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });   // the agree and disagree log is about the wire only
+      if (/^FinancialJuice said .*, Finviz says /.test(String(e.flag || ''))) delete e.flag;   // the unofficial disagreement is settled now
+      delete e.cf;
       if (!agree) {
         e.wfix = e.ac;
+        if (!fromWire) e.wsrc = first;   // whose figure was replaced (the correction alert names it)
         e.ac = act;
-        e.flag = `${e.sr.ac === 'FJ' ? 'FinancialJuice' : 'Finviz'} said ${e.wfix}, ${who0} says ${act}; showing ${act}`;
+        e.flag = `${first} said ${e.wfix}, ${who0} says ${act}; showing ${act}`;
         issues.push({ lvl: 'warn', code: 'wire_corrected', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}.` });
       }
       e.sr.ac = tag;

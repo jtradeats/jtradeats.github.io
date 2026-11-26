@@ -401,7 +401,7 @@ function feedRefresh(env, ctx, hot) {
 // which FRED refuses from Cloudflare's addresses (HTTP 520 on 16 Nov), so the key is what makes this work.
 // Polls every 30 min, and every 60 s from 2 min before a release it covers to 90 min after it, so the actual lands as soon as FRED has it.
 // FRED's lag behind BLS and DOL is unmeasured: check /calendar?debug=1 on the first release. Memory only (no KV): one request per series (17 for a full poll).
-const OFF_SLOW = 3 * 3600e3, OFF_FAST = 60000, OFF_RETRY = 3 * 60000;   // the full 17-series download every 3 h (was 30 min): a finished release does not change, and a release window has its own 60 s tier below
+const OFF_SLOW = 3 * 3600e3, OFF_FAST = 60000, OFF_RETRY = 3 * 60000, OFF_MISSING = 15 * 60000;   // the full 17-series download every 3 h (was 30 min): a finished release does not change, and a release window has its own 60 s tier below
 const offState = { M: null, V: {}, at: 0, fastAt: 0, failAt: 0, err: null, status: 'none', inflight: null, via: null };
 const redact = s => String(s).replace(/api_key=[^&\s]*/gi, 'api_key=***');
 // The official download used to live in isolate memory only, so every cold start began with no official number until the 17 requests finished (longer than the 1.2 s a page waits):
@@ -472,14 +472,20 @@ async function refreshOfficial(env, sch) {
   for (const e of sch.events) { const sp = OFF_SPEC[e.k + '|' + e.r]; if (sp && e.t > now - 90 * 60000 && e.t < now + 120000) nearSer.add(sp.s); }
   if (offState.failAt && now - offState.failAt < OFF_RETRY) return;
   const fullDue = !offState.M || now - offState.at >= OFF_SLOW;
+  // a series the copy does not hold at all (it failed when the copy was made) is asked for again every OFF_MISSING, not only at the next full run
+  const missing = !fullDue && now - (offState.missAt || 0) >= OFF_MISSING ? OFF_SERIES.filter(s => !offState.M[s]) : [];
   const fastDue = nearSer.size > 0 && now - Math.max(offState.at, offState.fastAt || 0) >= OFF_FAST;
-  if (!fullDue && !fastDue) return;
+  if (!fullDue && !fastDue && !missing.length) return;
+  if (fullDue || missing.length) offState.missAt = now;
+  const want = new Set([...(fastDue ? nearSer : []), ...missing]);
   try {
-    const o = await loadOfficial(env, fullDue ? null : nearSer);
-    if (fullDue) { offState.M = o.M; offState.V = o.V; offState.at = Date.now(); } else { offState.M = { ...offState.M, ...o.M }; offState.V = { ...offState.V, ...o.V }; offState.fastAt = Date.now(); }
+    const o = await loadOfficial(env, fullDue ? null : want);
+    // a series that failed in a full run keeps its last good copy: it holds older observations only, so it can never fill a newer release (26 Nov: one EIA timeout removed crude from memory and from the KV copy)
+    if (fullDue) { offState.M = { ...offState.M, ...o.M }; offState.V = { ...offState.V, ...o.V }; offState.at = Date.now(); } else {
+      offState.M = { ...offState.M, ...o.M }; offState.V = { ...offState.V, ...o.V }; offState.fastAt = Date.now(); }
     offState.failAt = 0; offState.err = o.errs.length ? o.errs.join(' | ').slice(0, 320) : null; offState.status = 'ok'; offState.via = o.via;
     // per-series errors: a full run replaces the list; a quick run replaces only the series it asked for, so an older failure on another series stays visible
-    const fetched = fullDue ? null : nearSer;
+    const fetched = fullDue ? null : want;
     offState.errList = (fullDue ? [] : (offState.errList || []).filter(x => !fetched.has(String(x.s).replace(/ vintages$/, '')))).concat(o.list.map(x => ({ ...x, at: Date.now() })));
     offState.lastRun = { at: Date.now(), kind: fullDue ? 'full' : 'quick', asked: o.asked, failed: o.list.length };
     await offSave(env, Date.now());
@@ -909,6 +915,8 @@ async function getCalendar(env, ctx, opts = {}) {
 
   let ostat = offState.status;
   if (ostat === 'ok' && now - offState.at > OFF_SLOW * 2) ostat = 'stale';
+  // a wire-against-Finviz note is dropped once an official figure (live or from the ledger) has settled that row
+  o.issues = o.issues.filter(i => i.code !== 'wire_finviz_diff' || o.events.some(e => e.k === i.k && e.d === i.d && /^FinancialJuice said .*, Finviz says /.test(String(e.flag || ''))));
   const a = sch.aud, all = o.issues.concat(a.issues);
   const status = a.status === 'error' || o.issues.some(i => i.lvl === 'error') ? 'error' : (a.status === 'check' || o.issues.length) ? 'check' : 'ok';
   const out = {
