@@ -15,7 +15,7 @@ export const LG_KEEP = 400 * 864e5;       // rows older than this are dropped (w
 //   A row is about 100 bytes, so a year of releases is roughly 30 KB in one KV value (limit 25 MB).
 
 // who gave the number. The wire fills blanks only, so a calendar-feed copy outranks it; FRED outranks both. A typed placeholder ('ref') is not a source.
-const RANK = { FRED: 4, EIA: 4, 'Fair Economy': 3, FMP: 3, FJ: 2 };   // EIA: the agency's own API (official.js, P8.33), same rank as FRED
+const RANK = { FRED: 4, EIA: 4, 'Fair Economy': 3, FMP: 3, Finviz: 2.5, FJ: 2 };   // Finviz (P8.44): above the wire, below Forex Factory, so the two never swap places in the ledger   // EIA: the agency's own API (official.js, P8.33), same rank as FRED
 export const rankOf = tag => RANK[tag] || 0;
 
 export const newLedger = () => ({ v: 1, rows: {} });

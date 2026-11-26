@@ -162,10 +162,14 @@ function revisionTaken(e, spec, S, obs, act, before, opts) {
 
 // Covered rows (the ones FRED answers) that have been out for up to 6 hours and still have no actual: the page shows "awaiting official figure" for them.
 // Called after every source has had its turn, so a number from the wire or the ledger is not called missing.
-export function markPending(events, now) {
+// 25 Nov: the label appeared at +0 min on claims, GDP and core PCE while the wire's figure was a minute away, and it overlapped the forecast on a phone. A row the wire covers
+// (covered(e) true) gets no label for its first PENDING_GRACE; after that the label says no first figure has come. Rows the wire does not cover are labelled at once, as before.
+export const PENDING_GRACE = 10 * 60e3;
+export function markPending(events, now, covered) {
   const out = [];
   for (const e of events) {
     if (!SPEC[e.k + '|' + e.r] || e.hol || e.src === 'feed' || e.ac != null || e.t > now || e.t < now - 6 * 36e5) continue;
+    if (covered && covered(e) && now - e.t < PENDING_GRACE) continue;
     e.aw = 1;
     out.push({ id: e.id, min: Math.round((now - e.t) / 60000) });
   }
@@ -193,13 +197,13 @@ export function applyOfficial(events, M, now, opts = {}) {
     }
     // blank, or only a hand-typed placeholder. A typed actual is replaced only in the first 3 days: the series later carries revised vintages, and a past release's actual is its first print.
     if (e.ac == null || (e.sr && e.sr.ac === 'ref' && e.t > now - 3 * 864e5)) { e.ac = e.ac != null && num(e.ac) === num(act) ? e.ac : act; (e.sr = e.sr || {}).ac = tag; n++; }   // the same number typed another way ("7.190M" and "7.19M") keeps its text
-    else if (e.sr && e.sr.ac === 'FJ') {   // first figure came from the wire: the official series settles it
+    else if (e.sr && (e.sr.ac === 'FJ' || e.sr.ac === 'Finviz')) {   // first figure came from the wire or from Finviz: the official series settles it
       const agree = num(e.ac) === num(act);
-      wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });
+      if (e.sr.ac === 'FJ') wire.push({ id: e.id, t: e.t, fj: e.ac, off: act, agree });   // the wire's own agreement log counts wire figures only
       if (!agree) {
         e.wfix = e.ac;
         e.ac = act;
-        e.flag = `FinancialJuice said ${e.wfix}, ${who0} says ${act}; showing ${act}`;
+        e.flag = `${e.sr.ac === 'FJ' ? 'FinancialJuice' : 'Finviz'} said ${e.wfix}, ${who0} says ${act}; showing ${act}`;
         issues.push({ lvl: 'warn', code: 'wire_corrected', k: e.k, d: e.d, msg: `${e.title} on ${e.d}: ${e.flag}.` });
       }
       e.sr.ac = tag;

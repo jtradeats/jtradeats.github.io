@@ -348,7 +348,7 @@ export function overlay(events, feeds, IND, nowMs) {
         if (v !== null) { ev[f] = v; (ev.sr = ev.sr || {})[f] = feed.name; }
       }
       const dt = Math.round((row.t - ev.t) / 60000);
-      if (dt !== 0 && Math.abs(dt) < 24 * 60 && !ev.ad && !(IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).off) {
+      if (dt !== 0 && Math.abs(dt) < 24 * 60 && !ev.ad && !feed.noTime && !(IND.kinds[ev.k].rows.find(x => x.id === ev.r) || {}).off) {
         ev.flag = `${feed.name} says ${p.hm} ET, schedule says ${etParts(ev.t).hm} ET`;
         issues.push({ lvl: 'warn', code: 'feed_time', k: ev.k, d: ev.d, msg: `${ev.title} on ${ev.d}: ${feed.name} says ${p.hm} ET but the schedule says ${etParts(ev.t).hm} ET. Check the agency page.` });
       }

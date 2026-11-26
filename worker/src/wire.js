@@ -45,8 +45,10 @@ export const RULES = [
   R('CORE PCE PRICE INDEX MOM', 'pce|mom', -2, 3),
   R('CORE PCE PRICE INDEX YOY', 'pce|yoy', -1, 15),
   R('GDP QOQ', 'gdp|main', -15, 15),
-  R('DURABLE GOODS ORDERS MOM', 'dgo|main', -25, 25),
-  R('NEW HOME SALES', 'nhs|main', 200, 1500),
+  // 25 Nov: durable goods printed (+0.2% against 0.6%) and the wire filled nothing, so FJ's wording is not this one. Likely variants are listed; send the post (plan §1.4 #21) to make one of them seen:1.
+  // "... EX TRANSPORTATION" and "CORE ..." are other names and stay unmatched.
+  R(['DURABLE GOODS ORDERS MOM', 'DURABLE GOODS ORDERS', 'DURABLE GOODS MOM', 'DURABLE GOODS', 'DURABLE GOODS ORDERS (MOM)', 'DURABLE GOODS NEW ORDERS MOM'], 'dgo|main', -25, 25),
+  R(['NEW HOME SALES', 'NEW HOME SALES - UNITS'], 'nhs|main', 200, 1500, { seen: 1 }),   // seen 25 Nov: "US NEW HOME SALES - UNITS ACTUAL 0.701M (FORECAST 0.65M, PREVIOUS 0.676M)"; the M figure converts to the row's K. "NEW HOME SALES CHANGE MOM" is another row and stays unmatched
   R('EXISTING HOME SALES', 'ehs|main', 1.5, 8),
   R('ISM MANUFACTURING PMI', 'ism_m|pmi', 20, 80),
   R(['ISM SERVICES PMI', 'ISM NON MANUFACTURING PMI', 'ISM NON-MANUFACTURING PMI'], 'ism_s|pmi', 20, 80),
@@ -86,6 +88,21 @@ export function parseWire(text) {
   if (!m) return null;
   const name = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
   return { kind: 'macro', name, rule: BY_NAME.get(name) || null, ac: tok(m[2], m[3]), fc: tok(m[4], m[5]), pv: tok(m[6], m[7]) };
+}
+
+// Names of US release posts that no rule knows (newest first, each once, at most 25), for /calendar?debug=1 backfill.unmatchedUs.
+// 25 Nov: durable goods printed and nothing matched; the live window of 120 posts had moved on, this reads the D1 backfill's 500.
+const US_POST = /^[\s*\u203C\u2757\uFE0F]*(?:BREAKING\s*:?\s*)?US\s/i;
+export function unmatchedUsNames(posts) {
+  const seen = new Map();
+  for (const p of posts || []) {
+    if (!p || !US_POST.test(String(p.text || ''))) continue;
+    const x = parseWire(p.text);
+    if (!x || x.rule || x.kind !== 'macro' || seen.has(x.name)) continue;
+    seen.set(x.name, { name: x.name, t: p.t, text: String(p.text).replace(/\s+/g, ' ').slice(0, 120) });
+    if (seen.size >= 25) break;
+  }
+  return [...seen.values()].sort((a, b) => b.t - a.t);
 }
 
 // token -> number in the row's unit, or null when the unit does not fit the row
