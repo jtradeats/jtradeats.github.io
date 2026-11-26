@@ -2195,7 +2195,24 @@ async function pushReg(){
   return reg;
 }
 const pushKeys=sub=>{try{return sub.toJSON().keys||null}catch(e){return null}}; /* the phone's encryption keys: they let a push carry the alert itself */
-function swVer(){try{navigator.serviceWorker.getRegistration('/news.html').then(r=>{if(r&&r.active)r.active.postMessage({type:'ver'})}).catch(()=>{})}catch(e){}}
+let swTried=false;
+function swVer(){ /* asks the worker for its version on a private reply port. No answer = an older worker: ask the browser for the newer sw.js once, then ask again */
+  const set=t=>{const n=document.getElementById('swv');if(n)n.textContent='Service worker: '+t};
+  const ask=w=>new Promise(res=>{const ch=new MessageChannel(),t=setTimeout(()=>res(null),3000);ch.port1.onmessage=ev=>{clearTimeout(t);res(ev.data&&ev.data.v||null)};try{w.postMessage({type:'ver'},[ch.port2])}catch(x){clearTimeout(t);res(null)}});
+  try{
+    navigator.serviceWorker.getRegistration('/news.html').then(async r=>{
+      if(!r||!r.active){set('not running yet. Switch phone alerts on first.');return}
+      let v=await ask(r.active);
+      if(v){set(v);return}
+      if(swTried){set('no answer: this phone still runs an older worker. Close the app, reopen it from the Home Screen icon, then open this panel again.');return}
+      swTried=true;set('no answer, fetching the newer worker…');
+      try{await r.update()}catch(x){}
+      await new Promise(res=>setTimeout(res,3000));
+      v=r.active?await ask(r.active):null;
+      set(v?v+' (just updated)':'no answer: this phone still runs an older worker. Close the app, reopen it from the Home Screen icon, then open this panel again.');
+    }).catch(()=>set('could not check'))
+  }catch(e){set('could not check')}
+}
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data;if(d&&d.type==='ver'){const n=document.getElementById('swv');if(n)n.textContent='Service worker: '+d.v}});
 async function pushCall(path,key,body,method){ /* method: POST (default), or GET and PUT for /alerts/prefs */
   const m=method||'POST',r=await fetch(PUSH_API+path,{method:m,headers:{'X-Push-Key':key,'Content-Type':'application/json'},body:m==='GET'?undefined:JSON.stringify(body||{})});
