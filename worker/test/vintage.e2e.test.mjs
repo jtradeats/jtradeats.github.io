@@ -50,15 +50,15 @@ async function call(tag, iso, path, env, cur, revisedOn) {
 }
 const row = j => j.events.find(e => e.id === 'gdp|2026-11-25|main');
 
-test('25 Nov 08:35 ET: FRED still on the advance value: no actual, "awaiting", previous kept, reason listed, nothing in the lag log', async () => {
+test('25 Nov 08:41 ET: FRED still on the advance value: no actual, "awaiting", previous kept, reason listed, nothing in the lag log', async () => {
   const env = { FRED_KEY: 'k', MARKET_KV: kv({}), DB: d1() };
-  const j = await call('v-a', '2026-11-25T13:35:00Z', '/calendar?debug=1', env, 3.4, null);
+  const j = await call('v-a', '2026-11-25T13:41:00Z', '/calendar?debug=1', env, 3.4, null);
   const g = row(j);
   assert.equal(g.ac ?? null, null); assert.equal(g.aw, 1); assert.equal(g.pv, '3.4%');
   assert.equal(j.official.held, 1); assert.ok(j.official.awaiting >= 1);
   assert.match(j.debug.official.skipped.find(s => s.id === g.id).why, /held since 2026-10-29/);
   assert.deepEqual(j.debug.official.vintages.A191RL1Q225SBEA['2026-07-01'], { v: 3.4, rs: '2026-10-29' });
-  const h = await call('v-a', '2026-11-25T13:35:30Z', '/health', env, 3.4, null);
+  const h = await call('v-a', '2026-11-25T13:41:30Z', '/health', env, 3.4, null);
   assert.deepEqual(h.official.lag.filter(x => x.id === g.id), []);
 });
 
