@@ -544,7 +544,7 @@
      "dir": "grow",
      "match": [
       "^Core Retail Sales",
-      "^Retail Sales Ex Autos (m/m|MoM)"
+      "^Retail Sales Ex Autos (m/m|MoM|\\(MoM\\))"
      ]
     }
    ],
