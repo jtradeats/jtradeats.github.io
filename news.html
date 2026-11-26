@@ -1252,7 +1252,7 @@ const srTip=(e,f)=>e.sr&&e.sr[f]?' title="'+esc((f==='ac'?'actual':f==='fc'?'for
 const fjMark=e=>e.ac!=null&&e.sr&&e.sr.ac==='FJ'?(e.cf?'<span class="vq" title="first figure from the FinancialJuice wire (unofficial); the Finviz calendar shows the same number. It is still replaced if an official source covers this release and has its own figure.">fj \u2713</span>':'<span class="vq" title="first figure from the FinancialJuice wire (unofficial). It is replaced if an official source covers this release and has its own figure.">fj</span>'):e.ac!=null&&e.sr&&e.sr.ac==='Finviz'?'<span class="vq" title="figure from the Finviz calendar (unofficial; no wire figure yet). It is replaced if an official source covers this release and has its own figure.">fv</span>':'';
 const pvCell=e=>e.pv?(e.pvc?'<span class="rv '+e.pvc+'" title="previous figure was revised">'+esc(e.pv)+'</span>':esc(e.pv)):'';
 const vmark=e=>(e.v==='rule'?'<span class="vq" title="date derived from the agency’s usual pattern; not yet published by the agency">~</span>':e.v==='tent'?'<span class="vq" title="tentative date published by the agency; it can move until the agency announces it, about a week ahead">~</span>':e.v==='prov'?'<span class="vq" title="date from a data provider’s calendar, not from the agency">~</span>':e.v==='check'?'<span class="vq w" title="date in doubt: open the row for details">?</span>':'')
-  +(e.flag?'<span class="vq w" title="'+esc(e.flag)+'">'+(e.wfix?'was '+esc(e.wfix):'!')+'</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
+  +(e.flag&&!e.wfix?'<span class="vq w" title="'+esc(e.flag)+'">!</span>':'')+(e.src==='feed'?'<span class="vq" title="in the unofficial feed only; not in the official schedule">feed</span>':'');
 const skewTxt=()=>Math.abs(clkOff)>2000?'your device clock is '+(Math.abs(clkOff)/1000).toFixed(0)+' s '+(clkOff<0?'fast':'slow')+' (corrected)':'';
 const AGO=ms=>{const m=Math.max(1,Math.round(ms/60000));return m<90?m+' min':m<2880?Math.round(m/60)+' h':Math.round(m/1440)+' days'};
 /* What the page can truthfully say about where the numbers come from. Each line describes what happened in THIS reply, not a standing fact. */
@@ -1424,8 +1424,8 @@ function relCheck(){
   calData.events.forEach(e=>{   /* the official number differed from the wire's first figure: say so once */
     if(!e.wfix||e.ac==null||e.t<now-6*36e5||relFired.includes(e.id+'|fix'))return;
     relFired.push(e.id+'|fix');
-    toast({key:'fix|'+e.id,src:'Release \u00b7 '+(e.agency||'USD'),tag:'CORRECTED \u00b7 OFFICIAL FIGURE',h:e.title,s:'The wire showed '+e.wfix+'. The official figure is '+e.ac+(e.fc?' (forecast '+e.fc+')':'')+'.',rel:true,ev:e,ms:90000});
-    notify('Corrected: '+e.title,'Wire '+e.wfix+' \u2192 official '+e.ac);
+    toast({key:'fix|'+e.id,src:'Release \u00b7 '+(e.agency||'USD'),tag:'CORRECTED \u00b7 OFFICIAL FIGURE',h:e.title,s:(e.wsrc||'The wire')+' showed '+e.wfix+'. The official figure is '+e.ac+(e.fc?' (forecast '+e.fc+')':'')+'.',rel:true,ev:e,ms:90000});
+    notify('Corrected: '+e.title,(e.wsrc||'Wire')+' '+e.wfix+' \u2192 official '+e.ac);
   });
   if(!by.size){LS.s(KEY+'rel_fired',JSON.stringify(relFired));return}
   for(const list of by.values()){
