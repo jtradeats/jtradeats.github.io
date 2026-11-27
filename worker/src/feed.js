@@ -1,6 +1,6 @@
 // Telegram wires via the public preview (t.me/s/<channel>): plan 1.5, decisions D46 to D49 and D76 to D79.
-//   GET /feed                      -> both channels in one answer (plan P1): the DeItaone view at the top level (as before) and
-//                                     the FinancialJuice view under "fj"; posts that start with the red exclamation mark carry hot:true
+//   GET /feed                      -> every channel in CHANNELS in one answer (plan P1): FinancialJuice under "fj" (the only one since Walter Bloomberg was
+//                                     retired on 24 Nov); posts that start with the red exclamation mark carry hot:true
 //   GET /feed?ch=FinancialJuice    -> that one channel's view alone (gates, debugging)
 // Each view has the latest posts (rolling window) plus poll health. An unofficial mirror: ultrafast, unconfirmed.
 // Display only. The page decides what raises a toast (plan 4.4: FinancialJuice, hot posts only). Rendering on the page is textContent only.
@@ -10,7 +10,7 @@
 
 import { savePosts, loadPosts } from './posts.js';   // posts kept in D1 (plan P8.31)
 
-export const FEED_CHANNEL = 'WalterBloomberg';   // the default channel: every export below behaves as before when no channel is given
+export const FEED_CHANNEL = 'FinancialJuice';   // the default channel (the only one since Walter Bloomberg was retired on 24 Nov): every export below uses it when no channel is given, so a call without one can never poll a dead channel
 
 // One entry per verified channel (D47: scraping is allowed for these only; an unknown name is refused by the route).
 //   hot:  the channel flags important posts with a leading red exclamation mark -> the post gets hot:true and the mark is removed from the text
@@ -159,7 +159,7 @@ export function newestId(html, name) {
 }
 
 // html -> [{id, t, text, url, media}] newest first. On a hot channel a post that starts with the red mark also has hot:true
-// (the key is absent on other posts and on other channels, so DeItaone's output is unchanged).
+// (the key is absent on other posts and on channels that are not hot, so their output is unchanged).
 export async function parseTelegram(html, run = runWorkers, ch = FEED_CHANNEL) {
   const c = chOf(ch), raw = [];
   await run(html, rw => attachParser(rw, raw, c.name));
@@ -340,10 +340,10 @@ export async function feedWindow(env, ctx, ch, poll) {
   return { posts: S.posts, status: !S.at && !S.okAt ? 'idle' : statusNow(S, Date.now()), okAt: S.okAt || null };
 }
 
-// one channel, as a JSON string (the old shape: the DeItaone view by default)
+// one channel, as a JSON string (FinancialJuice by default)
 export async function getFeed(env, ctx, opts = {}) { return JSON.stringify(await feedObject(env, ctx, opts)); }
 
-// both channels in one call: the default channel's view at the top level, the others under their key (FinancialJuice: "fj").
+// every channel in one call: a channel with a key goes under it (FinancialJuice: "fj"); a channel with an empty key would be merged into the top level (none is, since 24 Nov).
 // allSettled: one channel failing never takes the other down; its block just says broken.
 export async function getFeeds(env, ctx, opts = {}) {
   const names = Object.keys(CHANNELS);
@@ -354,7 +354,7 @@ export async function getFeeds(env, ctx, opts = {}) {
   names.forEach((n, i) => { const v = view(n, rs[i]), k = chOf(n).key; if (k) out[k] = v; else Object.assign(out, v); });
   return JSON.stringify(out);
 }
-// The every-minute background poll (plan P8.32): reads both channels like getFeeds does, but returns only { status: [one word per channel], fresh: n new or changed posts }
+// The every-minute background poll (plan P8.32): reads every channel like getFeeds does, but returns only { status: [one word per channel], fresh: n new or changed posts }
 // and never builds the combined JSON. Never throws: a channel that fails says "broken".
 export async function pollFeedsBg(env, ctx) {
   const names = Object.keys(CHANNELS), before = names.map(n => stateOf(chOf(n).name).fresh);

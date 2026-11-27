@@ -1,5 +1,5 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /feed -> both Telegram wires in one answer: DeItaone at the top level, FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /finviz -> Finviz news headlines (time, source, link) parsed from finviz.com/news, cached, last good copy kept (?debug=1 shows row counts). GET /health -> small status object, read from stored state (KV and D1).
+// GET /market -> JSON for the page. GET /feed -> the Telegram wire(s) in one answer: FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /finviz -> Finviz news headlines (time, source, link) parsed from finviz.com/news, cached, last good copy kept (?debug=1 shows row counts). GET /health -> small status object, read from stored state (KV and D1).
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
@@ -20,7 +20,7 @@ import { loadSettings, saveSettings, applySettings, remindWanted, wantedMins, li
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
-import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // DeItaone and FinancialJuice wires via the Telegram mirror (plan 1.5)
+import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // the FinancialJuice wire via the Telegram mirror (plan 1.5; Walter Bloomberg was retired on 24 Nov)
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary, unmatchedUsNames } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
@@ -1141,7 +1141,7 @@ export default {
         controls: await loadSettings(env),   // the control center: master switch, which reminders are sent, and when each was last switched on
         push: await pushHealth(env),   // phone alerts: is a key set, how many phones, when each last accepted a push, the last error
         official: { lag: await loadLag(env) },   // per release row: seconds from the release time to the first actual from any source, and which source (about 5 to 15 rows a day, newest first)
-        wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the DeItaone fields as before, plus every channel; FinancialJuice "hot" = flagged posts in the window
+        wire: { ...feedHealth(), channels: Object.fromEntries(Object.keys(CHANNELS).map(n => [n, feedHealth(Date.now(), n)])) },   // the default channel (FinancialJuice) at the top level, plus every channel; FinancialJuice "hot" = flagged posts in the window
       }), { headers: json });
     }
     if (pathname === '/ingest') {   // TradingView webhook target (src/tv.js); the secret travels in the JSON body because TradingView cannot set headers
