@@ -1,5 +1,5 @@
 // Market Dashboard Worker: primary data path for news.html (JS port of dashboard_data.py).
-// GET /market -> JSON for the page. GET /feed -> the Telegram wire(s) in one answer: FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /finviz -> Finviz news headlines (time, source, link) parsed from finviz.com/news, cached, last good copy kept (?debug=1 shows row counts). GET /health -> small status object, read from stored state (KV and D1).
+// GET /market -> JSON for the page. GET /feed -> the Telegram wire(s) in one answer: FinancialJuice under "fj" (flagged posts carry hot:true); ?ch=<channel> returns one channel alone. GET /calendar -> release schedule with forecast/previous/actual (?debug=1 shows provider samples and unmatched titles). GET /curve -> Treasury yield curve, spreads and changes (official close, cross-checked against FRED T10Y2Y; plan P6). GET /sectors -> the 11 sector ETFs plus SPY (plan P4). GET /weekly -> week open vs current for NQ, ES, DOW, RTY, GC, CL (plan P5); /sectors, /weekly, /market, /calendar, /curve and /feed accept ?fresh=1 (manual refresh from the page, never from a timer). GET /finviz -> Finviz news headlines (time, source, link) parsed from finviz.com/news, cached, last good copy kept (?debug=1 shows row counts). GET /health -> small status object, read from stored state (KV and D1). GET /earnings?day=YYYY-MM-DD[&page=N] -> one US trading day of the Finviz earnings calendar (rows: ticker, company, BMO/AMC, market cap, EPS and revenue figures), cached, last good copy kept (?fresh=1 refreshes, ?debug=1 adds health).
 // No API keys needed. Optional KV binding named MARKET_KV keeps a snapshot across cold starts.
 
 import SYMBOLS from '../config/symbols.json';
@@ -29,6 +29,7 @@ import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.
 import { finvizProbe, getFinviz } from './finviz.js';   // GET /finviz (Finviz news for the card) and GET /finviz-test (diagnostic probe)
 import { fvCalProbe } from './fvcal_probe.js';   // GET /fvcal-test: one read-only look at Finviz's economic calendar page (remove with the route)
 import { earningsProbe } from './earnings_probe.js';   // GET /earnings-test: read-only look at Finviz's earnings calendar (remove with the route)
+import { getEarnings } from './earnings.js';   // GET /earnings: one US trading day of the Finviz earnings calendar for the earnings card (27 Nov)
 import { heatProbe } from './heat_probe.js';   // GET /heat-test: read-only look at where Finviz's interactive map gets its layout (plan P8.45; remove with the route)
 import { heatRoute } from './heat.js';   // GET /heat: Finviz map layout and colours, passed through as text (plan P8.45)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
@@ -1312,6 +1313,14 @@ export default {
     if (pathname === '/fvcal-test') {   // TEST ONLY, read only: one request to Finviz's economic calendar at most every 60 s; remove once the real route replaces it
       try { return new Response(await fvCalProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
       catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
+    }
+    if (pathname === '/earnings') {   // one US trading day of Finviz's earnings calendar (src/earnings.js); ?day=YYYY-MM-DD (default today, New York) &page=N ?fresh=1 ?debug=1
+      try {
+        const q = new URL(req.url).searchParams, fresh = isFresh(req.url);
+        return new Response(await getEarnings(env, ctx, { day: q.get('day') || '', page: q.get('page') || '', fresh, debug: q.has('debug') }), { headers: { ...json, 'Cache-Control': fresh ? 'no-store' : 'public, max-age=60' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e.message) }), { status: e.status === 400 ? 400 : 502, headers: json });
+      }
     }
     if (pathname === '/earnings-test') {   // TEST ONLY, read only: one request to a fixed Finviz earnings page at most every 60 s; remove once /earnings replaces it
       try { return new Response(await earningsProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
