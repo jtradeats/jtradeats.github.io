@@ -974,7 +974,7 @@ const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark'
    passed through as text), joins them here and draws a squarified treemap on one canvas (5,900 tiles for All stocks would be 5,900 DOM nodes). No library, no third-party script (R32, R59).
    Size = market cap (futures and themes: Finviz's own weights), colour = % change, scale +-3 %.
    At a glance: every tile is labelled at the largest font that fits (never wrapped, 6 px minimum; tall narrow tiles are turned on their side; big stock tiles add the company name),
-   every sector/industry title carries its average move, and the row above the map gives the view's average move and advancers / decliners.
+   every sector/industry title carries its average move (long titles shorten only as far as the width needs: Info, Infra, Div., SW, Digi...), and the row above the map gives the view's average move and advancers / decliners.
    Hover (mouse) pops out Finviz-style figures and outlines the group. Click a title, or a tile (it opens the outlined group), to zoom in at any level; Shift+click opens the top-level
    group; the crumb or Esc goes back. Touch: tap a tile for its pop-out, tap it again to open its group.
    Colours refresh every 60 s while the card is on screen; the layout is read once per map and kept for the session. A failed read keeps the last map and says so.
@@ -1101,6 +1101,39 @@ async function hmLoad(fresh){
 HM.load=hmLoad;
 function hmRoot(){return HM.el&&HM.el.isConnected?$('.hm',HM.el):null}
 function hmVisible(){return !document.hidden&&tab==='heat'&&!!hmRoot()&&!HM.el.closest('.card.closed')}
+/* Title abbreviations. A title is only shortened when it does not fit: level 0 = the full name, level 1 = the plain ones (Info, Infra, Div., Mfrs, Equip., Tech, Biotech...),
+   level 2 = adds the short forms (SW, Digi, Svcs, Cons., Fin., Semis...); if even that does not fit it ends in an ellipsis. Nothing is ever squeezed. Phrases go before words.
+   Each entry: [text, level-1 form, level-2 form]; null = unchanged at that level. Wide screens never get past level 0, so the full names show there. */
+const HM_ABBR=[
+  ['Information Technology','IT','IT'],['Artificial Intelligence',null,'AI'],['Virtual & Augmented Reality',null,'VR & AR'],['Internet of Things',null,'IoT'],
+  ['Oil & Gas',null,'O&G'],['Property & Casualty',null,'P&C'],['Electric Vehicles',null,'EVs'],
+  ['Internet Content & Information',null,'Internet & Info'],['Information','Info','Info'],['Infrastructure','Infra','Infra'],['Diversified','Div.','Div.'],['Manufacturers','Mfrs','Mfrs'],['Manufacturing','Mfg','Mfg'],
+  ['Equipment','Equip.','Equip.'],['Management','Mgmt','Mgmt'],['International','Intl','Intl'],['Distribution','Distrib.','Distrib.'],['Applications','Apps','Apps'],['Application','App','App'],
+  ['Technology','Tech','Tech'],['Telecommunications','Telecom','Telecom'],['Biotechnology','Biotech','Biotech'],['Pharmaceuticals','Pharma','Pharma'],
+  ['Residential','Resid.','Resid.'],['Regulated','Reg.','Reg.'],['Independent','Indep.','Indep.'],['Integrated','Integr.','Integr.'],
+  ['Software',null,'SW'],['Digital',null,'Digi'],['Services',null,'Svcs'],['Communications',null,'Comms'],['Communication',null,'Comm'],['Consumer',null,'Cons.'],
+  ['Semiconductors',null,'Semis'],['Semiconductor',null,'Semi'],['Electronics',null,'Elec.'],['Electronic',null,'Elec.'],['Financial',null,'Fin.'],['Healthcare',null,'Health'],
+  ['Industrials',null,'Indust.'],['Industrial',null,'Indust.'],['Materials',null,'Matls'],['Products',null,'Prod.'],['Aerospace',null,'Aero'],['Defense',null,'Def.'],['Defensive',null,'Def.'],
+  ['Specialty',null,'Spec.'],['General',null,'Gen.'],['Alcoholic',null,'Alc.'],['Personal',null,'Pers.'],['Education',null,'Edu.'],['Environmental',null,'Env.'],
+  ['Transportation',null,'Transp.'],['Cyclical',null,'Cycl.'],['Utilities',null,'Utils'],['Entertainment',null,'Ent.'],['Commodities',null,'Commod.'],['Sustainability',null,'Sustain.']
+].map(e=>[new RegExp('\\b'+e[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','g'),e[1],e[2]]);
+const hmAbMemo=new Map();
+function hmAbbr(name,lv){
+  if(!lv)return name;const k=lv+'|'+name;let v=hmAbMemo.get(k);if(v!==undefined)return v;
+  v=name;for(const[re,l1,l2]of HM_ABBR){const r=lv>=2?(l2||l1):l1;if(r)v=v.replace(re,r)}
+  hmAbMemo.set(k,v);return v;
+}
+/* the first level at which the title fits `room` px (the canvas font is already set), or null */
+function hmHeadText(g,name,upper,room){
+  for(let lv=0;lv<=2;lv++){const t=upper?hmAbbr(name,lv).toUpperCase():hmAbbr(name,lv);if(g.measureText(t).width<=room)return t}
+  return null;
+}
+function hmEllipsis(g,t,room){
+  if(g.measureText(t).width<=room)return t;
+  while(t.length>2&&g.measureText(t+'\u2026').width>room)t=t.slice(0,-1);
+  const i=t.search(/\s\S*$/),w=(i>=4?t.slice(0,i):t).replace(/[\s&\-]+$/,'');   /* prefer a cut at a word; if that leaves under 4 letters, cut inside the word */
+  const r=w.length>=4?w:t.replace(/[\s&\-]+$/,'');return r.length>2?r+'\u2026':'';
+}
 const hmSign=v=>v==null?'':v>=0?'hmu':'hmd';
 function hmStats(n,stock){
   const a=hmAvg(n);if(a==null)return'';
@@ -1138,10 +1171,12 @@ function hmPaint(){
     if(q.head){
       const top=q.d===0,fs=top?10:8.5,a=hmAvg(q.n),pc=a==null?'':hmPct(a);
       g.fillStyle=top?P.h0:P.h1;g.fillRect(q.x+1,q.y+1,q.w-2,q.head-1);g.textBaseline='middle';
-      g.font=(top?'600 ':'600 ')+fs+'px '+ff;const nm=top?q.n.name:q.n.name.toUpperCase();
-      let room=q.w-8;
-      if(pc){g.font='500 '+fs+'px '+ff;const pw=g.measureText(pc).width;if(pw+40<room){g.textAlign='right';g.fillStyle=a>=0?P.up:P.dn;g.fillText(pc,q.x+q.w-4,q.y+q.head/2+.5);room-=pw+8}}
-      g.font='600 '+fs+'px '+ff;g.textAlign='left';g.fillStyle=top?P.h0t:P.h1t;g.fillText(nm,q.x+4,q.y+q.head/2+.5,room);
+      const up=!top,nf='600 '+fs+'px '+ff,pf='500 '+fs+'px '+ff,ty=q.y+q.head/2+.5;
+      let nmS=null,usePct=false,pw=0;
+      if(pc){g.font=pf;pw=g.measureText(pc).width;g.font=nf;nmS=hmHeadText(g,q.n.name,up,q.w-8-pw-8);usePct=!!nmS}   /* name and average move together, shortening the name as needed */
+      if(!nmS){g.font=nf;const l2=hmAbbr(q.n.name,2);nmS=hmHeadText(g,q.n.name,up,q.w-8)||hmEllipsis(g,up?l2.toUpperCase():l2,q.w-8)}   /* else the name alone, else its short form cut with an ellipsis */
+      if(usePct){g.font=pf;g.textAlign='right';g.fillStyle=a>=0?P.up:P.dn;g.fillText(pc,q.x+q.w-4,ty)}
+      g.font=nf;g.textAlign='left';g.fillStyle=top?P.h0t:P.h1t;g.fillText(nmS,q.x+4,ty);
     }
   }
   const crumb=HM.path.length?['<button class="hmc" data-c="-1">'+HM.names[map]+'</button>'].concat(HM.path.map((nm,i)=>'<button class="hmc" data-c="'+i+'">'+esc(nm)+'</button>')).join(' \u203A '):'';
