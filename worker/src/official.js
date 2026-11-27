@@ -66,7 +66,7 @@ export function parseFredJson(text) {
 // Until FRED has done that, the quarter's value is the EARLIER estimate, so reading it as the second or third estimate's actual would show a stale number as official.
 // FRED's API can say when a value last changed: with realtime_start set it returns one row per value the observation held, each with the day that value began (realtime_start).
 // "The value began on or after the release day" is then read directly instead of guessed. (Response shape: observations[] with realtime_start, realtime_end, date, value.)
-export const REVISION = /^(second|third)\b/i;   // the note on a calendar line for a later estimate of the same quarter
+export const REVISION = /^(second|third) estimate\b/i;   // the note on a calendar line for a later estimate of the same quarter
 export const VINTAGE_SERIES = new Set(['A191RL1Q225SBEA']);
 export const fredVintageUrl = (series, key, since, from) => `${fredApiUrl(series, key, since)}&realtime_start=${encodeURIComponent(from)}&realtime_end=9999-12-31`;
 // -> Map(date -> { v, rs }): the newest value of each observation and the day it began. A later row for the same date wins only if it began later.
@@ -206,7 +206,12 @@ export function applyOfficial(events, M, now, opts = {}) {
     // A revised series holds only the NEWEST estimate of a quarter. If its value began after this release day it belongs to a later estimate: the advance row of 29 Oct showed the second
     // estimate's 4.3% in place of 3.4% (26 Nov), and the second row would show the third estimate's figure after 23 Dec. Such a row keeps what the wire, Finviz or the ledger gave it.
     const vi0 = VINTAGE_SERIES.has(spec.s) && opts.vint && opts.vint(spec.s, obs);
-    if (vi0 && vi0.rs > e.d) { skipped.push({ id: e.id, why: `FRED's value for ${obs} began on ${vi0.rs}, after this ${e.d} release: it is a later estimate, not this release's figure` }); continue; }
+    if (vi0 && vi0.rs > e.d) {
+      skipped.push({ id: e.id, why: `FRED's value for ${obs} began on ${vi0.rs}, after this ${e.d} release: it is a later estimate, not this release's figure` });
+      const vp = opts.vint && opts.vint(spec.s, prevObs(obs, spec));   // the prior quarter is still readable when it has not changed since this release (29 Oct: Q2 2.2%, unchanged since 10 Oct)
+      if (vp && vp.rs <= e.d) priorQuarter(e, spec, S, tag);
+      continue;
+    }
     if (rev) {   // second or third estimate: FRED's value may still be the earlier one
       const g = revisionTaken(e, spec, S, obs, act, before, opts);
       if (!g.ok) { skipped.push({ id: e.id, why: g.why }); priorQuarter(e, spec, S, tag); continue; }

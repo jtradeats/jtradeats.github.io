@@ -853,6 +853,13 @@ function fomcPrevious(events, f, now) {
     }
     e.pv = fmt(up); (e.sr = e.sr || {}).pv = 'FRED'; n++;
   }
+  // The decision's own number: the range's upper bound once the series shows that decision. Fills a blank only; the wire's figure, when it came first, stays.
+  if (f.decision && f.decision.reflected && f.decision.d) {
+    for (const e of events) {
+      if (e.k !== 'fomc' || e.r !== 'dec' || e.hol || e.src === 'feed' || e.d !== f.decision.d || e.ac != null) continue;
+      e.ac = fmt(f.upper); (e.sr = e.sr || {}).ac = 'FRED'; n++;
+    }
+  }
   return n;
 }
 function policyHealth(env) {
