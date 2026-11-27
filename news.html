@@ -1037,7 +1037,7 @@ async function hmLoad(fresh){
     const perf=await hmPull('perf',map,fresh);
     if(!perf||!perf.nodes)throw new Error('bad payload');
     HM.perf[map]={d:perf,at:Date.now()};HM.err=null;
-  }catch(e){HM.err=String(e.message||e)}
+  }catch(e){const m=String(e.message||e);HM.err=m==='404'?'the Worker has no /heat route: deploy the index.js that has it':m}
   HM.busy=false;hmPaint();
   if(HM.again){HM.again=false;hmLoad(false)}
 }
