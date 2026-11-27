@@ -1,7 +1,7 @@
-// Tests for earnings.js (run: node --test earnings.test.mjs). The row markup is the real row Finviz sent on 27 Nov (TRX, AMC) plus variants built the same way.
+// Tests for earnings.js (run from worker/: node --test test/earnings.test.mjs). The row markup is the real row Finviz sent on 27 Nov (TRX, AMC) plus variants built the same way.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseEarnings, capNum, validDay, todayEt, getEarnings } from './earnings.js';
+import { parseEarnings, capNum, validDay, todayEt, getEarnings } from '../src/earnings.js';
 
 const TD = (inner, cls = '') => `<td class="!py-1  px-1 leading-tight ${cls}">${inner}</td>`;
 const LNK = v => `<a href="/stock?t=X&amp;ty=ea&amp;scroll#earnings-eps">${v}</a>`;
