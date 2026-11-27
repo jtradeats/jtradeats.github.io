@@ -87,8 +87,8 @@ test('a double mark in the middle of the text is not hot, and "BREAKING" without
   assert.ok(posts[1].text.startsWith('BREAKING:'));
 });
 
-test('DeItaone: a leading double mark stays text (the double mark is a FinancialJuice marker only)', async () => {
-  const posts = await parseTelegram(page(msg('WalterBloomberg', 7, `\u203C HEADLINE (@WalterBloomberg)`)), run);
+test('a channel that is not hot (not in CHANNELS): a leading double mark stays text (the double mark is a FinancialJuice marker only)', async () => {
+  const posts = await parseTelegram(page(msg('OtherChannel', 7, `\u203C HEADLINE (@OtherChannel)`)), run, 'OtherChannel');
   assert.equal(posts[0].text, '\u203C HEADLINE');
   assert.deepEqual(Object.keys(posts[0]).sort(), ['id', 'media', 't', 'text', 'url']);
 });
@@ -103,7 +103,7 @@ test('splitHot: the double mark, with the label, with an image only', () => {
 test('getFeed carries bang and breaking to the page, and the hot count includes double-mark posts', async () => {
   const m = await fresh();
   const f = mockFetch({ [`https://t.me/s/${FJ}`]: page(msg(FJ, 3, `\u203C BREAKING: X${TAIL}`), msg(FJ, 2, `\u2757 Y${TAIL}`), msg(FJ, 1, `Z${TAIL}`)),
-    'https://t.me/s/WalterBloomberg': page(msg('WalterBloomberg', 1, 'q')) });
+  });
   try {
     const fj = JSON.parse(await m.getFeed(null, null, { channel: FJ }));
     assert.deepEqual(fj.posts.map(p => [p.id, !!p.hot, !!p.bang, !!p.breaking]), [[3, true, true, true], [2, true, false, false], [1, false, false, false]]);
@@ -132,16 +132,28 @@ test('a quoted reply, even with another channel\'s data-post, does not leak into
   assert.ok(!posts[0].hot);
 });
 
-test('DeItaone output is unchanged: default channel, no hot key, a leading mark stays text', async () => {
-  const html = page(msg('WalterBloomberg', 7, `*\u2757 HEADLINE (@WalterBloomberg)`));
-  const posts = await parseTelegram(html, run);   // old call shape
+test('a channel that is not hot (not in CHANNELS): no hot key, a leading mark stays text; the default channel is FinancialJuice', async () => {
+  const html = page(msg('OtherChannel', 7, `*\u2757 HEADLINE (@OtherChannel)`));
+  const posts = await parseTelegram(html, run, 'OtherChannel');
   assert.equal(posts.length, 1);
   assert.deepEqual(Object.keys(posts[0]).sort(), ['id', 'media', 't', 'text', 'url']);
   assert.equal(posts[0].text, '❗ HEADLINE');
-  assert.equal(cleanText('x |FJ'), 'x |FJ', 'the |FJ tail is stripped on FinancialJuice only');
+  assert.equal(cleanText('x |FJ', 'OtherChannel'), 'x |FJ', 'the |FJ tail is stripped on FinancialJuice only');
   assert.equal(cleanText('x |FJ', FJ), 'x');
-  assert.equal(FEED_CHANNEL, 'WalterBloomberg');
-  assert.equal(_state, _stateOf('WalterBloomberg'));
+  assert.equal(cleanText('x |FJ'), 'x', 'no channel given: FinancialJuice');
+  assert.equal(FEED_CHANNEL, FJ);
+  assert.equal(_state, _stateOf(FJ));
+});
+
+test('a call with no channel reads FinancialJuice and never asks Telegram for Walter Bloomberg (retired 24 Nov)', async () => {
+  const m = await fresh();
+  const f = mockFetch({ [`https://t.me/s/${FJ}`]: page(msg(FJ, 11, `${MARK} HOT${TAIL}`), msg(FJ, 10, `quiet${TAIL}`)) });
+  try {
+    const one = JSON.parse(await m.getFeed(null, null, {}));
+    assert.equal(one.channel, FJ); assert.equal(one.health.hot, 1);
+    assert.deepEqual(f.urls, [`https://t.me/s/${FJ}`]);
+    assert.equal(m.feedHealth().hot, 1, 'feedHealth() with no channel is FinancialJuice too (/health shows it at the top level of "wire")');
+  } finally { f.restore(); }
 });
 
 test('splitHot and mergePosts', () => {
