@@ -117,13 +117,21 @@ html[data-theme="dark"] .inv{filter:invert(.9) hue-rotate(180deg)}
 .gx iframe{flex:none;height:var(--ifh,330px)}
 .gx .pw{min-height:36px}
 .xw{flex:1;min-height:0;overflow:auto}
-/* own heatmap (plan P8.45): toolbar, crumb, canvas, one status line */
+/* own heatmap (plan P8.45): toolbar, crumb, canvas + hover overlay + pop-out, status line, legend */
 .hm{display:flex;flex-direction:column;height:100%}
 .hmt{flex:none;padding:6px 8px 0}
 .hmb{flex:none;padding:4px 10px 2px;font-size:var(--fsm);color:var(--t2);min-height:22px;display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .hmc{border:0;background:none;padding:0;font:inherit;color:var(--t2);cursor:pointer}.hmc:hover{color:var(--t)}.hmc:last-child{color:var(--t);font-weight:600;cursor:default}
-.hmw{flex:1;min-height:0;position:relative}.hmw canvas{display:block;position:absolute;left:0;top:0;cursor:pointer}
+.hmw{flex:1;min-height:0;position:relative;overflow:hidden}.hmw canvas{display:block;position:absolute;left:0;top:0;cursor:pointer}.hmw .hmo{pointer-events:none}
 .hms{flex:none;padding:5px 10px;font-size:var(--fsm);color:var(--t2);min-height:24px;border-top:.5px solid var(--bd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmf{flex:none;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 14px;padding:5px 10px 7px;border-top:.5px solid var(--bd);font-size:var(--fxs);color:var(--t3)}
+.hmg{display:flex;flex:0 1 330px;min-width:230px}.hmg i{flex:1;font-style:normal;text-align:center;color:#fff;font-size:var(--fxs);font-weight:600;padding:3px 0}.hmg i:first-child{border-radius:3px 0 0 3px}.hmg i:last-child{border-radius:0 3px 3px 0}
+.hmtip{position:absolute;z-index:5;pointer-events:none;min-width:230px;max-width:340px;background:var(--surface);color:var(--t);border:.5px solid var(--bdm);border-radius:var(--rad);box-shadow:0 6px 24px rgba(0,0,0,.35);padding:8px 10px;font-size:var(--fsm)}
+.hmtip[hidden]{display:none}
+.hmth{color:var(--t2);font-weight:600;padding-bottom:5px;border-bottom:.5px solid var(--bd);margin-bottom:5px}
+.hmtm{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:16px}.hmtm b{font-weight:700}
+.hmts{color:var(--t3);margin:1px 0 6px}
+.hmtl>div{display:grid;grid-template-columns:1fr auto 56px;gap:10px;padding:2px 0;font-variant-numeric:tabular-nums}.hmtl .c{color:var(--t3)}.hmtl span:last-child{text-align:right}.hmtl .me{font-weight:700;background:var(--s2);margin:0 -4px;padding:2px 4px;border-radius:4px}
 .card.fit{height:auto;align-self:stretch}
 .note{padding:16px;color:var(--t3);font-size:var(--fsm);line-height:1.5}
 .card.closed{height:auto}.card.closed .body,.card.closed .tb{display:none}.card.closed .ch{border-bottom:none}
@@ -961,6 +969,7 @@ const gex=n=>el=>embed(el,'https://zerogex.io/embed/'+n+'?theme='+(dark()?'dark'
 /* Own heatmap (plan P8.45): the heatmap card's "Live map" source. Reads the Worker's /heat (Finviz layout + colours, passed through as text),
    joins them here, and draws a squarified treemap on one canvas (5,900 tiles for All stocks would be 5,900 DOM nodes). No library, no third-party script (R32, R59).
    Size = market cap (themes: equal), colour = % change, scale +-3 % as on Finviz. Click a sector (or industry) to zoom, the crumb or Esc to go back; tap a tile for its line.
+   Hover (mouse) shows a pop-out like Finviz's: the group's title, the tile's figures and the group's biggest names; the group is outlined. Industries are titled inside each sector.
    Colours refresh every 60 s while the card is on screen; the layout is read once per map and kept for the session. A failed read keeps the last map and says so. */
 const HEAT_URL=WORKER_URL.replace(/\/market$/,'/heat');
 const HM={maps:[['all','All stocks'],['sec','S&P 500'],['ndx','Nasdaq 100'],['futures','Futures'],['themes','Themes']],
@@ -1016,7 +1025,7 @@ function hmLayout(node,w,h){
     for(const r of hmSquarify(kids,x,y,ww,hh)){
       const c=r.n;
       if(c.kids){
-        const head=d===0&&r.w>52&&r.h>40?13:0;   /* a title strip only on the groups of the level on screen; the levels below keep a 1 px frame */
+        const head=d===0?(r.w>52&&r.h>40?13:0):d===1?(r.w>70&&r.h>46?11:0):0;   /* title strips: the groups of the level on screen (13 px) and, one level down, the industries inside a sector (11 px) */
         groups.push({n:c,x:r.x,y:r.y,w:r.w,h:r.h,head,d});
         go(c,r.x+1,r.y+head+1,r.w-2,r.h-head-2,d+1);
       }else tiles.push(r);
@@ -1024,6 +1033,7 @@ function hmLayout(node,w,h){
   };
   go(node,0,0,w,h,0);return{tiles,groups};
 }
+HM.fine=!!(window.matchMedia&&matchMedia('(hover:hover) and (pointer:fine)').matches);
 const hmCap=v=>v>=1e6?'$'+(v/1e6).toFixed(2)+'T':v>=1e3?'$'+(v/1e3).toFixed(1)+'B':'$'+Math.round(v)+'M'; /* the layout's values are market cap in $ millions */
 const hmPct=p=>{if(p==null)return'no figure';const t=p.toFixed(2);return(+t>0?'+':'')+(+t===0?'0.00':t)+'%'}; /* -0.004 reads 0.00%, not -0.00% */
 async function hmPull(part,map,fresh){
@@ -1054,8 +1064,9 @@ function hmPaint(){
   HM.cur=m;
   let node=m.root;for(const nm of HM.path){const c=node.kids&&node.kids.find(k=>k.name===nm);if(!c||!c.kids){HM.path=[];node=m.root;break}node=c}
   const wrap=cv.parentNode,w=wrap.clientWidth,h=wrap.clientHeight;if(w<20||h<20)return;
-  const dpr=window.devicePixelRatio||1;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.width=w+'px';cv.style.height=h+'px';
-  const L=hmLayout(node,w,h);HM.rects=L;
+  const dpr=window.devicePixelRatio||1;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.width=w+'px';cv.style.height=h+'px';const ov=$('.hmo',root);ov.width=cv.width;ov.height=cv.height;ov.style.width=w+'px';ov.style.height=h+'px';hmHover(null);
+  const lk=map+'|'+HM.path.join('>')+'|'+w+'x'+h+'|'+p.at;
+  const L=HM.lay&&HM.lay.key===lk?HM.lay.L:(HM.lay={key:lk,L:hmLayout(node,w,h)}).L;HM.rects=L;
   const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--surface')||'#1b1b1e';g.fillRect(0,0,w,h);
   g.textBaseline='middle';const ff=getComputedStyle(document.body).fontFamily;
@@ -1073,18 +1084,43 @@ function hmPaint(){
   }
   for(const q of L.groups){ /* outline, and the title strip where there is room */
     g.strokeStyle='rgba(0,0,0,.55)';g.lineWidth=q.d?1:2;g.strokeRect(q.x+.5,q.y+.5,q.w-1,q.h-1);
-    if(q.head){g.fillStyle='rgba(18,18,20,.82)';g.fillRect(q.x+1,q.y+1,q.w-2,q.head-1);g.fillStyle='#d8d8d4';g.textAlign='left';g.font='600 10px '+getComputedStyle(document.body).fontFamily;
-      g.fillText(q.n.name,q.x+4,q.y+7.5,q.w-8)}
+    if(q.head){const top=q.d===0;g.fillStyle=top?'rgba(18,18,20,.82)':'rgba(18,18,20,.62)';g.fillRect(q.x+1,q.y+1,q.w-2,q.head-1);g.fillStyle=top?'#d8d8d4':'#c9c9c3';g.textAlign='left';
+      g.font=(top?'600 10px ':'600 8.5px ')+ff;g.fillText(top?q.n.name:q.n.name.toUpperCase(),q.x+4,q.y+q.head/2+.5,q.w-8)}
   }
   const age=Math.round((Date.now()-p.at)/60000);
   const crumb=['<button class="hmc" data-c="-1">'+HM.maps.find(x=>x[0]===map)[1]+'</button>'].concat(HM.path.map((nm,i)=>'<button class="hmc" data-c="'+i+'">'+esc(nm)+'</button>')).join(' › ');
   $('.hmb',root).innerHTML=crumb;
-  st.textContent=HM.sel?HM.sel:(HM.err?'Not updated ('+HM.err+'); showing the last map, '+AGO(Date.now()-p.at)+' old':(map==='futures'||map==='themes'?'':'tap a tile for its figures')+(age>=2?' · colours '+AGO(Date.now()-p.at)+' old':''));
+  $('.hmn',root).textContent=HM.maps.find(x=>x[0]===map)[1]+' · 1-day performance · colours fetched '+new Date(p.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  st.textContent=HM.sel?HM.sel:(HM.err?'Not updated ('+HM.err+'); showing the last map, '+AGO(Date.now()-p.at)+' old':(HM.fine?'hover a tile for its figures; click a sector to open it':'tap a tile for its figures')+(age>=2?' · colours '+AGO(Date.now()-p.at)+' old':''));
 }
 function hmHit(x,y){const L=HM.rects;if(!L)return null;
   for(const r of L.tiles)if(x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h)return r;return null}
+const hmIn=(q,x,y)=>x>=q.x&&x<q.x+q.w&&y>=q.y&&y<q.y+q.h;
+/* outline the hovered group on the overlay canvas (cheap: the map itself is not redrawn) and show its pop-out */
+function hmHover(pt){
+  const root=hmRoot();if(!root)return;
+  const ov=$('.hmo',root),tip=$('.hmtip',root),g=ov.getContext('2d'),dpr=window.devicePixelRatio||1;
+  g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,ov.width,ov.height);
+  const t=pt&&hmHit(pt.x,pt.y);
+  if(!t){tip.hidden=true;HM.hov=null;return}
+  const gs=HM.rects.groups.filter(q=>hmIn(q,pt.x,pt.y)),inner=gs[gs.length-1],top=gs[0];  /* groups come outer first, so the last match is the innermost */
+  if(inner){g.strokeStyle='#f5d94a';g.lineWidth=2;g.strokeRect(inner.x+1,inner.y+1,inner.w-2,inner.h-2)}
+  g.strokeStyle='#fff';g.lineWidth=1.5;g.strokeRect(t.x+.5,t.y+.5,t.w-1,t.h-1);
+  const n=t.n,themes=hmMap()==='themes',colr=p=>p==null?'var(--t3)':p>=0?'#5fbf86':'#e08080';
+  const rows=(inner?inner.n.kids.filter(k=>!k.kids).slice().sort((a,b)=>b.v-a.v).slice(0,8):[n]);
+  const title=top&&inner&&top!==inner?top.n.name+' – '+inner.n.name:(inner?inner.n.name:'');
+  tip.innerHTML='<div class="hmth">'+esc(title)+'</div>'
+    +'<div class="hmtm"><b>'+esc(themes?n.lab:n.name)+'</b><span style="color:'+colr(n.p)+'">'+hmPct(n.p)+'</span></div>'
+    +'<div class="hmts">'+esc(n.desc||'')+(themes?'':' · cap '+hmCap(n.v))+(themes&&n.mem?' · '+esc(n.mem.split(',').slice(0,10).join(' ')):'')+'</div>'
+    +(themes?'':'<div class="hmtl">'+rows.map(k=>'<div'+(k===n?' class="me"':'')+'><span>'+esc(k.name)+'</span><span class="c">'+hmCap(k.v)+'</span><span style="color:'+colr(k.p)+'">'+hmPct(k.p)+'</span></div>').join('')+'</div>');
+  tip.hidden=false;
+  const W=ov.clientWidth,H=ov.clientHeight,tw=tip.offsetWidth,th=tip.offsetHeight;
+  tip.style.left=Math.max(4,Math.min(W-tw-4,pt.x+16>W-tw-4?pt.x-tw-16:pt.x+16))+'px';
+  tip.style.top=Math.max(4,Math.min(H-th-4,pt.y+16))+'px';
+  HM.hov=t;
+}
 function hmOwn(el){
-  el.innerHTML='<div class="hm"><div class="hmt"><div class="seg">'+HM.maps.map(m=>'<button class="pbtn" data-m="'+m[0]+'">'+m[1]+'</button>').join('')+'</div></div><div class="hmb"></div><div class="hmw"><canvas></canvas></div><div class="hms"></div></div>';
+  el.innerHTML='<div class="hm"><div class="hmt"><div class="seg">'+HM.maps.map(m=>'<button class="pbtn" data-m="'+m[0]+'">'+m[1]+'</button>').join('')+'</div></div><div class="hmb"></div><div class="hmw"><canvas></canvas><canvas class="hmo"></canvas><div class="hmtip" hidden></div></div><div class="hms"></div><div class="hmf"><span class="hmn"></span><span class="hmg">'+HM_STOPS.map(s=>'<i style="background:rgb('+s[1]+')">'+(s[0]>0?'+':s[0]<0?'−':'')+Math.abs(s[0])+'%</i>').join('')+'</span></div></div>';
   HM.el=el;HM.path=[];HM.sel=null;const root=$('.hm',el),cv=$('canvas',root);
   root.addEventListener('click',e=>{
     const mb=e.target.closest('[data-m]');if(mb){LS.s(KEY+'heatmap',mb.dataset.m);HM.path=[];HM.sel=null;hmPaint();hmLoad(false);return}
@@ -1101,6 +1137,8 @@ function hmOwn(el){
     }
     hmPaint();
   });
+  cv.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse')return;const b=cv.getBoundingClientRect();hmHover({x:e.clientX-b.left,y:e.clientY-b.top})});
+  cv.addEventListener('pointerleave',()=>hmHover(null));
   if(!HM.keyed){HM.keyed=true;window.addEventListener('keydown',e=>{if(e.key==='Escape'&&hmRoot()&&HM.path.length){HM.path.pop();HM.sel=null;hmPaint()}})}
   if(window.ResizeObserver){let t;new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(hmPaint,80)}).observe($('.hmw',root))}
   const p=HM.perf[hmMap()];hmPaint();
