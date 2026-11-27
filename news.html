@@ -372,6 +372,38 @@ html.mobile .card.stretch .stk{position:static;height:100%}
 .mk3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1.25rem}
 .mk .card,.mk3 .card{grid-column:auto}
 .mk3 .card{height:auto}
+/* top row (27 Nov): column 2 stacks the fear & greed bar over the countdown; column 3 is the earnings card */
+.mkcol{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mkcol .card{flex:0 0 auto}.mkcol #nxt{flex:1 1 auto}
+.fgb{width:100%;display:flex;flex-direction:column;gap:6px}
+.fgt{display:flex;align-items:baseline;justify-content:center}
+.fgbar{position:relative;height:8px;margin:5px 6px 4px}
+.fgbar i{position:absolute;top:0;bottom:0}
+.fgbar i:first-child{border-radius:4px 0 0 4px}.fgbar i:nth-child(5){border-radius:0 4px 4px 0}
+.fgbar u{position:absolute;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;border:1.5px solid var(--t2);background:var(--bg);text-decoration:none}
+.fgbar b{position:absolute;top:-4px;width:4px;height:16px;margin-left:-2px;border-radius:2px;background:var(--t);box-shadow:0 0 0 2px var(--bg)}
+html:not(.mobile) .mkcol .fbody{padding:6px 14px 10px}
+html:not(.mobile) .mkcol .nbody{padding:8px 12px;gap:4px}
+html:not(.mobile) .mkcol .tm{gap:6px}
+html:not(.mobile) .mkcol .tu{min-width:50px;padding:5px 5px 3px}
+html:not(.mobile) .mkcol .tu b{font-size:21px}
+html:not(.mobile) .mkcol .tu small{font-size:9px}
+html.mobile .mkcol{gap:8px}
+.eseg{display:inline-flex;border:.5px solid var(--bdm);border-radius:999px;overflow:hidden}.eseg[hidden]{display:none}
+.eseg button{background:none;border:none;color:var(--t3);font:inherit;font-size:var(--fxs);padding:3px 9px;cursor:pointer;white-space:nowrap}
+.eseg button.on{background:var(--bd);color:var(--t)}
+.ebody{flex:1;display:flex;flex-direction:column;padding:6px 14px 8px;min-height:0}
+.eday{font-size:var(--fsm);color:var(--t2);padding:2px 0 4px}.eday b{font-weight:600;color:var(--t)}
+.er{display:grid;grid-template-columns:50px minmax(0,1fr) auto 74px;column-gap:8px;align-items:baseline;padding:4px 0;border-top:.5px solid var(--bd);font-variant-numeric:tabular-nums}
+.er:first-child{border-top:none}
+.er b{font-weight:600;font-size:var(--fbase)}
+.er .en{color:var(--t3);font-size:var(--fxs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.er .ec{color:var(--t2);font-size:var(--fsm);text-align:right}
+.er .ee{font-size:var(--fsm);text-align:right;color:var(--t2);white-space:nowrap}
+.er .ee.up{color:var(--g)}.er .ee.dn{color:var(--r)}
+.emore{margin-top:auto;padding-top:6px;display:flex;justify-content:space-between;gap:8px;font-size:var(--fxs);color:var(--t3)}
+.emore a{color:var(--t2);cursor:pointer;white-space:nowrap}.emore a:hover{text-decoration:underline}
+html.mobile .er{grid-template-columns:46px minmax(0,1fr) auto 70px}
 .nbody,.cbody{flex:1;display:flex;flex-direction:column;justify-content:center;padding:10px 14px;gap:5px}
 .nbody{align-items:center;text-align:center}
 .nbody{--ac:var(--pc1);--ac2:var(--pc2)}
@@ -517,13 +549,19 @@ html.mobile .tu b{font-size:22px}
       <div class="ch"><span class="plbl">sessions</span><span class="stamp" id="lclk"></span></div>
       <div class="cbody" id="cbody"></div>
     </section>
-    <section class="card" id="fng">
-      <div class="ch"><span class="plbl">fear &amp; greed</span></div>
-      <div class="fbody" id="fbody"></div>
-    </section>
-    <section class="card" id="nxt">
-      <div class="ch"><span class="plbl">next high-impact event · usd</span><div class="acts"><button class="topicon" id="remb" onclick="toggleRem()"></button></div></div>
-      <div class="nbody" id="nbody"></div>
+    <div class="mkcol">
+      <section class="card" id="fng">
+        <div class="ch"><span class="plbl">fear &amp; greed</span></div>
+        <div class="fbody" id="fbody"></div>
+      </section>
+      <section class="card" id="nxt">
+        <div class="ch"><span class="plbl">next high-impact event · usd</span><div class="acts"><button class="topicon" id="remb" onclick="toggleRem()"></button></div></div>
+        <div class="nbody" id="nbody"></div>
+      </section>
+    </div>
+    <section class="card" id="ern">
+      <div class="ch"><span class="plbl">next earnings</span><div class="acts"><div class="eseg" id="eseg" hidden><button type="button" data-k="BMO">pre-market</button><button type="button" data-k="AMC">after close</button></div></div></div>
+      <div class="ebody" id="ebody"><p class="note">loading…</p></div>
     </section>
   </div>
   <div class="grid" id="p-news"></div>
@@ -812,19 +850,13 @@ $('#mfreeze').onclick=()=>{frozen=!frozen;LS.s(KEY+'frozen',frozen?'1':'0');pain
 let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(tapeLayout,200)});
 reduceMo.addEventListener&&reduceMo.addEventListener('change',tapeLayout);
 const band=s=>s<25?'extreme fear':s<45?'fear':s<56?'neutral':s<76?'greed':'extreme greed';
-const pol=(a,r)=>[100+r*Math.cos(a),100-r*Math.sin(a)];
-function arc(s0,s1,r){
-  const [x0,y0]=pol(Math.PI*(1-s0/100),r),[x1,y1]=pol(Math.PI*(1-s1/100),r);
-  return 'M'+x0.toFixed(1)+' '+y0.toFixed(1)+'A'+r+' '+r+' 0 0 1 '+x1.toFixed(1)+' '+y1.toFixed(1);
-}
-function gauge(f){
-  const segs=[[0,25,'--r',1],[25,45,'--r',.5],[45,56,'--t3',.6],[56,76,'--g',.5],[76,100,'--g',1]];
-  let svg='<svg viewBox="0 0 200 112" role="img" aria-label="fear and greed index '+Math.round(f.score)+', '+band(f.score)+'">';
-  segs.forEach(([a,b,c,o])=>{svg+='<path d="'+arc(a+.6,b-.6,80)+'" fill="none" stroke="var('+c+')" stroke-opacity="'+o+'" stroke-width="10"/>'});
-  const [nx,ny]=pol(Math.PI*(1-f.score/100),64);
-  svg+='<line x1="100" y1="100" x2="'+nx.toFixed(1)+'" y2="'+ny.toFixed(1)+'" stroke="var(--t)" stroke-width="2" stroke-linecap="round"/><circle cx="100" cy="100" r="4" fill="var(--t)"/></svg>';
+/* fear & greed as a bar (27 Nov): the same five bands as the old gauge; the pin is today, the hollow dots are prev, 1 week and 1 month ago */
+function fgBar(f){
+  const sc=Math.max(0,Math.min(100,+f.score)),segs=[[0,25,'--r',1],[25,45,'--r',.5],[45,56,'--t3',.6],[56,76,'--g',.5],[76,100,'--g',1]];
+  const bar=segs.map(([a,b,c,o])=>'<i style="left:'+(a+.4)+'%;width:'+(b-a-.8)+'%;background:var('+c+');opacity:'+o+'"></i>').join('');
+  const dots=[['prev',f.prev],['1w',f.week],['1m',f.month]].filter(x=>x[1]!=null).map(x=>'<u style="left:'+Math.max(0,Math.min(100,x[1]))+'%" title="'+x[0]+' '+Math.round(x[1])+'"></u>').join('');
   const p=[['prev',f.prev],['1w',f.week],['1m',f.month],['1y',f.year]].filter(x=>x[1]!=null).map(x=>x[0]+' '+Math.round(x[1])).join(' \u00b7 ');
-  return svg+'<div><span class="fnum">'+Math.round(f.score)+'</span><span class="frate">'+band(f.score)+'</span></div><div class="fprev">'+p+'</div>';
+  return '<div class="fgb" role="img" aria-label="fear and greed index '+Math.round(sc)+', '+band(sc)+'"><div class="fgt"><span class="fnum">'+Math.round(sc)+'</span><span class="frate">'+band(sc)+'</span></div><div class="fgbar">'+bar+dots+'<b style="left:'+sc+'%"></b></div><div class="fprev">'+p+'</div></div>';
 }
 let haveData=false,lastData=null,busy=false,loading=false,loadingAt=0,refreshFailed=false;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -891,7 +923,7 @@ function renderMarket(d){
   haveData=true;lastData=d;
   paintTape(d.items||[]);
   paintStamp();
-  $('#fbody').innerHTML=d.fng&&d.fng.score!=null?gauge(d.fng):'<p class="note">no reading yet'+(d.fng_error?'<br>'+esc(d.fng_error):'')+'</p>';
+  $('#fbody').innerHTML=d.fng&&d.fng.score!=null?fgBar(d.fng):'<p class="note">no reading yet'+(d.fng_error?'<br>'+esc(d.fng_error):'')+'</p>';
   if(!d.__cached)LS.s(KEY+'mk_last',JSON.stringify(d));
 }
 function paintCached(){
@@ -1792,6 +1824,81 @@ function clkPaint(){
 }
 setInterval(()=>{if(!document.hidden){nxtPaint();lclkPaint();clkPaint()}},1000);
 setInterval(()=>{if(!document.hidden||remOn)nxtLoad()},15000); /* calGet itself reuses a copy for 5 min, or 15 s around a release */
+
+/* ---- earnings card (top row, column 3, 27 Nov): the next US pre-market or after-close window that has names above a market-cap floor.
+   The window follows New York time: before 12:00 pre-market, 12:00 to 20:00 after close, later (or at a weekend) the next trading day's pre-market;
+   a window with nothing above the floor is skipped. Data: Worker /earnings, one day per request. Dates and sides are Finviz's; companies can move them. ---- */
+const ER_URL=WORKER_URL.replace(/\/market$/,'/earnings'),ER_FLOOR=1e9,ER_TOP=6,ER_WIN=10;
+const ER={days:{},busy:false,auto:null,autoKey:null,over:null,err:null,loaded:false};
+const erDow=iso=>new Date(iso+'T12:00:00Z').getUTCDay();
+const erAdd=(iso,n)=>{const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+const erNextWd=iso=>{let x=erAdd(iso,1);while(erDow(x)===0||erDow(x)===6)x=erAdd(x,1);return x};
+function erStart(ms){const q=etP(ms),m=q.h*60+q.mi,w=erDow(q.iso);if(w===0||w===6)return{day:erNextWd(q.iso),k:'BMO'};if(m<720)return{day:q.iso,k:'BMO'};if(m<1200)return{day:q.iso,k:'AMC'};return{day:erNextWd(q.iso),k:'BMO'}}
+const erNext=w=>w.k==='BMO'?{day:w.day,k:'AMC'}:{day:erNextWd(w.day),k:'BMO'};
+function erList(c,k){const all=((c&&c.rows)||[]).filter(r=>r.t===k),big=all.filter(r=>r.c>=ER_FLOOR).sort((a,b)=>b.c-a.c||a.s.localeCompare(b.s));return{top:big.slice(0,ER_TOP),big:big.length,small:all.length-big.length}}
+const erNum=s=>{const n=parseFloat(String(s==null?'':s).replace(/[^0-9.\-]/g,''));return Number.isFinite(n)?n:null};
+const erCapS=c=>c>=1e12?'$'+(c/1e12).toFixed(2)+'T':c>=1e11?'$'+Math.round(c/1e9)+'B':c>=1e9?'$'+(Math.round(c/1e8)/10).toFixed(1)+'B':'$'+Math.round(c/1e6)+'M';
+async function erDay(day,fresh){ /* all pages of one day (the Worker says more:true when the day does not fit one page) */
+  const c=ER.days[day],ttl=day===etP(NOW()).iso?9*60000:50*60000;
+  if(c&&c.rows&&!fresh&&!c.err&&Date.now()-c.at<ttl)return c;
+  let rows=[],err=null,stale=false,upd=null;
+  try{
+    for(let p=1;p<=4;p++){
+      const d=await fj(ER_URL+'?day='+day+(p>1?'&page='+p:''),12000);
+      if(!d||!Array.isArray(d.rows))throw new Error((d&&d.error)||'bad payload');
+      rows=rows.concat(d.rows);stale=stale||!!d.stale;upd=d.updated||upd;
+      if(!d.more)break;
+    }
+  }catch(e){err=String(e.message||e)}
+  ER.days[day]=err?(c&&c.rows?Object.assign({},c,{err,at:Date.now()}):{rows:null,err,at:Date.now()}):{rows,err:null,stale,upd,at:Date.now()};
+  return ER.days[day];
+}
+async function erRefresh(fresh){
+  if(ER.busy)return;ER.busy=true;
+  try{
+    let w=erStart(NOW()),found=null,err=null;
+    for(let i=0;i<ER_WIN;i++){
+      const c=await erDay(w.day,fresh&&i===0);
+      if(!c.rows){err=c.err||'no data';break}
+      if(erList(c,w.k).big){found=w;break}
+      w=erNext(w);
+    }
+    ER.err=found?null:err;ER.auto=found;ER.autoKey=found?found.day+'|'+found.k:null;
+    if(ER.over&&ER.over.auto!==ER.autoKey)ER.over=null; /* a manual pick lasts until the automatic window moves on */
+  }finally{ER.busy=false;ER.loaded=true}
+  erPaint();
+}
+function erRow(r){
+  let ee,cls='';
+  if(r.a){const a=erNum(r.a),e=erNum(r.e);ee='act '+esc(r.a);if(a!=null&&e!=null)cls=a>e?' up':a<e?' dn':''}
+  else ee=r.e?'est '+esc(r.e):'est \u2014';
+  return '<div class="er"><b>'+esc(r.s)+'</b><span class="en" title="'+esc(r.n)+'">'+esc(r.n)+'</span><span class="ec">'+erCapS(r.c)+'</span><span class="ee'+cls+'">'+ee+'</span></div>';
+}
+function erPaint(){
+  const b=$('#ebody'),tg=$('#eseg');if(!b||!tg)return;
+  const a=ER.auto;
+  if(!a){
+    tg.hidden=true;
+    b.innerHTML='<p class="note">'+(ER.err?'earnings unavailable<br>'+esc(String(ER.err).slice(0,80)):ER.loaded?'no reports above $1B in the coming trading days':'loading\u2026')+'</p>';
+    return;
+  }
+  const k=ER.over?ER.over.k:a.k,c=ER.days[a.day],L=erList(c,k),tm=k==='BMO'?'pre-market':'after close';
+  tg.hidden=false;tg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
+  let h='<div class="eday" title="US dates as listed by Finviz; companies can move them"><b>'+esc(dLbl(a.day,{weekday:'short',month:'short',day:'numeric'}))+'</b> \u00b7 '+tm+'</div>';
+  h+=L.top.length?'<div class="erows">'+L.top.map(erRow).join('')+'</div>':'<p class="note" style="padding:8px 0">nothing above $1B '+tm+'</p>';
+  const parts=[],more=L.big-L.top.length;
+  if(more>0)parts.push('+'+more+' more');
+  if(L.small>0)parts.push(L.small+' under $1B');
+  if(c&&(c.err||c.stale))parts.push('delayed');
+  h+='<div class="emore"><span>'+esc(parts.join(' \u00b7 '))+'</span><a id="eall" role="button" tabindex="0">all reports \u203a</a></div>';
+  b.innerHTML=h;
+}
+$('#eseg').addEventListener('click',e=>{const x=e.target.closest('button[data-k]');if(!x||!ER.auto)return;ER.over=x.dataset.k===ER.auto.k?null:{auto:ER.autoKey,k:x.dataset.k};erPaint()});
+$('#ebody').addEventListener('click',e=>{if(e.target.closest('#eall'))$('.tab.t-earn').click()});
+$('#ebody').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('#eall')){e.preventDefault();$('.tab.t-earn').click()}});
+erRefresh();
+setInterval(()=>{if(!document.hidden)erRefresh()},60000); /* re-decides the window every minute from copies it already holds; the network is used only when a copy is older than 9 min (today) or 50 min */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)erRefresh()});
 
 /* ---- sector ETF strip and week-open card (plan P4, P5): each has its own Worker route, fetched only while Technicals is open ---- */
 const SEC_URL=WORKER_URL.replace(/\/market$/,'/sectors'),WKO_URL=WORKER_URL.replace(/\/market$/,'/weekly');
