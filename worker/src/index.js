@@ -28,6 +28,7 @@ import { buildCurve, parseTreasuryCsv } from './curve.js';   // /curve (plan P6)
 import { tvIngest, loadTv, tvOverlay, tvWeekly, tvMarket, tvHealth } from './tv.js';   // live futures from a TradingView alert: POST /ingest, GET /tv
 import { finvizProbe, getFinviz } from './finviz.js';   // GET /finviz (Finviz news for the card) and GET /finviz-test (diagnostic probe)
 import { fvCalProbe } from './fvcal_probe.js';   // GET /fvcal-test: one read-only look at Finviz's economic calendar page (remove with the route)
+import { earningsProbe } from './earnings_probe.js';   // GET /earnings-test: read-only look at Finviz's earnings calendar (remove with the route)
 import { heatProbe } from './heat_probe.js';   // GET /heat-test: read-only look at where Finviz's interactive map gets its layout (plan P8.45; remove with the route)
 import { heatRoute } from './heat.js';   // GET /heat: Finviz map layout and colours, passed through as text (plan P8.45)
 import { backoffTtl } from './route.js';   // closed-market back-off (shared with /sectors)
@@ -1310,6 +1311,10 @@ export default {
     }
     if (pathname === '/fvcal-test') {   // TEST ONLY, read only: one request to Finviz's economic calendar at most every 60 s; remove once the real route replaces it
       try { return new Response(await fvCalProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
+    }
+    if (pathname === '/earnings-test') {   // TEST ONLY, read only: one request to a fixed Finviz earnings page at most every 60 s; remove once /earnings replaces it
+      try { return new Response(await earningsProbe(req.url), { headers: { ...json, 'Cache-Control': 'no-store' } }); }
       catch (e) { return new Response(JSON.stringify({ error: String(e.message) }), { status: 502, headers: json }); }
     }
     if (pathname === '/heat-test') {   // TEST ONLY, read only: finds the data requests behind Finviz's interactive map; one run per 20 s; remove once the real heatmap route replaces it
