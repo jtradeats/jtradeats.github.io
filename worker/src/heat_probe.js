@@ -10,6 +10,7 @@
 //   /heat-test?step=data            map_perf for t = sec, sec_ndx, sec_all, ndx, all, fut, futures, thm, themes (add ?t=a,b to choose; ?st=w1 for another period)
 //   /heat-test?step=uni             fallbacks: TradingView scanner (all US, S&P 500, Nasdaq 100) and Nasdaq's public screener, 5 rows each
 //   /heat-test?step=get&path=/api/xyz.ashx?t=sec    one GET of a finviz.com path under /api/ (or an .ashx page) found by the page step
+//   /heat-test?step=layout          the map's layout call: code around /api/maps/base, /api/map_sparklines and /api/maps/counts in chunk 6178, and /api/maps/base/<t> for the five maps
 //   /heat-test?step=scan            reads every same-site script of the map page, plus the lazy chunks named in the webpack runtime, looking only for data requests (?from=24&n=24 for the next batch)
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
@@ -112,8 +113,8 @@ export function chunkUrls(runtimeText) {
 }
 const SKIP_SCAN = /browser_check|notice|header|google_one_tap|\/pv\.|knowledge_base|elite_features|libs_init|finviz_t\.|\/runtime\./;
 
-export function summarise(text) {
-  return { bytes: text.length, approxEntries: countNeedle(text, '":'), head: text.slice(0, 220), tail: text.length > 500 ? text.slice(-200) : null };
+export function summarise(text, headLen = 220, count = true) {
+  return { bytes: text.length, approxEntries: count && text.length < 300000 ? countNeedle(text, '":') : null, head: text.slice(0, headLen), tail: text.length > 500 ? text.slice(-200) : null };
 }
 
 async function get(url, extra = {}) {
@@ -249,6 +250,31 @@ async function stepScan(q) {
   return out;
 }
 
+async function stepLayout(q) {
+  const chunk = /^\/assets\/dist\/[A-Za-z0-9_.\/-]{1,60}\.js$/.test(q.get('chunk') || '') ? q.get('chunk') : '/assets/dist/6178.v1.24ec063e.js';
+  const needles = ['/api/maps/base', '/api/map_sparklines', '/api/maps/counts', '/api/map_perf_groups'];
+  const ts = (q.get('t') || 'sec,sec_ndx,sec_all,futures,themes').split(',').map(x => x.trim()).filter(x => /^[a-z0-9_]{1,20}$/i.test(x)).slice(0, 8);
+  const [code, base] = await Promise.all([
+    (async () => {
+      try {
+        const g = await get(ORIGIN + chunk);
+        if (!g.r.ok) return { status: g.r.status };
+        const w = {};
+        for (const n of needles) w[n] = windows(g.text, n, 2, 350);
+        return w;
+      } catch (e) { return { error: errOf(e) }; }
+    })(),
+    Promise.all(ts.map(async t => {
+      try {
+        const g = await get(`${ORIGIN}/api/maps/base/${t}`);
+        const o = { t, status: g.r.status, ms: g.ms, contentType: g.r.headers.get('content-type'), blocked: botCheck(g.text) };
+        return g.r.ok ? { ...o, ...summarise(g.text, 700) } : { ...o, head: g.text.slice(0, 200) };
+      } catch (e) { return { t, error: errOf(e) }; }
+    })),
+  ]);
+  return { step: 'layout', chunk, code, base, note: 'identical bytes for two names means the name is ignored and the S&P 500 comes back' };
+}
+
 async function stepGet(q) {
   const path = q.get('path') || '';
   if (!/^\/(api\/[A-Za-z0-9_.\/-]{1,80}|[A-Za-z0-9_-]{1,40}\.ashx)(\?[A-Za-z0-9_=&,.%-]{0,160})?$/.test(path) || path.includes('..')) {
@@ -268,7 +294,7 @@ export async function heatProbe(reqUrl, now = Date.now()) {
   state.at = now; state.key = key; state.body = null;
   const step = q.get('step') || 'page';
   let out;
-  try { out = step === 'data' ? await stepData(q) : step === 'uni' ? await stepUni() : step === 'get' ? await stepGet(q) : step === 'scan' ? await stepScan(q) : await stepPage(q); }
+  try { out = step === 'data' ? await stepData(q) : step === 'uni' ? await stepUni() : step === 'get' ? await stepGet(q) : step === 'scan' ? await stepScan(q) : step === 'layout' ? await stepLayout(q) : await stepPage(q); }
   catch (e) { out = { step, ok: false, error: errOf(e) }; }
   state.body = JSON.stringify(out);
   return state.body;
