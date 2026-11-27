@@ -1182,6 +1182,7 @@ function hmHover(pt){
     +(themes?'':'<div class="hmtl'+(stock?'':' nc')+'">'+rows.map(k=>'<div'+(k===n?' class="me"':'')+'><span>'+esc(stock?k.name:lab(k))+'</span><span class="c">'+(stock?hmCap(k.v):'')+'</span><span style="color:'+colr(k.p)+'">'+hmPct(k.p)+'</span></div>').join('')+'</div>');
   tip.hidden=false;place();HM.hov=t;
 }
+function hmHome(){HM.path=[];HM.sel=null;HM.selTile=null}   /* the quick exit: clicking the map's own button in the card header while zoomed in goes back to the overview */
 function hmOpen(path){HM.path=path.slice();HM.sel=null;HM.selTile=null;hmPaint()}
 function hmTileLine(n){const mp=HM.map;return mp==='themes'?n.lab+' \u00B7 '+n.desc+' \u00B7 '+hmPct(n.p)+(n.mem?' \u00B7 '+n.mem.split(',').slice(0,12).join(' '):''):mp==='futures'?hmLabel(n,mp)+' ('+n.name+') \u00B7 '+hmPct(n.p):n.name+' \u00B7 '+(n.desc||'')+' \u00B7 '+hmPct(n.p)+' \u00B7 cap '+hmCap(n.v)}
 function hmLegend(){return hmPal().stops.map(s=>'<i style="background:rgb('+s[1]+');color:'+hmInk(s[1])+'">'+(s[0]>0?'+':s[0]<0?'\u2212':'')+Math.abs(s[0])+'%</i>').join('')}
@@ -2224,7 +2225,7 @@ function setTall(k,tall){
 document.addEventListener('click',e=>{
   const card=e.target.closest('.card');if(!card||!C[card.id])return;
   const k=card.id,c=C[k],sb=e.target.closest('[data-s]'),ab=e.target.closest('[data-a]');
-  if(sb){c.cur=sb.dataset.s;LS.s(KEY+'src_'+k,c.cur);draw(k)}
+  if(sb){if(k==='heat'&&c.cur===sb.dataset.s)hmHome();c.cur=sb.dataset.s;LS.s(KEY+'src_'+k,c.cur);draw(k)}
   if(!ab)return;
   const a=ab.dataset.a;
   if(a==='r')cardRefresh(k,ab);
