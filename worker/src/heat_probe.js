@@ -10,6 +10,7 @@
 //   /heat-test?step=data            map_perf for t = sec, sec_ndx, sec_all, ndx, all, fut, futures, thm, themes (add ?t=a,b to choose; ?st=w1 for another period)
 //   /heat-test?step=uni             fallbacks: TradingView scanner (all US, S&P 500, Nasdaq 100) and Nasdaq's public screener, 5 rows each
 //   /heat-test?step=get&path=/api/xyz.ashx?t=sec    one GET of a finviz.com path under /api/ (or an .ashx page) found by the page step
+//   /heat-test?step=scan            reads every same-site script of the map page, plus the lazy chunks named in the webpack runtime, looking only for data requests (?from=24&n=24 for the next batch)
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const ORIGIN = 'https://finviz.com';
@@ -89,6 +90,27 @@ export function scanBundle(text) {
   out.names = names;
   return out;
 }
+
+
+// Up to `count` windows of text around a needle.
+export function windows(text, needle, count = 3, pad = 70) {
+  const out = [];
+  let i = 0, guard = 0;
+  while (out.length < count && guard++ < 200 && (i = text.indexOf(needle, i)) >= 0) { out.push(text.slice(Math.max(0, i - pad), i + needle.length + pad)); i += needle.length; }
+  return out;
+}
+
+// Chunk files named in a webpack runtime ("1502:\"d0983e46\"" pairs) as /assets/dist/<id>.v1.<hash>.js
+export function chunkUrls(runtimeText) {
+  const out = [], seen = new Set(), re = /["']?([A-Za-z0-9_]{1,40})["']?\s*:\s*["']([0-9a-f]{8})["']/g;
+  let m, guard = 0;
+  while ((m = re.exec(runtimeText)) && guard++ < 3000) {
+    const u = ORIGIN + '/assets/dist/' + m[1] + '.v1.' + m[2] + '.js';
+    if (!seen.has(u)) { seen.add(u); out.push(u); }
+  }
+  return out;
+}
+const SKIP_SCAN = /browser_check|notice|header|google_one_tap|\/pv\.|knowledge_base|elite_features|libs_init|finviz_t\.|\/runtime\./;
 
 export function summarise(text) {
   return { bytes: text.length, approxEntries: countNeedle(text, '":'), head: text.slice(0, 220), tail: text.length > 500 ? text.slice(-200) : null };
@@ -188,6 +210,45 @@ async function stepUni() {
   return { step: 'uni', results, note: 'Looking for: status 200; totalCount near 500 and 100 for the two index sets; sector and industry names (compare with Finviz: Technology, Consumer Electronics)' };
 }
 
+
+async function stepScan(q) {
+  const from = Math.max(0, parseInt(q.get('from') || '0', 10) || 0), n = Math.min(40, Math.max(1, parseInt(q.get('n') || '24', 10) || 24));
+  const page = await get(ORIGIN + '/map.ashx?t=sec');
+  const out = { step: 'scan', ok: false, status: page.r.status };
+  if (!page.r.ok || botCheck(page.text)) { out.head = page.text.slice(0, 300); return out; }
+  const { scripts, preloads } = listAssets(page.text);
+  const urls = [], seen = new Set();
+  const add = (href) => { if (!sameSite(href) || SKIP_SCAN.test(href)) return; const u = absUrl(href); if (!seen.has(u.split('?')[0])) { seen.add(u.split('?')[0]); urls.push(u); } };
+  scripts.forEach(x => { if (x.src) add(x.src); });
+  preloads.forEach(add);
+  const rtUrl = scripts.map(x => x.src).filter(Boolean).map(absUrl).find(u => /\/runtime\./.test(u));
+  out.pageScripts = urls.length;
+  if (rtUrl) {
+    try {
+      const g = await get(rtUrl);
+      out.runtimeWindow = around(g.text, '.v1.', 250, 450);
+      const lazy = chunkUrls(g.text); out.lazyChunks = lazy.length;
+      lazy.forEach(add);
+    } catch (e) { out.runtimeError = errOf(e); }
+  }
+  out.totalUrls = urls.length; out.from = from; out.n = n;
+  const batch = urls.slice(from, from + n);
+  const hits = [], failed = [];
+  let quiet = 0;
+  await Promise.all(batch.map(async u => {
+    try {
+      const g = await get(u);
+      if (!g.r.ok) { failed.push(g.r.status + ' ' + u.slice(ORIGIN.length)); return; }
+      const api = tokensAfter(g.text, '/api/', 15), ashx = windows(g.text, '.ashx', 3, 70), mp = tokensAfter(g.text, 'map_', 12, 30);
+      if (api.length || ashx.length || mp.length) hits.push({ u: u.slice(ORIGIN.length), bytes: g.text.length, api, ashx, map_: mp });
+      else quiet++;
+    } catch (e) { failed.push(errOf(e) + ' ' + u.slice(ORIGIN.length)); }
+  }));
+  out.ok = true; out.scanned = batch.length; out.quiet = quiet; out.failed = failed.slice(0, 10); out.hits = hits;
+  out.next = from + n < urls.length ? `/heat-test?step=scan&from=${from + n}` : 'all scripts scanned';
+  return out;
+}
+
 async function stepGet(q) {
   const path = q.get('path') || '';
   if (!/^\/(api\/[A-Za-z0-9_.\/-]{1,80}|[A-Za-z0-9_-]{1,40}\.ashx)(\?[A-Za-z0-9_=&,.%-]{0,160})?$/.test(path) || path.includes('..')) {
@@ -207,7 +268,7 @@ export async function heatProbe(reqUrl, now = Date.now()) {
   state.at = now; state.key = key; state.body = null;
   const step = q.get('step') || 'page';
   let out;
-  try { out = step === 'data' ? await stepData(q) : step === 'uni' ? await stepUni() : step === 'get' ? await stepGet(q) : await stepPage(q); }
+  try { out = step === 'data' ? await stepData(q) : step === 'uni' ? await stepUni() : step === 'get' ? await stepGet(q) : step === 'scan' ? await stepScan(q) : await stepPage(q); }
   catch (e) { out = { step, ok: false, error: errOf(e) }; }
   state.body = JSON.stringify(out);
   return state.body;
