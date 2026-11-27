@@ -1,6 +1,6 @@
 name: Worker tests
 
-# Runs the Worker's test suite on GitHub's servers, so nothing has to be installed on your computer.
+# Runs the Worker's test suite on GitHub's servers and saves the whole log as a file you can download.
 # Start it by hand: Actions tab > "Worker tests" > Run workflow. It also runs when a file in worker/ changes.
 # It only reads the repo (no secrets, no deploy, no commits).
 
@@ -29,4 +29,11 @@ jobs:
           if [ -f package.json ]; then npm install; fi
           npm install --no-save html-rewriter-wasm
       - name: Run tests
-        run: node --test --test-reporter=spec test/*.test.mjs
+        shell: bash
+        run: node --test --test-reporter=spec test/*.test.mjs 2>&1 | tee test-log.txt
+      - name: Save the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: worker/test-log.txt
