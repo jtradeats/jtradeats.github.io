@@ -3,6 +3,8 @@ name: Worker tests
 # Runs the Worker's test suite on GitHub's servers and saves the whole log as a file you can download.
 # Start it by hand: Actions tab > "Worker tests" > Run workflow. It also runs when a file in worker/ changes.
 # It only reads the repo (no secrets, no deploy, no commits).
+# It also fails if a file in worker/test/ is not named *.test.mjs: node only runs that pattern, so a file renamed
+# to *_test.mjs by an upload would silently never run.
 
 on:
   workflow_dispatch:
@@ -31,6 +33,16 @@ jobs:
       - name: Run tests
         shell: bash
         run: node --test --test-reporter=spec test/*.test.mjs 2>&1 | tee test-log.txt
+      - name: Check test file names
+        if: always()
+        shell: bash
+        run: |
+          bad=$(ls -A test | grep -v '\.test\.mjs$' || true)
+          if [ -n "$bad" ]; then
+            { echo ""; echo "FILE NAME CHECK FAILED: these files in worker/test/ are not named *.test.mjs, so they never ran:"; echo "$bad"; echo "Rename them (a_test.mjs -> a.test.mjs) or delete them."; } | tee -a test-log.txt
+            exit 1
+          fi
+          echo "File name check: every file in worker/test/ ends in .test.mjs" | tee -a test-log.txt
       - name: Save the log
         if: always()
         uses: actions/upload-artifact@v4
