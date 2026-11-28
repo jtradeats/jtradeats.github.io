@@ -4,7 +4,7 @@
    At a glance: every tile is labelled at the largest font that fits (never wrapped, 6 px minimum; tall narrow tiles are turned on their side; big stock tiles add the company name),
    every sector/industry title carries its average move (long titles shorten only as far as the width needs: Info, Infra, Div., SW, Digi...), and the row above the map gives the view's average move and advancers / decliners.
    Hover (mouse) pops out Finviz-style figures and outlines the group. Click a title, or a tile (it opens the outlined group), to zoom in at any level; Shift+click opens the top-level
-   group; the crumb or Esc goes back. Touch: tap a tile for its pop-out, tap it again to open its group.
+   group; the crumb or Esc goes back. The magnifier (mauve, left of the average-move row) opens a ticker / company search that opens the group and rings the tile; the ▲ ▼ ■ counts open three scrolling lists of the tickers behind them. Touch: tap a tile for its pop-out, tap it again to open its group.
    Colours refresh every 60 s while the card is on screen; the layout is read once per map and kept for the session. A failed read keeps the last map and says so.
    Light and dark have their own palettes (light follows the page's soft greens and reds). */
 const HEAT_URL=WORKER_URL.replace(/\/market$/,'/heat');
@@ -87,24 +87,31 @@ const hmShort=d=>d.replace(/[\s,]*\b(Inc|Corp|Corporation|Co|Company|Ltd|Limited
    emw(text,weight) = the text's width in em. The % line needs a font of 7.5 px or more (it is drawn at 0.8 x); without it the ticker alone may go down to 6 px. A big tile adds the company name.
    Returns { fs, pct, nfs } or null: a tile too small for a readable label stays blank (the pop-out names it). Nothing is wrapped. */
 function hmFit(emw,txt,pct,w,h,name){
-  const W=w-4,H=h-3;if(W<5||H<5)return null;
-  const tw=emw(txt,600);if(!(tw>0))return null;
-  const cap=Math.min(26,W/tw);
+  const W=w-4,H=h-3,K=.92;if(W<5||H<5)return null;   /* K: labels run a little under the largest size that fits, for a lighter look */
+  const tw=emw(txt,500);if(!(tw>0))return null;
+  const cap=Math.min(22,W/tw);
   if(pct){
-    const pw=emw(pct,400)*.8,fs=Math.min(cap,pw>0?W/pw:cap,H/2.08);
+    const pw=emw(pct,400)*.8,fs=Math.min(cap,pw>0?W/pw:cap,H/2.08)*K;
     if(fs>=7.5){
       let nfs=0;
       if(name){const nw=emw(name,400),f=Math.min(fs*.5,12,nw>0?W/nw:12);if(f>=6.5&&fs*2.08+f*1.25<=H)nfs=f}
       return{fs,pct:true,nfs};
     }
   }
-  const fs=Math.min(cap,H/1.12);
+  const fs=Math.min(cap,H/1.12)*K;
   return fs>=6?{fs,pct:false,nfs:0}:null;
+}
+/* A tall narrow tile that cannot take its label across: the letters stand upright, one per row (T, E, C, H...), at the largest font where the widest letter fits the width and all rows fit the height. */
+function hmStack(emw,txt,w,h){
+  const ch=[...txt];if(ch.length<2)return null;
+  let mx=0;for(const c of ch)mx=Math.max(mx,emw(c,500));
+  const fs=Math.min(14,(w-3)/mx,(h-3)/ch.length)*.92;
+  return fs>=6?{fs,ch}:null;
 }
 function hmDrawLabel(g,ff,f,txt,pc,name,cx,cy,maxW,ink){
   const bh=f.fs*1.12+(f.pct?f.fs*.96:0)+(f.nfs?f.nfs*1.25:0),y0=cy-bh/2;
   g.fillStyle=ink;g.textAlign='center';
-  g.font=(f.fs>=9?'600 ':'500 ')+f.fs+'px '+ff;g.fillText(txt,cx,y0+f.fs*.56,maxW);
+  g.font=(f.fs>=9?'500 ':'400 ')+f.fs+'px '+ff;g.fillText(txt,cx,y0+f.fs*.56,maxW);
   if(f.pct){g.font='400 '+f.fs*.8+'px '+ff;g.fillText(pc,cx,y0+f.fs*1.12+f.fs*.48,maxW)}
   if(f.nfs){g.globalAlpha=.8;g.font='400 '+f.nfs+'px '+ff;g.fillText(name,cx,y0+f.fs*2.08+f.nfs*.625,maxW);g.globalAlpha=1}
 }
@@ -163,9 +170,78 @@ function hmEllipsis(g,t,room){
   const r=w.length>=4?w:t.replace(/[\s&\-]+$/,'');return r.length>2?r+'\u2026':'';
 }
 const hmSign=v=>v==null?'':v>=0?'hmu':'hmd';
-function hmStats(n,stock){
+function hmStats(n,stock,btn){
   const a=hmAvg(n);if(a==null)return'';
-  return(stock?'cap-weighted ':'average ')+'<b class="'+hmSign(a)+'">'+hmPct(a)+'</b><span class="hmx"><i class="hmu">\u25B2 '+n.up+'</i><i class="hmd">\u25BC '+n.dn+'</i>'+(n.fl?'<i>\u25A0 '+n.fl+'</i>':'')+'</span>';
+  const c=(cls,txt,l)=>btn?'<button class="hmcn '+cls+(HM.lstOpen?' on':'')+'" data-l="'+l+'" aria-label="List the tickers">'+txt+'</button>':'<i class="'+cls+'">'+txt+'</i>';
+  return(stock?'cap-weighted ':'average ')+'<b class="'+hmSign(a)+'">'+hmPct(a)+'</b><span class="hmx">'+c('hmu','\u25B2 '+n.up,'up')+c('hmd','\u25BC '+n.dn,'dn')+(n.fl?c('hmz','\u25A0 '+n.fl,'fl'):'')+'</span>';
+}
+/* the leaves under a node, the ticker index for search, and the three-column advancer / decliner / flat lists */
+function hmLeaves(n,out){out=out||[];if(n.kids)for(const k of n.kids)hmLeaves(k,out);else out.push(n);return out}
+function hmIndex(){
+  const m=HM.merged;if(!m)return[];
+  if(HM.idx&&HM.idx.key===m.key)return HM.idx.items;
+  const items=[],walk=(kids,path)=>{for(const k of kids){if(k.kids)walk(k.kids,path.concat(k.name));else items.push({n:k,path})}};
+  walk(m.v.root.kids,[]);HM.idx={key:m.key,items};return items;
+}
+/* ticker first, then its start, then a word of the company name, then anywhere; the biggest first within a rank; one row per ticker */
+function hmSearch(q){
+  q=q.trim().toLowerCase();if(!q)return[];
+  const mp=HM.map,out=[];
+  for(const it of hmIndex()){
+    const n=it.n,tk=n.name.toLowerCase(),lb=hmLabel(n,mp).toLowerCase(),ds=(n.desc||'').toLowerCase();let sc=-1;
+    if(tk===q||lb===q)sc=0;else if(tk.startsWith(q))sc=1;else if(lb.startsWith(q))sc=2;
+    else if(ds.split(/[\s,.&\-]+/).some(w=>w.startsWith(q)))sc=3;
+    else if(ds.includes(q)||lb.includes(q)||tk.includes(q))sc=4;
+    if(sc>=0)out.push({it,sc});
+  }
+  out.sort((a,b)=>a.sc-b.sc||b.it.n.v-a.it.n.v);
+  const seen=new Set(),res=[];for(const o of out){if(seen.has(o.it.n.name))continue;seen.add(o.it.n.name);res.push(o.it);if(res.length>=12)break}
+  return res;
+}
+function hmList(root,node){
+  const pn=$('.hmlst',root);
+  if(!HM.lstOpen){pn.hidden=true;HM.lstKey=null;return}
+  const p=HM.perf[HM.map],key=HM.map+'|'+HM.path.join('>'),full=key+'|'+(p?p.at:0);
+  pn.hidden=false;if(HM.lstFull===full)return;
+  const keep=HM.lstKey===key?[...pn.querySelectorAll('.hml')].map(b=>b.scrollTop):[0,0,0];   /* a refresh of the same view keeps each column where it was */
+  HM.lstKey=key;HM.lstFull=full;
+  const lv=hmLeaves(node),mp=HM.map,ok=x=>x.p!=null;
+  const up=lv.filter(x=>ok(x)&&x.p>=.005).sort((a,b)=>b.p-a.p),dn=lv.filter(x=>ok(x)&&x.p<=-.005).sort((a,b)=>a.p-b.p),fl=lv.filter(x=>ok(x)&&Math.abs(x.p)<.005).sort((a,b)=>b.v-a.v);
+  const cols=[['hmu','\u25B2 Advancing',up],['hmd','\u25BC Declining',dn],['hmz','\u25A0 Flat',fl]];
+  pn.innerHTML=cols.map((c,i)=>'<div class="hmlc"><div class="hmlh '+c[0]+'">'+c[1]+' <span>'+c[2].length+'</span></div><div class="hml" data-k="'+i+'"></div></div>').join('');
+  cols.forEach((c,i)=>{
+    const box=$('.hml[data-k="'+i+'"]',pn);let at=0;
+    const more=()=>{const seg=c[2].slice(at,at+150);at+=seg.length;box.insertAdjacentHTML('beforeend',seg.map(x=>'<div class="hmli" data-n="'+esc(x.name)+'"><b>'+esc(hmLabel(x,mp))+'</b><span class="'+c[0]+'">'+hmPct(x.p)+'</span></div>').join(''))};   /* 150 rows at a time: All stocks has 3,000+ per column */
+    more();while(at<c[2].length&&box.scrollHeight<keep[i]+box.clientHeight+100)more();box.scrollTop=keep[i];
+    box.addEventListener('scroll',()=>{if(at<c[2].length&&box.scrollTop+box.clientHeight>box.scrollHeight-80)more()});
+  });
+}
+/* find a ticker on the map: open its group, then ring it and show its pop-out (the ring blinks three times, so a one-pixel tile is still found) */
+function hmLocate(name){
+  const it=hmIndex().find(x=>x.n.name===name);if(!it)return;
+  HM.lstOpen=false;HM.sel=null;HM.selTile=null;HM.path=it.path.slice();hmPaint();hmFlash(name);
+}
+function hmFlash(name){
+  const root=hmRoot();if(!root||!HM.rects)return;
+  const r=HM.rects.tiles.find(t=>t.n.name===name);if(!r)return;
+  const cx=r.x+r.w/2,cy=r.y+r.h/2,ov=$('.hmo',root),g=ov.getContext('2d'),dpr=window.devicePixelRatio||1,P=hmPal(),rad=Math.max(13,Math.min(r.w,r.h)/2+8);let k=0;
+  const tick=()=>{
+    if(!hmRoot())return;
+    if(k%2===0){hmHover({x:cx,y:cy});g.setTransform(dpr,0,0,dpr,0,0);g.strokeStyle=P.hov;g.lineWidth=3;g.beginPath();g.arc(cx,cy,rad,0,7);g.stroke()}
+    else hmHover({x:cx,y:cy});
+    if(++k<6)setTimeout(tick,260);
+  };tick();
+}
+function hmSearchOpen(q){const root=hmRoot();if(!root)return;HM.srOpen=true;HM.lstOpen=false;$('.hmb',root).classList.add('sr');$('.hmsx',root).hidden=false;const i=$('.hmsi',root);i.value=q||'';HM.si=0;hmPaint();i.focus();hmResults(root)}
+function hmSearchClose(){const root=hmRoot();if(!root)return;HM.srOpen=false;$('.hmb',root).classList.remove('sr');$('.hmsx',root).hidden=true;const r=$('.hmsr',root);r.hidden=true;r.innerHTML='';HM.hits=[];$('.hmsi',root).blur()}
+function hmResults(root){
+  const box=$('.hmsr',root),q=$('.hmsi',root).value;
+  if(!q.trim()){box.hidden=true;box.innerHTML='';HM.hits=[];return}
+  const hits=hmSearch(q),mp=HM.map,stock=hmStock(mp);HM.hits=hits;if(HM.si>=hits.length)HM.si=0;
+  if(!hits.length){box.innerHTML='<div class="hmse">No match in '+esc(HM.names[mp])+'</div>'+(mp==='sec'||mp==='ndx'?'<button class="hmsa" data-q="'+esc(q.trim())+'">Search all stocks instead</button>':'');box.hidden=false;return}
+  box.innerHTML=hits.map((it,k)=>{const n=it.n,sub=stock?(n.desc||''):mp==='themes'?(it.path[0]||''):(n.name+' \u00B7 '+(it.path[0]||''));
+    return'<div class="hmsh'+(k===HM.si?' on':'')+'" data-i="'+k+'"><b>'+esc(hmLabel(n,mp))+'</b><span>'+esc(sub)+'</span><i class="'+hmSign(n.p)+'">'+hmPct(n.p)+'</i></div>'}).join('');
+  box.hidden=false;
 }
 function hmPaint(){
   const root=hmRoot();if(!root)return;
@@ -187,19 +263,18 @@ function hmPaint(){
     const n=r.n,rgb=hmRGB(n.p);g.fillStyle='rgb('+rgb+')';g.fillRect(r.x+.5,r.y+.5,Math.max(0,r.w-1),Math.max(0,r.h-1));
     if(r.w<10||r.h<10)continue;
     const txt=hmLabel(n,map),pc=n.p==null?'\u2014':hmPct(n.p),nm=stock&&r.w>=90&&r.h>=70?hmShort(n.desc):'';
-    let f=hmFit(emw,txt,pc,r.w,r.h,nm),rot=false;
-    if(!f&&r.h>r.w*1.25){f=hmFit(emw,txt,pc,r.h,r.w,'');rot=!!f}   /* a tall narrow tile: turn the label on its side */
-    if(!f)continue;
+    const f=hmFit(emw,txt,pc,r.w,r.h,nm),stk=!f&&r.h>r.w?hmStack(emw,txt,r.w,r.h):null;   /* a narrow tile: the label stands upright, one letter per row */
+    if(!f&&!stk)continue;
     const cx=r.x+r.w/2,cy=r.y+r.h/2,ink=hmInk(rgb);
-    if(rot){g.save();g.translate(cx,cy);g.rotate(-Math.PI/2);hmDrawLabel(g,ff,f,txt,pc,'',0,0,r.h-2,ink);g.restore()}
+    if(stk){g.fillStyle=ink;g.textAlign='center';g.font=(stk.fs>=9?'500 ':'400 ')+stk.fs+'px '+ff;const y0=cy-stk.ch.length*stk.fs/2;for(let i=0;i<stk.ch.length;i++)g.fillText(stk.ch[i],cx,y0+stk.fs*(i+.5))}
     else hmDrawLabel(g,ff,f,txt,pc,nm,cx,cy,r.w-2,ink);
   }
   for(const q of L.groups){ /* outline, and the title strip (name left, average move right) where there is room */
     g.strokeStyle=P.line;g.lineWidth=q.d?1:2;g.strokeRect(q.x+.5,q.y+.5,q.w-1,q.h-1);
     if(q.head){
-      const top=q.d===0,fs=top?10:8.5,a=hmAvg(q.n),pc=a==null?'':hmPct(a);
+      const top=q.d===0,fs=top?9.5:8,a=hmAvg(q.n),pc=a==null?'':hmPct(a);
       g.fillStyle=top?P.h0:P.h1;g.fillRect(q.x+1,q.y+1,q.w-2,q.head-1);g.textBaseline='middle';
-      const up=!top,nf='600 '+fs+'px '+ff,pf='500 '+fs+'px '+ff,ty=q.y+q.head/2+.5;
+      const up=!top,nf='500 '+fs+'px '+ff,pf='400 '+fs+'px '+ff,ty=q.y+q.head/2+.5;
       let nmS=null,usePct=false,pw=0;
       if(pc){g.font=pf;pw=g.measureText(pc).width;g.font=nf;nmS=hmHeadText(g,q.n.name,up,q.w-8-pw-8);usePct=!!nmS}   /* name and average move together, shortening the name as needed */
       if(!nmS){g.font=nf;const l2=hmAbbr(q.n.name,2);nmS=hmHeadText(g,q.n.name,up,q.w-8)||hmEllipsis(g,up?l2.toUpperCase():l2,q.w-8)}   /* else the name alone, else its short form cut with an ellipsis */
@@ -208,7 +283,9 @@ function hmPaint(){
     }
   }
   const crumb=HM.path.length?['<button class="hmc" data-c="-1">'+HM.names[map]+'</button>'].concat(HM.path.map((nm,i)=>'<button class="hmc" data-c="'+i+'">'+esc(nm)+'</button>')).join(' \u203A '):'';
-  $('.hmb',root).innerHTML='<span class="hmcr">'+crumb+'</span><span class="hmst">'+hmStats(node,stock)+'</span>';
+  $('.hmcr',root).innerHTML=crumb;$('.hmst',root).innerHTML=hmStats(node,stock,true);
+  hmList(root,node);
+  if(HM.pend&&map==='all'){const q=HM.pend;HM.pend=null;hmSearchOpen(q)}   /* "search all stocks instead" carries the query over */
   const age=Date.now()-p.at;
   $('.hmn',root).textContent='1-day performance \u00B7 updated '+new Date(p.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(age>=120000?' ('+AGO(age)+' old)':'')+' \u00B7 data: Finviz';
   st.textContent=HM.sel?HM.sel:(HM.err?'Not updated ('+HM.err+'); showing the last map':'');
@@ -251,11 +328,30 @@ function hmTileLine(n){const mp=HM.map;return mp==='themes'?n.lab+' \u00B7 '+n.d
 function hmLegend(){return hmPal().stops.map(s=>'<i style="background:rgb('+s[1]+');color:'+hmInk(s[1])+'">'+(s[0]>0?'+':s[0]<0?'\u2212':'')+Math.abs(s[0])+'%</i>').join('')}
 /* one source of the heatmap card = one map: the card's own source buttons choose it, so there is no second picker in the body */
 function hmOwn(el,map){
-  if(HM.map!==map){HM.path=[];HM.sel=null;HM.selTile=null;HM.map=map}
-  el.innerHTML='<div class="hm"><div class="hmb"></div><div class="hmw"><canvas></canvas><canvas class="hmo"></canvas><div class="hmtip" hidden></div></div><div class="hms"></div><div class="hmf"><span class="hmn"></span><span class="hmg">'+hmLegend()+'</span></div></div>';
+  if(HM.map!==map){HM.path=[];HM.sel=null;HM.selTile=null;HM.lstOpen=false;HM.lstFull=null;HM.map=map}
+  HM.srOpen=false;HM.lstFull=null;
+  el.innerHTML='<div class="hm"><div class="hmb"><button class="hmsb" aria-label="Search ticker" title="Search ticker"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.4 10.4 14 14"/></svg></button><div class="hmsx" hidden><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><input class="hmsi" placeholder="Search ticker or company" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search"><button class="hmsc" aria-label="Close search">\u00D7</button></div><span class="hmcr"></span><span class="hmst"></span><div class="hmsr" hidden></div></div><div class="hmw"><canvas></canvas><canvas class="hmo"></canvas><div class="hmlst" hidden></div><div class="hmtip" hidden></div></div><div class="hms"></div><div class="hmf"><span class="hmn"></span><span class="hmg">'+hmLegend()+'</span></div></div>';
   HM.el=el;const root=$('.hm',el),cv=$('canvas',root);
-  root.addEventListener('click',e=>{const cb=e.target.closest('[data-c]');if(cb){HM.path=HM.path.slice(0,+cb.dataset.c+1);HM.sel=null;HM.selTile=null;hmPaint()}});
+  root.addEventListener('click',e=>{
+    const t=e.target,cb=t.closest('[data-c]');
+    if(cb){HM.path=HM.path.slice(0,+cb.dataset.c+1);HM.sel=null;HM.selTile=null;hmPaint();return}
+    if(t.closest('.hmsb')){hmSearchOpen('');return}
+    if(t.closest('.hmsc')){hmSearchClose();return}
+    const sh=t.closest('.hmsh');if(sh){const it=HM.hits&&HM.hits[+sh.dataset.i];if(it){hmSearchClose();hmLocate(it.n.name)}return}
+    const sa=t.closest('.hmsa');if(sa){HM.pend=sa.dataset.q;hmSearchClose();const bt=el.closest('.card').querySelector('[data-s="all"]');if(bt)bt.click();return}
+    if(t.closest('.hmcn')){HM.lstOpen=!HM.lstOpen;hmPaint();return}
+    const li=t.closest('.hmli');if(li)hmLocate(li.dataset.n);
+  });
+  const si=$('.hmsi',root);
+  si.addEventListener('input',()=>{HM.si=0;hmResults(root)});
+  si.addEventListener('keydown',e=>{
+    const n=(HM.hits||[]).length;
+    if(e.key==='ArrowDown'&&n){e.preventDefault();HM.si=(HM.si+1)%n;hmResults(root)}
+    else if(e.key==='ArrowUp'&&n){e.preventDefault();HM.si=(HM.si+n-1)%n;hmResults(root)}
+    else if(e.key==='Enter'){const it=HM.hits&&HM.hits[HM.si];if(it){e.preventDefault();hmSearchClose();hmLocate(it.n.name)}}
+  });
   cv.addEventListener('click',e=>{
+    if(HM.srOpen)hmSearchClose();
     const b=cv.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,L=HM.rects;if(!L)return;
     const gs=L.groups.filter(q=>hmIn(q,x,y)),hd=gs.slice().reverse().find(q=>q.head&&y<q.y+q.head);
     if(hd){hmOpen(hd.path);return}                                  /* a title strip opens its own group, at any level */
@@ -267,7 +363,7 @@ function hmOwn(el,map){
   });
   cv.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse')return;const b=cv.getBoundingClientRect();hmHover({x:e.clientX-b.left,y:e.clientY-b.top})});
   cv.addEventListener('pointerleave',()=>hmHover(null));
-  if(!HM.keyed){HM.keyed=true;window.addEventListener('keydown',e=>{if(e.key==='Escape'&&hmRoot()&&HM.path.length){HM.path.pop();HM.sel=null;HM.selTile=null;hmPaint()}})}
+  if(!HM.keyed){HM.keyed=true;window.addEventListener('keydown',e=>{if(e.key!=='Escape'||!hmRoot())return;if(HM.srOpen){hmSearchClose();return}if(HM.lstOpen){HM.lstOpen=false;hmPaint();return}if(HM.path.length){HM.path.pop();HM.sel=null;HM.selTile=null;hmPaint()}})}
   if(window.ResizeObserver){let t;new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(hmPaint,80)}).observe($('.hmw',root))}
   const p=HM.perf[map];hmPaint();
   if(!p||Date.now()-p.at>HM.POLL)hmLoad(false);
