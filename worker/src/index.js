@@ -20,7 +20,8 @@ import { loadSettings, saveSettings, applySettings, remindWanted, wantedMins, li
 import { POLICY_KV, SERIES_U, SERIES_L, decisionList, computeFacts, parseVotes, statementUrl, policyBackdrop, policyIssues } from './policy.js';   // the policy backdrop built from FRED and the FOMC schedule (plan P8.9)
 import { SPEC as OFF_SPEC, SERIES as OFF_SERIES, parseFredCsv, parseFredJson, fredApiUrl, eiaApiUrl, parseEiaJson, applyOfficial, markPending, VINTAGE_SERIES, fredVintageUrl, parseFredVintage, fredAsOfUrl, histNumbers, HIST_MIN_AGE } from './official.js';
 import { SYNC_KEY, runBls, runFred, runTreasury, runProvider, mergeSchedule, diffSchedules, syncIssues, syncSummary, dueSources } from './schedule_sync.js';   // nightly schedule sync (plan P2, P3)
-import { getFeed, getFeeds, feedHealth, feedWindow, CHANNELS } from './feed.js';   // the FinancialJuice wire via the Telegram mirror (plan 1.5; Walter Bloomberg was retired on 24 Nov)
+import { getFeed, getFeeds, pollFeedsBg, feedHealth, feedWindow, CHANNELS } from './feed.js';   // the FinancialJuice wire via the Telegram mirror (plan 1.5; Walter Bloomberg was retired on 24 Nov)
+import { probeModes, probeHealth } from './probe.js';   // the CPU probe (plan P8.47): off unless CPU_PROBE is set, valid and unexpired
 import { WIRE_KV, WIRE_KEYS, applyWire, newMemo, recordConfirms, wireSummary, unmatchedUsNames } from './wire.js';   // FinancialJuice actuals (plan P8.19 stage 2)
 import { makeSectors } from './sectors.js';   // /sectors (plan P4)
 import { makeWeekly } from './weekly.js';   // /weekly (plan P5)
@@ -534,20 +535,27 @@ const SYNC_CRONS = { '20 9 * * *': 'bls', '30 9 * * *': 'treasury', '40 9 * * *'
 const POLL_FEEDS = '* * * * *', POLL_CAL = '*/2 * * * *';
 const CAL_NEAR = [3 * 60000, 90 * 60000];   // a release is "near" from 3 minutes before to 90 minutes after (the official series' own fast tier is 2 to 90)
 async function pollFeeds(env, ctx, at) {
-  const body = JSON.parse(await getFeeds(env, ctx, {}));
-  const ok = [body, body.fj].some(v => v && v.status === 'ok');
+  const probe = probeModes(env);   // CPU probe (P8.47): [] unless CPU_PROBE is set, valid and unexpired
+  if (probe.includes('minute0')) return;   // probe: the floor cost of a tick
+  let ok;
+  if (probe.includes('lean')) ok = (await pollFeedsBg(env, ctx)).status.some(s => s === 'ok');   // probe: the lean poll that feed.js already has (no combined JSON, a full parse at most every 10 minutes while nothing is new)
+  else { const body = JSON.parse(await getFeeds(env, ctx, {})); ok = [body, body.fj].some(v => v && v.status === 'ok'); }
   const now = Date.now(), min = Math.floor(at / 60000);
   if (min % 5 === 0) {   // a heartbeat every 5 minutes: 288 rows a day for each of the two, not 1,440
     await beat(env, 'feeds_run', now);
     if (ok) await beat(env, 'feeds_ok', now);
   }
   if (min % 60 === 0) await Promise.all(Object.keys(CHANNELS).map(n => prunePosts(env, n)));
+  if (probe.includes('nopush')) return;   // probe: without pushNew and the alert list it builds
   await pushNew(env, async () => applySettings((await getAlerts(env, ctx, { cal: false })).list, await loadSettings(env)), now);   // phone alerts for the new posts (nothing happens when nobody is subscribed); the control center's master switch applies first
 }
 async function pollCalendar(env, ctx, at) {
   await loadSync(env);
-  const sch = schedule(at), min = Math.floor(at / 60000);
+  const probe = probeModes(env), min = Math.floor(at / 60000);   // CPU probe (P8.47): the two quiet-tick modes apply on minutes that are not a multiple of 10
+  if (probe.includes('quiet0') && min % 10 !== 0) return;   // probe: the floor of a quiet tick
+  const sch = schedule(at);
   const near = sch.events.some(e => e && !e.hol && e.src !== 'feed' && Number.isFinite(e.t) && e.t <= at + CAL_NEAR[0] && e.t >= at - CAL_NEAR[1]);
+  if (probe.includes('quiet1') && min % 10 !== 0) return;   // probe: through the schedule and the release-near scan only
   // a ticked reminder (any of the times in alerts.js REM_MENU) that has not been pushed yet makes a quiet tick build the calendar, because the reminder quotes the forecast
   const due = !near && min % 10 !== 0 && (await loadPrefs(env)).kinds.remind && remindWanted(await loadSettings(env)) ? reminderIdsDue(sch.events, at, wantedMins(await loadSettings(env))) : [];   // reminders switched off for the phone (stage 4): nothing to wait for
   if (!near && min % 10 !== 0 && !(due.length && await anyUnsent(env, due))) { await policyDaily(env, sch, at); return; }   // a quiet tick: the policy facts' daily run uses its own CPU
@@ -1138,6 +1146,7 @@ export default {
         curve: { asof: curve.memo ? curve.memo.asof : null, age_s: curve.memo && curve.memo.at ? Math.round((now - curve.memo.at) / 1000) : (curve.memo && curve.memo.updated ? ageOf(Date.parse(curve.memo.updated)) : null), check: curve.memo ? curve.memo.check : null, error: curve.err },
         sync: syncHealth(),
         poller,
+        probe: probeHealth(env),   // the CPU probe (P8.47): null when CPU_PROBE is not set, else whether it is on, its modes and when it stops
         policy: policyHealth(env),   // the policy facts job: when it last confirmed the facts, the range read, whether the vote was found
         controls: await loadSettings(env),   // the control center: master switch, which reminders are sent, and when each was last switched on
         push: await pushHealth(env),   // phone alerts: is a key set, how many phones, when each last accepted a push, the last error
