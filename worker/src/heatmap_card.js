@@ -5,10 +5,11 @@
    every sector/industry title carries its average move (long titles shorten only as far as the width needs: Info, Infra, Div., SW, Digi...), and the row above the map gives the view's average move and advancers / decliners.
    Hover (mouse) pops out Finviz-style figures and outlines the group. Click a title, or a tile (it opens the outlined group), to zoom in at any level; Shift+click opens the top-level
    group; the crumb or Esc goes back. The magnifier (mauve, left of the average-move row) opens a ticker / company search that opens the group and rings the tile; the ▲ ▼ ■ counts open three scrolling lists of the tickers behind them. Touch: tap a tile for its pop-out, tap it again to open its group.
+   Zoom: pinch, wheel or touchpad pinch zooms around the pointer, a drag pans, a double tap zooms in on touch; Esc or a tap on a map's name in the card header resets it. Labels grow into the room.
    Colours refresh every 60 s while the card is on screen; the layout is read once per map and kept for the session. A failed read keeps the last map and says so.
    Light and dark have their own palettes (light follows the page's soft greens and reds). */
 const HEAT_URL=WORKER_URL.replace(/\/market$/,'/heat');
-const HM={names:{all:'All stocks',sec:'S&P 500',ndx:'Nasdaq 100',futures:'Futures',themes:'Themes'},base:{},perf:{},err:null,busy:false,POLL:60000,path:[],map:'all',sel:null,selTile:null,rects:null};
+const HM={names:{all:'All stocks',sec:'S&P 500',ndx:'Nasdaq 100',futures:'Futures',themes:'Themes'},base:{},perf:{},err:null,busy:false,POLL:60000,path:[],map:'all',sel:null,selTile:null,rects:null,z:{s:1,tx:0,ty:0},lq:['','',''],lqo:[false,false,false]};
 const hmStock=m=>m==='all'||m==='sec'||m==='ndx';
 const hmDark=()=>typeof dark==='function'?dark():true;
 const HM_PAL={
@@ -86,15 +87,15 @@ const hmShort=d=>d.replace(/[\s,]*\b(Inc|Corp|Corporation|Co|Company|Ltd|Limited
 /* Largest font at which a tile's label never leaves the tile. Text widths scale with the font, so this is closed-form: the ticker (and the % line, 0.8 x the font) must fit the width, both lines the height.
    emw(text,weight) = the text's width in em. The % line needs a font of 7.5 px or more (it is drawn at 0.8 x); without it the ticker alone may go down to 6 px. A big tile adds the company name.
    Returns { fs, pct, nfs } or null: a tile too small for a readable label stays blank (the pop-out names it). Nothing is wrapped. */
-function hmFit(emw,txt,pct,w,h,name){
-  const W=w-4,H=h-3,K=.92;if(W<5||H<5)return null;   /* K: labels run a little under the largest size that fits, for a lighter look */
+function hmFit(emw,txt,pct,w,h,name,fsMax){
+  const W=w-4,H=h-3,K=.92,FM=fsMax||22;if(W<5||H<5)return null;   /* K: labels run a little under the largest size that fits, for a lighter look */
   const tw=emw(txt,500);if(!(tw>0))return null;
-  const cap=Math.min(22,W/tw);
+  const cap=Math.min(FM,W/tw);
   if(pct){
     const pw=emw(pct,400)*.8,fs=Math.min(cap,pw>0?W/pw:cap,H/2.08)*K;
     if(fs>=7.5){
       let nfs=0;
-      if(name){const nw=emw(name,400),f=Math.min(fs*.5,12,nw>0?W/nw:12);if(f>=6.5&&fs*2.08+f*1.25<=H)nfs=f}
+      if(name){const nw=emw(name,400),f=Math.min(fs*.5,12*FM/22,nw>0?W/nw:12*FM/22);if(f>=6.5&&fs*2.08+f*1.25<=H)nfs=f}
       return{fs,pct:true,nfs};
     }
   }
@@ -198,28 +199,50 @@ function hmSearch(q){
   const seen=new Set(),res=[];for(const o of out){if(seen.has(o.it.n.name))continue;seen.add(o.it.n.name);res.push(o.it);if(res.length>=12)break}
   return res;
 }
+/* the lists use their own searches; zoom is a camera over a layout made at the zoomed size, so headers stay 14 px and labels grow into the room (see hmPaint) */
+function hmCard(){return HM.el&&HM.el.closest('.card')}
+function hmHead(){const c=hmCard();return c?$('.ch',c):null}
+function hmZoomReset(){const z=HM.z;z.s=1;z.tx=0;z.ty=0}
+function hmSchedule(){if(HM.raf)return;HM.raf=requestAnimationFrame(()=>{HM.raf=0;hmPaint(true)})}
+function hmZoomTo(cx,cy,s2){   /* keep the point under (cx,cy) where it is, as far as the layout allows */
+  const root=hmRoot(),z=HM.z;if(!root)return;const wr=$('.hmw',root),w=wr.clientWidth,h=wr.clientHeight;
+  s2=Math.max(1,Math.min(14,s2));if(Math.abs(s2-z.s)<1e-4)return;
+  const fx=(cx-z.tx)/(w*z.s),fy=(cy-z.ty)/(h*z.s);
+  z.s=s2;z.tx=cx-fx*w*s2;z.ty=cy-fy*h*s2;hmSchedule();
+}
+const HM_SEARCH_SVG='<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>';
+/* the search lives in the card header: a bare mauve magnifier before the map names; the bar opens over the header, results drop below it */
+const HM_LEAD='<button class="hmsb" aria-label="Search ticker" title="Search ticker">'+HM_SEARCH_SVG+'</button><div class="hmsx" hidden>'+HM_SEARCH_SVG+'<input class="hmsi" placeholder="Search ticker or company" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search"><button class="hmsc" aria-label="Close search">\u00D7</button></div><div class="hmsr" hidden></div>';
 function hmList(root,node){
   const pn=$('.hmlst',root);
-  if(!HM.lstOpen){pn.hidden=true;HM.lstKey=null;return}
+  if(!HM.lstOpen){pn.hidden=true;HM.lstKey=null;HM.lstFull=null;return}
   const p=HM.perf[HM.map],key=HM.map+'|'+HM.path.join('>'),full=key+'|'+(p?p.at:0);
   pn.hidden=false;if(HM.lstFull===full)return;
   const keep=HM.lstKey===key?[...pn.querySelectorAll('.hml')].map(b=>b.scrollTop):[0,0,0];   /* a refresh of the same view keeps each column where it was */
+  if(HM.lstKey!==key){HM.lq=['','',''];HM.lqo=[false,false,false]}                            /* another view starts with clean searches */
   HM.lstKey=key;HM.lstFull=full;
-  const lv=hmLeaves(node),mp=HM.map,ok=x=>x.p!=null;
-  const up=lv.filter(x=>ok(x)&&x.p>=.005).sort((a,b)=>b.p-a.p),dn=lv.filter(x=>ok(x)&&x.p<=-.005).sort((a,b)=>a.p-b.p),fl=lv.filter(x=>ok(x)&&Math.abs(x.p)<.005).sort((a,b)=>b.v-a.v);
-  const cols=[['hmu','\u25B2 Advancing',up],['hmd','\u25BC Declining',dn],['hmz','\u25A0 Flat',fl]];
-  pn.innerHTML=cols.map((c,i)=>'<div class="hmlc"><div class="hmlh '+c[0]+'">'+c[1]+' <span>'+c[2].length+'</span></div><div class="hml" data-k="'+i+'"></div></div>').join('');
-  cols.forEach((c,i)=>{
-    const box=$('.hml[data-k="'+i+'"]',pn);let at=0;
-    const more=()=>{const seg=c[2].slice(at,at+150);at+=seg.length;box.insertAdjacentHTML('beforeend',seg.map(x=>'<div class="hmli" data-n="'+esc(x.name)+'"><b>'+esc(hmLabel(x,mp))+'</b><span class="'+c[0]+'">'+hmPct(x.p)+'</span></div>').join(''))};   /* 150 rows at a time: All stocks has 3,000+ per column */
-    more();while(at<c[2].length&&box.scrollHeight<keep[i]+box.clientHeight+100)more();box.scrollTop=keep[i];
-    box.addEventListener('scroll',()=>{if(at<c[2].length&&box.scrollTop+box.clientHeight>box.scrollHeight-80)more()});
-  });
+  const lv=hmLeaves(node),ok=x=>x.p!=null;
+  HM.lcols=[['hmu','\u25B2 Advancing',lv.filter(x=>ok(x)&&x.p>=.005).sort((a,b)=>b.p-a.p),'\u25B2 Up'],['hmd','\u25BC Declining',lv.filter(x=>ok(x)&&x.p<=-.005).sort((a,b)=>a.p-b.p),'\u25BC Down'],['hmz','\u25A0 Flat',lv.filter(x=>ok(x)&&Math.abs(x.p)<.005).sort((a,b)=>b.v-a.v),'\u25A0 Flat']];   /* c[3] = the short title for a phone */
+  pn.innerHTML=HM.lcols.map((c,i)=>'<div class="hmlc"><div class="hmlh '+c[0]+'"><span class="hmlt"><span class="hmll">'+c[1]+'</span><span class="hmls">'+c[3]+'</span></span><span class="hmln"></span><button class="hmlq" data-k="'+i+'" aria-label="Search this list">'+HM_SEARCH_SVG+'</button></div>'
+    +'<div class="hmlqx"'+(HM.lqo[i]?'':' hidden')+'><input class="hmlqi" data-k="'+i+'" value="'+esc(HM.lq[i])+'" placeholder="Search" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="hmlqc" data-k="'+i+'" aria-label="Close search">\u00D7</button></div>'
+    +'<div class="hml" data-k="'+i+'"></div></div>').join('');
+  HM.lcols.forEach((c,i)=>{const box=$('.hml[data-k="'+i+'"]',pn);box.addEventListener('scroll',()=>{if(box._more&&box.scrollTop+box.clientHeight>box.scrollHeight-80)box._more()});hmFill(pn,i,keep[i])});
+}
+/* (re)fill one column, filtered by its own search; 150 rows at a time because All stocks has 3,000+ per column */
+function hmFill(pn,i,top){
+  const c=HM.lcols[i],box=$('.hml[data-k="'+i+'"]',pn),q=(HM.lq[i]||'').trim().toLowerCase(),mp=HM.map;
+  const rows=q?c[2].filter(x=>x.name.toLowerCase().includes(q)||hmLabel(x,mp).toLowerCase().includes(q)||(x.desc||'').toLowerCase().includes(q)):c[2];
+  pn.children[i].querySelector('.hmln').textContent=q?rows.length+'/'+c[2].length:c[2].length;
+  box.innerHTML='';let at=0;
+  const more=()=>{const seg=rows.slice(at,at+150);at+=seg.length;box.insertAdjacentHTML('beforeend',seg.map(x=>'<div class="hmli" data-n="'+esc(x.name)+'"><b>'+esc(hmLabel(x,mp))+'</b><span class="'+c[0]+'">'+hmPct(x.p)+'</span></div>').join(''));if(at>=rows.length)box._more=null};
+  box._more=rows.length?more:null;
+  if(!rows.length){box.innerHTML='<div class="hmse">No match</div>';return}
+  more();while(box._more&&box.scrollHeight<(top||0)+box.clientHeight+100)more();box.scrollTop=top||0;
 }
 /* find a ticker on the map: open its group, then ring it and show its pop-out (the ring blinks three times, so a one-pixel tile is still found) */
 function hmLocate(name){
   const it=hmIndex().find(x=>x.n.name===name);if(!it)return;
-  HM.lstOpen=false;HM.sel=null;HM.selTile=null;HM.path=it.path.slice();hmPaint();hmFlash(name);
+  HM.lstOpen=false;HM.sel=null;HM.selTile=null;HM.path=it.path.slice();hmZoomReset();hmPaint();hmFlash(name);
 }
 function hmFlash(name){
   const root=hmRoot();if(!root||!HM.rects)return;
@@ -227,15 +250,15 @@ function hmFlash(name){
   const cx=r.x+r.w/2,cy=r.y+r.h/2,ov=$('.hmo',root),g=ov.getContext('2d'),dpr=window.devicePixelRatio||1,P=hmPal(),rad=Math.max(13,Math.min(r.w,r.h)/2+8);let k=0;
   const tick=()=>{
     if(!hmRoot())return;
-    if(k%2===0){hmHover({x:cx,y:cy});g.setTransform(dpr,0,0,dpr,0,0);g.strokeStyle=P.hov;g.lineWidth=3;g.beginPath();g.arc(cx,cy,rad,0,7);g.stroke()}
-    else hmHover({x:cx,y:cy});
+    hmHover({x:cx,y:cy});
+    if(k%2===0){g.setTransform(dpr,0,0,dpr,0,0);g.strokeStyle=P.hov;g.lineWidth=3;g.beginPath();g.arc(cx,cy,rad,0,7);g.stroke()}
     if(++k<6)setTimeout(tick,260);
   };tick();
 }
-function hmSearchOpen(q){const root=hmRoot();if(!root)return;HM.srOpen=true;HM.lstOpen=false;$('.hmb',root).classList.add('sr');$('.hmsx',root).hidden=false;const i=$('.hmsi',root);i.value=q||'';HM.si=0;hmPaint();i.focus();hmResults(root)}
-function hmSearchClose(){const root=hmRoot();if(!root)return;HM.srOpen=false;$('.hmb',root).classList.remove('sr');$('.hmsx',root).hidden=true;const r=$('.hmsr',root);r.hidden=true;r.innerHTML='';HM.hits=[];$('.hmsi',root).blur()}
-function hmResults(root){
-  const box=$('.hmsr',root),q=$('.hmsi',root).value;
+function hmSearchOpen(q){const H=hmHead();if(!H)return;HM.srOpen=true;HM.lstOpen=false;$('.hmsx',H).hidden=false;const i=$('.hmsi',H);i.value=q||'';HM.si=0;hmPaint();i.focus();hmResults(H)}
+function hmSearchClose(){const H=hmHead();if(!H)return;HM.srOpen=false;$('.hmsx',H).hidden=true;const r=$('.hmsr',H);r.hidden=true;r.innerHTML='';HM.hits=[];$('.hmsi',H).blur()}
+function hmResults(H){
+  const box=$('.hmsr',H),q=$('.hmsi',H).value;
   if(!q.trim()){box.hidden=true;box.innerHTML='';HM.hits=[];return}
   const hits=hmSearch(q),mp=HM.map,stock=hmStock(mp);HM.hits=hits;if(HM.si>=hits.length)HM.si=0;
   if(!hits.length){box.innerHTML='<div class="hmse">No match in '+esc(HM.names[mp])+'</div>'+(mp==='sec'||mp==='ndx'?'<button class="hmsa" data-q="'+esc(q.trim())+'">Search all stocks instead</button>':'');box.hidden=false;return}
@@ -243,69 +266,84 @@ function hmResults(root){
     return'<div class="hmsh'+(k===HM.si?' on':'')+'" data-i="'+k+'"><b>'+esc(hmLabel(n,mp))+'</b><span>'+esc(sub)+'</span><i class="'+hmSign(n.p)+'">'+hmPct(n.p)+'</i></div>'}).join('');
   box.hidden=false;
 }
-function hmPaint(){
+const hmFoot=(p)=>'1-day performance \u00B7 updated '+new Date(p.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(Date.now()-p.at>=120000?' ('+AGO(Date.now()-p.at)+' old)':'')+' \u00B7 data: Finviz'
+  ;
+/* lite = a zoom or pan frame: only the map is redrawn (the crumb, counts, lists and header text cannot have changed) */
+function hmPaint(lite){
   const root=hmRoot();if(!root)return;
-  const map=HM.map,stock=hmStock(map),b=HM.base[map],p=HM.perf[map],st=$('.hms',root),cv=$('canvas',root),P=hmPal();
+  const map=HM.map,stock=hmStock(map),b=HM.base[map],p=HM.perf[map],st=$('.hms',root),cv=$('canvas',root),P=hmPal(),z=HM.z;
   if(!b||!p){st.textContent=HM.err?'Map not loaded ('+HM.err+')':'loading\u2026';return}
   const m=HM.merged&&HM.merged.key===map+p.at?HM.merged.v:(HM.merged={key:map+p.at,v:hmMerge(b,p.d,!stock)}).v;
   if(!m.ok){st.textContent='The map layout and the colours do not match ('+m.hit+' of '+m.leaves+' tickers). Try another source.';return}
   let node=m.root;for(const nm of HM.path){const c=node.kids&&node.kids.find(k=>k.name===nm);if(!c||!c.kids){HM.path=[];node=m.root;break}node=c}
   const wrap=cv.parentNode,w=wrap.clientWidth,h=wrap.clientHeight;if(w<20||h<20)return;
-  const dpr=window.devicePixelRatio||1;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.width=w+'px';cv.style.height=h+'px';
-  const ov=$('.hmo',root);ov.width=cv.width;ov.height=cv.height;ov.style.width=w+'px';ov.style.height=h+'px';hmHover(null);
-  const lk=map+'|'+HM.path.join('>')+'|'+w+'x'+h+'|'+p.at+'|'+(hmDark()?'d':'l');
-  const L=HM.lay&&HM.lay.key===lk?HM.lay.L:(HM.lay={key:lk,L:hmLayout(node,w,h,HM.path)}).L;HM.rects=L;
+  if(z.s<=1.001){z.s=1;z.tx=0;z.ty=0}
+  const W=w*z.s,H=h*z.s;z.tx=Math.min(0,Math.max(w-W,z.tx));z.ty=Math.min(0,Math.max(h-H,z.ty));
+  const dpr=window.devicePixelRatio||1,cw=Math.round(w*dpr),ch=Math.round(h*dpr);
+  if(cv.width!==cw||cv.height!==ch){cv.width=cw;cv.height=ch;cv.style.width=w+'px';cv.style.height=h+'px';const o=$('.hmo',root);o.width=cw;o.height=ch;o.style.width=w+'px';o.style.height=h+'px'}
+  cv.style.touchAction=z.s>1?'none':'pan-y';cv.style.cursor=z.s>1?'grab':'pointer';
+  hmHover(null);
+  const lk=map+'|'+HM.path.join('>')+'|'+w+'x'+h+'|'+z.s.toFixed(3)+'|'+p.at+'|'+(hmDark()?'d':'l');
+  const L=HM.lay&&HM.lay.key===lk?HM.lay.L:(HM.lay={key:lk,L:hmLayout(node,W,H,HM.path)}).L;HM.rects=L;   /* laid out at the zoomed size, so title strips stay 14 px and tiles gain room for labels */
   const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   g.fillStyle=P.bg||getComputedStyle(document.documentElement).getPropertyValue('--surface')||'#1b1b1e';g.fillRect(0,0,w,h);
+  g.setTransform(dpr,0,0,dpr,z.tx*dpr,z.ty*dpr);
+  const vx0=-z.tx,vy0=-z.ty,vx1=vx0+w,vy1=vy0+h,seen=r=>r.x<vx1&&r.y<vy1&&r.x+r.w>vx0&&r.y+r.h>vy0;   /* only what is on screen is drawn */
   g.textBaseline='middle';const ff=getComputedStyle(document.body).fontFamily;
   const mw=HM.mw||(HM.mw=new Map()),emw=(t,wt)=>{const k=wt+t;let v=mw.get(k);if(v===undefined){g.font=wt+' 10px '+ff;v=g.measureText(t).width/10;mw.set(k,v)}return v}; /* widths measured once at 10 px, then scaled */
+  const fm=22*Math.min(2,1+(z.s-1)*.25);   /* the largest label grows with the zoom, up to 44 px */
   for(const r of L.tiles){
+    if(!seen(r))continue;
     const n=r.n,rgb=hmRGB(n.p);g.fillStyle='rgb('+rgb+')';g.fillRect(r.x+.5,r.y+.5,Math.max(0,r.w-1),Math.max(0,r.h-1));
-    if(r.w<10||r.h<10)continue;
-    const txt=hmLabel(n,map),pc=n.p==null?'\u2014':hmPct(n.p),nm=stock&&r.w>=90&&r.h>=70?hmShort(n.desc):'';
-    const f=hmFit(emw,txt,pc,r.w,r.h,nm),stk=!f&&r.h>r.w?hmStack(emw,txt,r.w,r.h):null;   /* a narrow tile: the label stands upright, one letter per row */
+    const ax=Math.max(r.x,vx0),ay=Math.max(r.y,vy0),aw=Math.min(r.x+r.w,vx1)-ax,ah=Math.min(r.y+r.h,vy1)-ay;   /* the part on screen: a tile bigger than the view is labelled where you can see it */
+    if(aw<10||ah<10)continue;
+    const txt=hmLabel(n,map),pc=n.p==null?'\u2014':hmPct(n.p),nm=stock&&aw>=90&&ah>=70?hmShort(n.desc):'';
+    const f=hmFit(emw,txt,pc,aw,ah,nm,fm),stk=!f&&ah>aw?hmStack(emw,txt,aw,ah):null;   /* a narrow tile: the label stands upright, one letter per row */
     if(!f&&!stk)continue;
-    const cx=r.x+r.w/2,cy=r.y+r.h/2,ink=hmInk(rgb);
+    const cx=ax+aw/2,cy=ay+ah/2,ink=hmInk(rgb);
     if(stk){g.fillStyle=ink;g.textAlign='center';g.font=(stk.fs>=9?'500 ':'400 ')+stk.fs+'px '+ff;const y0=cy-stk.ch.length*stk.fs/2;for(let i=0;i<stk.ch.length;i++)g.fillText(stk.ch[i],cx,y0+stk.fs*(i+.5))}
-    else hmDrawLabel(g,ff,f,txt,pc,nm,cx,cy,r.w-2,ink);
+    else hmDrawLabel(g,ff,f,txt,pc,nm,cx,cy,aw-2,ink);
   }
   for(const q of L.groups){ /* outline, and the title strip (name left, average move right) where there is room */
+    if(!seen(q))continue;
     g.strokeStyle=P.line;g.lineWidth=q.d?1:2;g.strokeRect(q.x+.5,q.y+.5,q.w-1,q.h-1);
     if(q.head){
       const top=q.d===0,fs=top?9.5:8,a=hmAvg(q.n),pc=a==null?'':hmPct(a);
       g.fillStyle=top?P.h0:P.h1;g.fillRect(q.x+1,q.y+1,q.w-2,q.head-1);g.textBaseline='middle';
       const up=!top,nf='500 '+fs+'px '+ff,pf='400 '+fs+'px '+ff,ty=q.y+q.head/2+.5;
+      const xa=Math.max(q.x,vx0),xb=Math.min(q.x+q.w,vx1),rm=xb-xa-8;   /* a title stays readable while its group is partly off screen */
       let nmS=null,usePct=false,pw=0;
-      if(pc){g.font=pf;pw=g.measureText(pc).width;g.font=nf;nmS=hmHeadText(g,q.n.name,up,q.w-8-pw-8);usePct=!!nmS}   /* name and average move together, shortening the name as needed */
-      if(!nmS){g.font=nf;const l2=hmAbbr(q.n.name,2);nmS=hmHeadText(g,q.n.name,up,q.w-8)||hmEllipsis(g,up?l2.toUpperCase():l2,q.w-8)}   /* else the name alone, else its short form cut with an ellipsis */
-      if(usePct){g.font=pf;g.textAlign='right';g.fillStyle=a>=0?P.up:P.dn;g.fillText(pc,q.x+q.w-4,ty)}
-      g.font=nf;g.textAlign='left';g.fillStyle=top?P.h0t:P.h1t;g.fillText(nmS,q.x+4,ty);
+      if(pc){g.font=pf;pw=g.measureText(pc).width;g.font=nf;nmS=hmHeadText(g,q.n.name,up,rm-pw-8);usePct=!!nmS}   /* name and average move together, shortening the name as needed */
+      if(!nmS){g.font=nf;const l2=hmAbbr(q.n.name,2);nmS=hmHeadText(g,q.n.name,up,rm)||hmEllipsis(g,up?l2.toUpperCase():l2,rm)}   /* else the name alone, else its short form cut with an ellipsis */
+      if(usePct){g.font=pf;g.textAlign='right';g.fillStyle=a>=0?P.up:P.dn;g.fillText(pc,xb-4,ty)}
+      g.font=nf;g.textAlign='left';g.fillStyle=top?P.h0t:P.h1t;g.fillText(nmS,xa+4,ty);
     }
   }
+  $('.hmn',root).textContent=hmFoot(p);const zc=$('.hmzc',root);zc.hidden=z.s<=1;if(z.s>1)zc.textContent=z.s.toFixed(1)+'\u00D7 \u00B7 '+(HM.fine?'Esc resets':'tap a map name to reset');
+  if(lite)return;
   const crumb=HM.path.length?['<button class="hmc" data-c="-1">'+HM.names[map]+'</button>'].concat(HM.path.map((nm,i)=>'<button class="hmc" data-c="'+i+'">'+esc(nm)+'</button>')).join(' \u203A '):'';
-  $('.hmcr',root).innerHTML=crumb;$('.hmst',root).innerHTML=hmStats(node,stock,true);
+  $('.hmb',root).hidden=!HM.path.length;$('.hmcr',root).innerHTML=crumb;$('.hmst',root).innerHTML=hmStats(node,stock,true);
   hmList(root,node);
   if(HM.pend&&map==='all'){const q=HM.pend;HM.pend=null;hmSearchOpen(q)}   /* "search all stocks instead" carries the query over */
-  const age=Date.now()-p.at;
-  $('.hmn',root).textContent='1-day performance \u00B7 updated '+new Date(p.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(age>=120000?' ('+AGO(age)+' old)':'')+' \u00B7 data: Finviz';
   st.textContent=HM.sel?HM.sel:(HM.err?'Not updated ('+HM.err+'); showing the last map':'');
 }
 function hmHit(x,y){const L=HM.rects;if(!L)return null;
   for(const r of L.tiles)if(x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h)return r;return null}
 const hmIn=(q,x,y)=>x>=q.x&&x<q.x+q.w&&y>=q.y&&y<q.y+q.h;
-/* outline the hovered group on the overlay canvas (cheap: the map itself is not redrawn) and show its pop-out; over a title strip the pop-out sums up that group */
+/* outline the hovered group on the overlay canvas (cheap: the map itself is not redrawn) and show its pop-out; over a title strip the pop-out sums up that group.
+   pt = a point in view pixels; the layout is in zoomed-map pixels, so it is shifted by the pan first */
 function hmHover(pt){
   const root=hmRoot();if(!root)return;
-  const ov=$('.hmo',root),tip=$('.hmtip',root),g=ov.getContext('2d'),dpr=window.devicePixelRatio||1,P=hmPal();
-  g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,ov.width,ov.height);
+  const ov=$('.hmo',root),tip=$('.hmtip',root),g=ov.getContext('2d'),dpr=window.devicePixelRatio||1,P=hmPal(),z=HM.z;
+  g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,ov.width,ov.height);g.setTransform(dpr,0,0,dpr,z.tx*dpr,z.ty*dpr);
   const mp=HM.map,stock=hmStock(mp),themes=mp==='themes',colr=p=>p==null?'var(--t3)':p>=0?P.up:P.dn,lab=k=>hmLabel(k,mp);
   const place=()=>{const W=ov.clientWidth,H=ov.clientHeight,tw=tip.offsetWidth,th=tip.offsetHeight;
     tip.style.left=Math.max(4,Math.min(W-tw-4,pt.x+16>W-tw-4?pt.x-tw-16:pt.x+16))+'px';tip.style.top=Math.max(4,Math.min(H-th-4,pt.y+16))+'px'};
-  const t=pt&&hmHit(pt.x,pt.y);
   if(!pt){tip.hidden=true;HM.hov=null;return}
-  const gs=HM.rects?HM.rects.groups.filter(q=>hmIn(q,pt.x,pt.y)):[];
+  const wx=pt.x-z.tx,wy=pt.y-z.ty,t=hmHit(wx,wy);
+  const gs=HM.rects?HM.rects.groups.filter(q=>hmIn(q,wx,wy)):[];
   if(!t){
-    const hd=gs.slice().reverse().find(q=>q.head&&pt.y<q.y+q.head);
+    const hd=gs.slice().reverse().find(q=>q.head&&wy<q.y+q.head);
     if(!hd){tip.hidden=true;HM.hov=null;return}
     g.strokeStyle=P.hov;g.lineWidth=2;g.strokeRect(hd.x+1,hd.y+1,hd.w-2,hd.h-2);
     tip.innerHTML='<div class="hmth">'+esc(hd.path.join(' \u2013 '))+'</div><div class="hmst2">'+hmStats(hd.n,stock)+'</div><div class="hmts">click to open</div>';
@@ -322,49 +360,103 @@ function hmHover(pt){
     +(themes?'':'<div class="hmtl'+(stock?'':' nc')+'">'+rows.map(k=>'<div'+(k===n?' class="me"':'')+'><span>'+esc(stock?k.name:lab(k))+'</span><span class="c">'+(stock?hmCap(k.v):'')+'</span><span style="color:'+colr(k.p)+'">'+hmPct(k.p)+'</span></div>').join('')+'</div>');
   tip.hidden=false;place();HM.hov=t;
 }
-function hmHome(){HM.path=[];HM.sel=null;HM.selTile=null}   /* the quick exit: clicking the map's own button in the card header while zoomed in goes back to the overview */
-function hmOpen(path){HM.path=path.slice();HM.sel=null;HM.selTile=null;hmPaint()}
+function hmHome(){HM.path=[];HM.sel=null;HM.selTile=null;hmZoomReset()}   /* the quick exit: clicking a map's name in the card header goes back to the overview, and un-zooms */
+function hmOpen(path){HM.path=path.slice();HM.sel=null;HM.selTile=null;hmZoomReset();hmPaint()}
 function hmTileLine(n){const mp=HM.map;return mp==='themes'?n.lab+' \u00B7 '+n.desc+' \u00B7 '+hmPct(n.p)+(n.mem?' \u00B7 '+n.mem.split(',').slice(0,12).join(' '):''):mp==='futures'?hmLabel(n,mp)+' ('+n.name+') \u00B7 '+hmPct(n.p):n.name+' \u00B7 '+(n.desc||'')+' \u00B7 '+hmPct(n.p)+' \u00B7 cap '+hmCap(n.v)}
 function hmLegend(){return hmPal().stops.map(s=>'<i style="background:rgb('+s[1]+');color:'+hmInk(s[1])+'">'+(s[0]>0?'+':s[0]<0?'\u2212':'')+Math.abs(s[0])+'%</i>').join('')}
-/* one source of the heatmap card = one map: the card's own source buttons choose it, so there is no second picker in the body */
-function hmOwn(el,map){
-  if(HM.map!==map){HM.path=[];HM.sel=null;HM.selTile=null;HM.lstOpen=false;HM.lstFull=null;HM.map=map}
-  HM.srOpen=false;HM.lstFull=null;
-  el.innerHTML='<div class="hm"><div class="hmb"><button class="hmsb" aria-label="Search ticker" title="Search ticker"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.4 10.4 14 14"/></svg></button><div class="hmsx" hidden><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><input class="hmsi" placeholder="Search ticker or company" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search"><button class="hmsc" aria-label="Close search">\u00D7</button></div><span class="hmcr"></span><span class="hmst"></span><div class="hmsr" hidden></div></div><div class="hmw"><canvas></canvas><canvas class="hmo"></canvas><div class="hmlst" hidden></div><div class="hmtip" hidden></div></div><div class="hms"></div><div class="hmf"><span class="hmn"></span><span class="hmg">'+hmLegend()+'</span></div></div>';
-  HM.el=el;const root=$('.hm',el),cv=$('canvas',root);
-  root.addEventListener('click',e=>{
-    const t=e.target,cb=t.closest('[data-c]');
-    if(cb){HM.path=HM.path.slice(0,+cb.dataset.c+1);HM.sel=null;HM.selTile=null;hmPaint();return}
+/* header wiring, once: the search button, bar, results */
+function hmInitHead(){
+  const H=hmHead();if(!H||H._hm)return;H._hm=true;
+  H.addEventListener('click',e=>{
+    const t=e.target;
     if(t.closest('.hmsb')){hmSearchOpen('');return}
     if(t.closest('.hmsc')){hmSearchClose();return}
     const sh=t.closest('.hmsh');if(sh){const it=HM.hits&&HM.hits[+sh.dataset.i];if(it){hmSearchClose();hmLocate(it.n.name)}return}
-    const sa=t.closest('.hmsa');if(sa){HM.pend=sa.dataset.q;hmSearchClose();const bt=el.closest('.card').querySelector('[data-s="all"]');if(bt)bt.click();return}
-    if(t.closest('.hmcn')){HM.lstOpen=!HM.lstOpen;hmPaint();return}
-    const li=t.closest('.hmli');if(li)hmLocate(li.dataset.n);
+    const sa=t.closest('.hmsa');if(sa){HM.pend=sa.dataset.q;hmSearchClose();const bt=hmCard().querySelector('[data-s="all"]');if(bt)bt.click()}
   });
-  const si=$('.hmsi',root);
-  si.addEventListener('input',()=>{HM.si=0;hmResults(root)});
+  const si=$('.hmsi',H);
+  si.addEventListener('input',()=>{HM.si=0;hmResults(H)});
   si.addEventListener('keydown',e=>{
     const n=(HM.hits||[]).length;
-    if(e.key==='ArrowDown'&&n){e.preventDefault();HM.si=(HM.si+1)%n;hmResults(root)}
-    else if(e.key==='ArrowUp'&&n){e.preventDefault();HM.si=(HM.si+n-1)%n;hmResults(root)}
+    if(e.key==='ArrowDown'&&n){e.preventDefault();HM.si=(HM.si+1)%n;hmResults(H)}
+    else if(e.key==='ArrowUp'&&n){e.preventDefault();HM.si=(HM.si+n-1)%n;hmResults(H)}
     else if(e.key==='Enter'){const it=HM.hits&&HM.hits[HM.si];if(it){e.preventDefault();hmSearchClose();hmLocate(it.n.name)}}
   });
+}
+/* one source of the heatmap card = one map: the card's own source buttons choose it, so there is no second picker in the body */
+function hmOwn(el,map){
+  if(HM.map!==map){HM.path=[];HM.sel=null;HM.selTile=null;HM.lstOpen=false;HM.lstFull=null;hmZoomReset();HM.map=map}
+  HM.srOpen=false;HM.lstFull=null;HM.el=el;hmInitHead();hmSearchClose();
+  el.innerHTML='<div class="hm"><div class="hmb" hidden><span class="hmcr"></span></div><div class="hmw"><canvas></canvas><canvas class="hmo"></canvas><div class="hmlst" hidden></div><div class="hmzc" hidden></div><div class="hmtip" hidden></div></div><div class="hms"></div><div class="hmf"><span class="hmn"></span><span class="hmg">'+hmLegend()+'</span><span class="hmst"></span></div></div>';
+  const root=$('.hm',el),cv=$('canvas',root),wrap=$('.hmw',root);
+  root.addEventListener('click',e=>{
+    const t=e.target,cb=t.closest('[data-c]');
+    if(cb){HM.path=HM.path.slice(0,+cb.dataset.c+1);HM.sel=null;HM.selTile=null;hmZoomReset();hmPaint();return}
+    if(t.closest('.hmcn')){HM.lstOpen=!HM.lstOpen;hmPaint();return}
+    const lq=t.closest('.hmlq,.hmlqc');
+    if(lq){const k=+lq.dataset.k,pn=$('.hmlst',root),bx=pn.children[k].querySelector('.hmlqx'),open=lq.classList.contains('hmlq')?!HM.lqo[k]:false;
+      HM.lqo[k]=open;bx.hidden=!open;const i=bx.querySelector('input');
+      if(open)i.focus();else if(HM.lq[k]){HM.lq[k]='';i.value='';hmFill(pn,k,0)}
+      return}
+    const li=t.closest('.hmli');if(li)hmLocate(li.dataset.n);
+  });
+  root.addEventListener('input',e=>{const i=e.target.closest('.hmlqi');if(i){const k=+i.dataset.k;HM.lq[k]=i.value;hmFill($('.hmlst',root),k,0)}});
+  root.addEventListener('keydown',e=>{const i=e.target.closest&&e.target.closest('.hmlqi');if(i&&e.key==='Escape'){const k=+i.dataset.k,pn=$('.hmlst',root);HM.lqo[k]=false;pn.children[k].querySelector('.hmlqx').hidden=true;if(HM.lq[k]){HM.lq[k]='';i.value='';hmFill(pn,k,0)}e.stopPropagation()}});
+  /* gestures: two fingers pinch, one finger or the mouse drags a zoomed map, the wheel / touchpad pinch zooms around the pointer, a double tap zooms in on touch screens */
+  const pts=new Map(),rel=e=>{const b=cv.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top}};let pin=null;
+  cv.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    pts.set(e.pointerId,rel(e));
+    if(pts.size===1){HM.moved=false;HM.drag={x:e.clientX,y:e.clientY,tx:HM.z.tx,ty:HM.z.ty}}
+    if(pts.size===2){const[a,b]=[...pts.values()];pin={d:Math.hypot(a.x-b.x,a.y-b.y)||1,s:HM.z.s,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},tx:HM.z.tx,ty:HM.z.ty};HM.moved=true;hmHover(null)}
+    try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  });
+  cv.addEventListener('pointermove',e=>{
+    const p=rel(e);if(pts.has(e.pointerId))pts.set(e.pointerId,p);
+    if(pts.size===2&&pin){
+      const[a,b]=[...pts.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1,mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2},w=wrap.clientWidth,h=wrap.clientHeight,z=HM.z;
+      const s2=Math.max(1,Math.min(14,pin.s*d/pin.d)),fx=(pin.mid.x-pin.tx)/(w*pin.s),fy=(pin.mid.y-pin.ty)/(h*pin.s);
+      z.s=s2;z.tx=mid.x-fx*w*s2;z.ty=mid.y-fy*h*s2;hmSchedule();return;
+    }
+    if(pts.size===1&&HM.drag&&HM.z.s>1&&(e.buttons&1||e.pointerType!=='mouse')){
+      const dx=e.clientX-HM.drag.x,dy=e.clientY-HM.drag.y;if(Math.abs(dx)+Math.abs(dy)>5)HM.moved=true;
+      if(HM.moved){HM.z.tx=HM.drag.tx+dx;HM.z.ty=HM.drag.ty+dy;hmSchedule();return}
+    }
+    if(e.pointerType==='mouse'&&!(e.buttons&1))hmHover(p);
+  });
+  const up=e=>{pts.delete(e.pointerId);if(pts.size<2)pin=null;if(!pts.size)HM.drag=null};
+  cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  cv.addEventListener('pointerleave',()=>hmHover(null));
+  wrap.addEventListener('wheel',e=>{
+    if(e.target.closest('.hmlst'))return;                                  /* the lists scroll themselves */
+    const z=HM.z,b=cv.getBoundingClientRect();let dy=e.deltaY,dx=e.deltaX;if(e.deltaMode===1){dy*=33;dx*=33}
+    if(Math.abs(dx)>Math.abs(dy)&&z.s>1){e.preventDefault();z.tx-=dx;hmSchedule();return}   /* sideways on a touchpad: pan */
+    if(dy>0&&z.s<=1)return;                                                /* scrolling down on the overview: the page scrolls */
+    e.preventDefault();hmZoomTo(e.clientX-b.left,e.clientY-b.top,z.s*Math.exp(-dy*(e.ctrlKey?.01:.0016)));
+  },{passive:false});
+  wrap.addEventListener('gesturestart',e=>e.preventDefault());              /* Safari: no page zoom from a pinch on the map */
   cv.addEventListener('click',e=>{
+    if(HM.moved){HM.moved=false;return}                                    /* a drag or a pinch is not a tap */
     if(HM.srOpen)hmSearchClose();
-    const b=cv.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,L=HM.rects;if(!L)return;
-    const gs=L.groups.filter(q=>hmIn(q,x,y)),hd=gs.slice().reverse().find(q=>q.head&&y<q.y+q.head);
+    const b=cv.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,L=HM.rects,z=HM.z;if(!L)return;
+    if(!HM.fine){const now=Date.now(),l=HM.lastTap;HM.lastTap={t:now,x,y};if(l&&now-l.t<320&&Math.hypot(x-l.x,y-l.y)<30){HM.lastTap=null;hmZoomTo(x,y,z.s*2.2);return}}   /* double tap: zoom in */
+    const wx=x-z.tx,wy=y-z.ty,gs=L.groups.filter(q=>hmIn(q,wx,wy)),hd=gs.slice().reverse().find(q=>q.head&&wy<q.y+q.head);
     if(hd){hmOpen(hd.path);return}                                  /* a title strip opens its own group, at any level */
-    const t=hmHit(x,y);if(!t){HM.selTile=null;hmHover(null);return}
+    const t=hmHit(wx,wy);if(!t){HM.selTile=null;hmHover(null);return}
     const target=e.shiftKey?gs[0]:gs[gs.length-1];                  /* the outlined (innermost) group; none when the view is already one group of tiles */
     if(!target){HM.sel=hmTileLine(t.n);HM.selTile=null;hmPaint();hmHover({x,y});return}
     if(HM.fine||HM.selTile===t.n){hmOpen(target.path);return}
     HM.selTile=t.n;HM.sel=hmLabel(t.n,HM.map)+' \u00B7 '+hmPct(t.n.p)+' \u00B7 tap again to open '+target.n.name;hmPaint();hmHover({x,y});   /* touch: first tap = pop-out */
   });
-  cv.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse')return;const b=cv.getBoundingClientRect();hmHover({x:e.clientX-b.left,y:e.clientY-b.top})});
-  cv.addEventListener('pointerleave',()=>hmHover(null));
-  if(!HM.keyed){HM.keyed=true;window.addEventListener('keydown',e=>{if(e.key!=='Escape'||!hmRoot())return;if(HM.srOpen){hmSearchClose();return}if(HM.lstOpen){HM.lstOpen=false;hmPaint();return}if(HM.path.length){HM.path.pop();HM.sel=null;HM.selTile=null;hmPaint()}})}
-  if(window.ResizeObserver){let t;new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(hmPaint,80)}).observe($('.hmw',root))}
+  /* Esc: the search first, then a list search, then the lists, then the zoom, then one level up */
+  if(!HM.keyed){HM.keyed=true;window.addEventListener('keydown',e=>{
+    if(e.key!=='Escape'||!hmRoot())return;
+    if(HM.srOpen){hmSearchClose();return}
+    if(HM.lstOpen){HM.lstOpen=false;hmPaint();return}
+    if(HM.z.s>1){hmZoomReset();hmPaint();return}
+    if(HM.path.length){HM.path.pop();HM.sel=null;HM.selTile=null;hmZoomReset();hmPaint()}
+  })}
+  if(window.ResizeObserver){let t;new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(()=>hmPaint(),80)}).observe(wrap)}
   const p=HM.perf[map];hmPaint();
   if(!p||Date.now()-p.at>HM.POLL)hmLoad(false);
   if(!HM.timer)HM.timer=setInterval(()=>{if(hmVisible())hmLoad(false)},HM.POLL);
