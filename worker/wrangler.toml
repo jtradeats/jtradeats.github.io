@@ -27,6 +27,10 @@ crons = ["20 9 * * *", "30 9 * * *", "40 9 * * *", "* * * * *", "*/2 * * * *"]
 # Secrets (not stored in this file): add FMP_KEY in the Cloudflare dashboard (Settings > Variables and Secrets > Secret).
 # It enables actual/forecast/previous from Financial Modeling Prep. Without it the calendar still works (schedule + results.json).
 
+# CPU probe (plan P8.47, 28 Nov): an optional Text variable, CPU_PROBE, set by hand in Settings > Variables and Secrets and removed when the measurement is done. Not stored here.
+#   value: <mode>[+<mode>...]@<UTC expiry>, e.g. lean@2026-11-29T01:00:00Z. Modes: minute0, lean, nopush, quiet0, quiet1 (src/probe.js says what each switches off).
+#   It stops by itself at the expiry; a value without an expiry, or one more than 24 hours away, is ignored, and /health "probe" says why.
+
 # Workers Logs (added 22 Nov): every invocation, page request or cron, gets a log line that carries its CPU time and wall time, so Workers > market-dashboard > Observability
 # can show which trigger costs what (the every-minute poller, the 2-minute calendar tick, or a page request). This Worker makes about 2,200 invocations a day.
 # Set enabled = false once the CPU question is settled if you want the logs off.
